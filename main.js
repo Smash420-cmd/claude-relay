@@ -72,10 +72,22 @@ function createWindow() {
   })
 }
 
-async function runDueTask(task) {
+async function runDueTask(task, opts = {}) {
+  const settings = store.getSettings()
+  // Cost guard — "extended (paid) usage" off: don't AUTO-run a task while at/over the free session
+  // limit (it would spend credits). Leave it scheduled; the scheduler retries each tick and it runs
+  // once usage resets. Manual "Run now" bypasses this (you explicitly asked). Only gates on LIVE
+  // usage data — never on the rough transcript estimate.
+  if (!opts.manual && !settings.allowExtendedUsage) {
+    try {
+      const snap = tracker.snapshot(settings)
+      if (snap.source === 'live' && snap.session && snap.session.pct != null && snap.session.pct >= (settings.pauseAtPct || 100)) {
+        return // deferred until usage resets
+      }
+    } catch {}
+  }
   store.updateTask(task.id, { status: 'running', lastRunAt: new Date().toISOString() })
   notifyChange()
-  const settings = store.getSettings()
   // Resume tasks MUST run in the session's own project dir (sessions are cwd-scoped), or
   // `claude --resume` reports "no conversation found". Fall back to that if no cwd was set.
   let cwd = task.projectPath || settings.defaultProjectPath || undefined
@@ -169,7 +181,7 @@ function registerIpc() {
   ipcMain.handle('relay:run-now', async (_e, id) => {
     const t = store.getTask(id)
     if (t && (t.status === 'scheduled' || t.status === 'failed' || t.status === 'stopped' || t.status === 'cancelled')) {
-      await runDueTask(t)
+      await runDueTask(t, { manual: true }) // explicit run bypasses the extended-usage gate
     }
   })
 

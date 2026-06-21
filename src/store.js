@@ -14,6 +14,8 @@ const DEFAULT_SETTINGS = {
   dailyResetTime: '02:20',      // local HH:MM the usage limit resets (drives "at next reset")
   autoResumeOnLimit: false,     // OFF until limit-detection is verified (Phase 0) — manual resume works today
   schedulerIntervalSec: 20,     // how often the due-task loop ticks
+  allowExtendedUsage: true,     // false = pause auto-runs at the limit (don't spend credits); wait for reset
+  pauseAtPct: 100,              // when extended usage is off, defer scheduled runs at/above this live session %
   // ── Usage tracker (gauge is an ESTIMATE: load tokens consumed ÷ these limits) ──
   sessionWindowHours: 5,        // Claude's rolling session window
   weeklyWindowDays: 7,

@@ -341,6 +341,11 @@ function openSettings() {
       <label class="toggle"><input type="checkbox" id="s-auto" ${s.autoResumeOnLimit ? 'checked' : ''}/> Auto-resume on limit</label>
       <div class="note">Off by default. Auto-resume depends on reliable limit detection, which is a Phase-0 unknown (DESIGN.md §9). Until verified, use the <b>Resume at reset</b> button on a stopped task — that works today.</div>
     </div>
+    <div class="field">
+      <label class="toggle"><input type="checkbox" id="s-ext" ${s.allowExtendedUsage ? 'checked' : ''}/> Allow extended (paid) usage</label>
+      <div class="note" style="border-left-color:var(--accent)">ON: scheduled tasks run even past your free limit (may spend credits). OFF: Relay pauses auto-runs once your <b>live</b> session usage hits the threshold below and waits for the reset. <b>Run now</b> always runs.</div>
+    </div>
+    <div class="field"><label>Pause auto-runs at session % <span style="color:var(--muted);font-weight:400">(when extended usage is off)</span></label><input type="number" id="s-pause" min="1" max="100" value="${esc(s.pauseAtPct || 100)}" /></div>
     <h2 style="font-size:14px;margin:18px 0 10px;color:var(--subtle)">Usage tracker (estimate)</h2>
     <div class="row">
       <div class="field"><label>Session window (h)</label><input type="number" id="s-swin" min="1" value="${esc(s.sessionWindowHours || 5)}" /></div>
@@ -368,6 +373,8 @@ function openSettings() {
       dailyResetTime: modalEl.querySelector('#s-reset').value || '02:20',
       schedulerIntervalSec: Math.max(5, num('#s-interval', 20)),
       autoResumeOnLimit: modalEl.querySelector('#s-auto').checked,
+      allowExtendedUsage: modalEl.querySelector('#s-ext').checked,
+      pauseAtPct: Math.min(100, Math.max(1, num('#s-pause', 100))),
       sessionWindowHours: Math.max(1, num('#s-swin', 5)),
       weeklyWindowDays: Math.max(1, num('#s-wwin', 7)),
       sessionLoadLimit: Math.max(0, num('#s-slim', 0)),
