@@ -10,7 +10,7 @@ const sessions = require('./src/sessions')
 const executor = require('./src/executor')
 const scheduler = require('./src/scheduler')
 const tracker = require('./src/tracker')
-const { logsDir } = require('./src/paths')
+const { logsDir, dataDir } = require('./src/paths')
 
 let win = null
 let tray = null
@@ -32,6 +32,21 @@ function notifyChange() {
   if (win && !win.isDestroyed()) win.webContents.send('relay:changed')
 }
 
+// Watch the store file so EXTERNAL writes (Claude/`relay schedule` enqueuing work directly into the
+// queue — the whole point of §4b) show up in the UI without a manual reload. Watches the dir
+// (atomic tmp+rename replaces the file inode) and debounces.
+function watchStore() {
+  try {
+    let timer = null
+    fs.watch(dataDir(), (_event, filename) => {
+      if (filename && String(filename).startsWith('relay-data.json')) {
+        clearTimeout(timer)
+        timer = setTimeout(notifyChange, 300)
+      }
+    })
+  } catch {}
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 900, height: 700, minWidth: 660, minHeight: 480,
@@ -45,6 +60,11 @@ function createWindow() {
     },
   })
   win.removeMenu()
+  // Keep reload working even with the menu stripped (Ctrl/Cmd+R, F5).
+  win.webContents.on('before-input-event', (e, input) => {
+    const k = (input.key || '').toLowerCase()
+    if (((input.control || input.meta) && k === 'r') || input.key === 'F5') win.webContents.reload()
+  })
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'))
   win.on('close', (e) => {
     // Keep the app (and scheduler) alive in the tray instead of quitting — unless there's no tray.
@@ -209,6 +229,7 @@ function main() {
     registerIpc()
     createWindow()
     makeTray()
+    watchStore()
     const settings = store.getSettings()
     stopScheduler = scheduler.start({
       intervalMs: Math.max(5, settings.schedulerIntervalSec || 20) * 1000,
