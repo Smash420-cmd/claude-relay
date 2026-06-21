@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline';" />
+  <title>Relay</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <span class="brand-name">Relay</span>
+      <span class="brand-sub">queue &amp; auto-resume Claude Code work</span>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn ghost" id="settingsBtn" title="Settings">⚙</button>
+      <button class="btn primary" id="newBtn">+ New task</button>
+    </div>
+  </header>
+
+  <main id="list" class="list"></main>
+
+  <!-- Modal host -->
+  <div class="modal-host" id="modalHost" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal" id="modal"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
