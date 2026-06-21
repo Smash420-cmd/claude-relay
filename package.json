@@ -4,9 +4,10 @@
   "private": true,
   "description": "Schedule prompts into local Claude Code sessions and auto-resume work across session limits.",
   "main": "main.js",
+  "bin": { "relay": "scripts/relay.js" },
   "scripts": {
     "start": "electron .",
-    "check": "node --check main.js && node --check preload.js && node --check src/paths.js && node --check src/store.js && node --check src/sessions.js && node --check src/executor.js && node --check src/scheduler.js && node --check src/tracker.js && node --check renderer/app.js"
+    "check": "node --check main.js && node --check preload.js && node --check src/paths.js && node --check src/store.js && node --check src/sessions.js && node --check src/executor.js && node --check src/scheduler.js && node --check src/tracker.js && node --check scripts/relay.js && node --check scripts/relay-statusline.js && node --check renderer/app.js"
   },
   "license": "MIT",
   "devDependencies": {

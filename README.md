@@ -59,6 +59,21 @@ fallback — it is. Footprint > polish can revisit later.)
 
 ---
 
+## Queue work from anywhere — the `relay` CLI
+
+The §4b "Claude-connected scheduling" primitive. Any process (Claude, a script, the bench loop)
+can enqueue a task with one command; the running app's file-watcher shows it instantly.
+
+```bash
+node scripts/relay.js schedule --prompt "continue the bench run" --resume current --at next-reset
+node scripts/relay.js schedule --prompt "build day 7" --at +30m
+node scripts/relay.js list
+node scripts/relay.js cancel <id>
+```
+- `--resume current` auto-detects the live session; `--resume <id>` targets a specific one (cwd auto-resolved).
+- `--at next-reset` uses your real 5h reset (from the statusLine bridge), else the configured daily reset; also `+30m`/`+2h`/ISO.
+- `--mode fresh|resume-full|resume-compact` (default `fresh`, or `resume-full` if `--resume` given).
+
 ## Run it
 
 ```bash
