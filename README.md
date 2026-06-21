@@ -23,6 +23,11 @@ fallback — it is. Footprint > polish can revisit later.)
 - **Stopped-task handling**: a run flagged as limit-stopped → status `stopped` + a one-click **Resume at
   reset** (queues a continuation at the next reset). Bounded to ≤8 auto-resumes.
 - **Settings**: CLI command, default cwd, daily reset time, scheduler interval, auto-resume toggle.
+- **Usage tracker** (`src/tracker.js`): live **session (5h)** + **weekly (7d)** bars with %, token load, and a
+  session **reset countdown** — computed the `ccusage` way from your real `~/.claude/projects` transcript
+  token counts (load = input + output + cache-creation; cache reads excluded). Limits are calibratable
+  estimates. The session gauge has a **Resume at reset** button that queues a resume of that session at
+  the computed reset time (the "capture timeout work" path). Verified against real data (2,705 turns).
 
 ### ⚠️ Stubbed / needs verification BEFORE trusting (Phase-0 unknowns — `DESIGN.md` §9)
 - **Exact Claude CLI flags** for headless resume. Defaults: `claude -p "<prompt>"` (fresh),
@@ -36,8 +41,11 @@ fallback — it is. Footprint > polish can revisit later.)
 
 ### 🚫 Deliberately NOT built yet (later phases, per the outline)
 - Recurring/cron schedules (MVP does `once` + `at-next-reset`).
-- The `.jsonl` file-watcher that captures *interactive* (non-Relay) sessions stopping at a limit.
-- Session-limit *tracker* (the "prime, don't scramble" budget meter).
+- **Auto** detection of an *interactive* session stopping at a limit (the `.jsonl` limit-marker watcher).
+  Deferred on purpose: the limit marker is a Phase-0 unknown and this very session's transcript is full of
+  the words "usage limit" (we discussed them all day) → a naive scan would false-positive. The tracker
+  instead gives the session **reset countdown** + a one-click **Resume at reset** to capture the work safely.
+- Authoritative usage via network/proxy interception (the tracker is a transcript-based *estimate*).
 - Companion VS Code extension.
 
 ---

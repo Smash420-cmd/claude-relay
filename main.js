@@ -9,6 +9,7 @@ const store = require('./src/store')
 const sessions = require('./src/sessions')
 const executor = require('./src/executor')
 const scheduler = require('./src/scheduler')
+const tracker = require('./src/tracker')
 const { logsDir } = require('./src/paths')
 
 let win = null
@@ -96,6 +97,7 @@ function queueResume(task) {
 
 function registerIpc() {
   ipcMain.handle('relay:list', () => store.getTasks())
+  ipcMain.handle('relay:usage', () => { try { return tracker.snapshot(store.getSettings()) } catch (e) { return { error: String(e && e.message) } } })
   ipcMain.handle('relay:settings:get', () => store.getSettings())
   ipcMain.handle('relay:settings:set', (_e, patch) => store.setSettings(patch))
   ipcMain.handle('relay:sessions:list', () => sessions.listSessions())
@@ -148,6 +150,27 @@ function registerIpc() {
   ipcMain.handle('relay:resume-at-reset', (_e, id) => {
     const t = store.getTask(id)
     if (t) { queueResume(t); notifyChange() }
+  })
+
+  // Capture a (possibly limited-out) session to pick back up at the reset moment.
+  ipcMain.handle('relay:capture-session', (_e, input) => {
+    const settings = store.getSettings()
+    const at = input && input.resetsAt ? new Date(input.resetsAt).toISOString()
+      : scheduler.nextResetDate(settings.dailyResetTime).toISOString()
+    if (!input || !input.sessionId) return
+    store.addTask({
+      id: uid(),
+      title: input.title || `Resume session ${String(input.sessionId).slice(0, 8)}`,
+      prompt: input.prompt || 'continue',
+      mode: 'resume-full',
+      sessionId: input.sessionId,
+      projectPath: input.projectPath || '',
+      schedule: { kind: 'once', at },
+      status: 'scheduled',
+      createdAt: new Date().toISOString(),
+      capturedFromSession: input.sessionId,
+    })
+    notifyChange()
   })
 
   ipcMain.handle('relay:logs:get', (_e, logPath) => {

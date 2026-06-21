@@ -6,7 +6,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "check": "node --check main.js && node --check preload.js && node --check src/paths.js && node --check src/store.js && node --check src/sessions.js && node --check src/executor.js && node --check src/scheduler.js && node --check renderer/app.js"
+    "check": "node --check main.js && node --check preload.js && node --check src/paths.js && node --check src/store.js && node --check src/sessions.js && node --check src/executor.js && node --check src/scheduler.js && node --check src/tracker.js && node --check renderer/app.js"
   },
   "license": "MIT",
   "devDependencies": {

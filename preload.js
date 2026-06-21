@@ -4,6 +4,8 @@ const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('relay', {
   list:          () => ipcRenderer.invoke('relay:list'),
+  usage:         () => ipcRenderer.invoke('relay:usage'),
+  captureSession:(input) => ipcRenderer.invoke('relay:capture-session', input),
   create:        (input) => ipcRenderer.invoke('relay:create', input),
   cancel:        (id) => ipcRenderer.invoke('relay:cancel', id),
   remove:        (id) => ipcRenderer.invoke('relay:delete', id),

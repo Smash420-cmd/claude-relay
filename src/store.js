@@ -14,6 +14,12 @@ const DEFAULT_SETTINGS = {
   dailyResetTime: '02:20',      // local HH:MM the usage limit resets (drives "at next reset")
   autoResumeOnLimit: false,     // OFF until limit-detection is verified (Phase 0) — manual resume works today
   schedulerIntervalSec: 20,     // how often the due-task loop ticks
+  // ── Usage tracker (gauge is an ESTIMATE: load tokens consumed ÷ these limits) ──
+  sessionWindowHours: 5,        // Claude's rolling session window
+  weeklyWindowDays: 7,
+  sessionLoadLimit: 8000000,    // ESTIMATE — calibrate by watching when you actually hit the wall
+  weeklyLoadLimit: 80000000,    // ESTIMATE
+  weeklyOpusLoadLimit: 0,       // 0 = hide the Opus bar until you set it
 }
 
 function emptyDB() { return { tasks: [], settings: { ...DEFAULT_SETTINGS } } }

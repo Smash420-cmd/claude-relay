@@ -35,11 +35,84 @@ function modeText(t) {
   return t.mode || '—'
 }
 
+function fmtTok(n) {
+  n = Number(n) || 0
+  if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M'
+  if (n >= 1e3) return (n / 1e3).toFixed(0) + 'k'
+  return String(n)
+}
+function fmtCountdown(toMs) {
+  const ms = toMs - Date.now()
+  if (ms <= 0) return 'now'
+  const h = Math.floor(ms / 3600e3), m = Math.floor((ms % 3600e3) / 60000)
+  return h > 0 ? `${h}h ${m}m` : `${m}m`
+}
+function barClass(pct) {
+  if (pct == null) return 'none'
+  if (pct >= 85) return 'high'
+  if (pct >= 60) return 'warn'
+  return 'ok'
+}
+
+// ── usage panel ──────────────────────────────────────────────────────────────
+const usageEl = document.getElementById('usage')
+
+function gaugeHtml(label, sub, g, opts = {}) {
+  const pct = g.pct
+  const fillW = pct == null ? Math.min(100, Math.round((g.used / (opts.fallbackMax || g.used || 1)) * 100)) : pct
+  const valTxt = g.limit > 0
+    ? `${fmtTok(g.used)} / ${fmtTok(g.limit)} <span class="gauge-pct">${pct}%</span>`
+    : `${fmtTok(g.used)} <span style="color:var(--muted)">load</span>`
+  let reset = ''
+  if (opts.resetsAt) reset = `<span class="gauge-reset">resets in <b>${fmtCountdown(opts.resetsAt)}</b> · ${new Date(opts.resetsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`
+  else if (opts.rolling) reset = `<span class="gauge-reset">rolling ${esc(sub)}</span>`
+  const capture = opts.captureSession
+    ? `<button class="btn tiny" data-cap-session="${esc(opts.captureSession)}" ${opts.resetsAt ? `data-cap-reset="${esc(new Date(opts.resetsAt).toISOString())}"` : ''}>Resume at reset</button>`
+    : ''
+  return `<div class="gauge">
+    <div class="gauge-head">
+      <span class="gauge-label">${esc(label)}<span class="sub">${esc(sub)}</span></span>
+      <span class="gauge-val">${valTxt}</span>
+    </div>
+    <div class="bar"><div class="bar-fill ${barClass(pct)}" style="width:${fillW}%"></div></div>
+    <div class="gauge-foot">${reset || '<span></span>'}${capture}</div>
+  </div>`
+}
+
+async function refreshUsage() {
+  let snap
+  try { snap = await window.relay.usage() } catch { snap = null }
+  if (!snap || snap.error) { usageEl.innerHTML = snap && snap.error ? `<div class="usage-err">usage: ${esc(snap.error)}</div>` : ''; return }
+  const s = snap.session, w = snap.weekly, o = snap.weeklyOpus
+  let html = `<div class="usage-grid">`
+  html += gaugeHtml('Session', `${s.windowHours}h window`, s, {
+    resetsAt: s.active ? s.resetsAt : null,
+    captureSession: s.active && s.sessionId ? s.sessionId : null,
+  })
+  html += gaugeHtml('Weekly', `${w.windowDays}d`, w, { rolling: true })
+  if (o && o.limit > 0) html += gaugeHtml('Weekly · Opus', '7d', o, { rolling: true })
+  html += `</div>
+    <div class="usage-cap">Estimate — "load" = input + output + cache-creation tokens (cache reads excluded). Limits are calibratable in Settings.</div>`
+  usageEl.innerHTML = html
+}
+
+usageEl.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-cap-session]')
+  if (!btn) return
+  await window.relay.captureSession({
+    sessionId: btn.dataset.capSession,
+    resetsAt: btn.dataset.capReset || null,
+    prompt: 'continue',
+  })
+  await refresh()
+})
+
 // ── data ──────────────────────────────────────────────────────────────────
 async function refresh() {
   TASKS = await window.relay.list()
   SETTINGS = await window.relay.getSettings()
   render()
+  refreshUsage()
 }
 
 // ── render ──────────────────────────────────────────────────────────────────
@@ -253,6 +326,17 @@ function openSettings() {
       <label class="toggle"><input type="checkbox" id="s-auto" ${s.autoResumeOnLimit ? 'checked' : ''}/> Auto-resume on limit</label>
       <div class="note">Off by default. Auto-resume depends on reliable limit detection, which is a Phase-0 unknown (DESIGN.md §9). Until verified, use the <b>Resume at reset</b> button on a stopped task — that works today.</div>
     </div>
+    <h2 style="font-size:14px;margin:18px 0 10px;color:var(--subtle)">Usage tracker (estimate)</h2>
+    <div class="row">
+      <div class="field"><label>Session window (h)</label><input type="number" id="s-swin" min="1" value="${esc(s.sessionWindowHours || 5)}" /></div>
+      <div class="field"><label>Weekly window (d)</label><input type="number" id="s-wwin" min="1" value="${esc(s.weeklyWindowDays || 7)}" /></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Session load limit</label><input type="number" id="s-slim" min="0" value="${esc(s.sessionLoadLimit || 0)}" /></div>
+      <div class="field"><label>Weekly load limit</label><input type="number" id="s-wlim" min="0" value="${esc(s.weeklyLoadLimit || 0)}" /></div>
+    </div>
+    <div class="field"><label>Weekly Opus load limit <span style="color:var(--muted);font-weight:400">(0 = hide)</span></label><input type="number" id="s-olim" min="0" value="${esc(s.weeklyOpusLoadLimit || 0)}" /></div>
+    <div class="note" style="border-left-color:var(--accent)">"Load" = input + output + cache-creation tokens. The limits are estimates — set them where the bar reads ~100% when you actually hit the wall, and they'll be accurate for you.</div>
     <div class="modal-actions">
       <button class="btn ghost" id="s-open-logs">Open logs folder</button>
       <span style="flex:1"></span>
@@ -262,12 +346,18 @@ function openSettings() {
   `)
   modalEl.querySelector('#s-open-logs').addEventListener('click', () => window.relay.openLogs())
   modalEl.querySelector('#s-save').addEventListener('click', async () => {
+    const num = (sel, d) => { const v = parseInt(modalEl.querySelector(sel).value, 10); return isNaN(v) ? d : v }
     await window.relay.setSettings({
       claudeCommand: modalEl.querySelector('#s-cmd').value.trim() || 'claude',
       defaultProjectPath: modalEl.querySelector('#s-proj').value.trim(),
       dailyResetTime: modalEl.querySelector('#s-reset').value || '02:20',
-      schedulerIntervalSec: Math.max(5, parseInt(modalEl.querySelector('#s-interval').value, 10) || 20),
+      schedulerIntervalSec: Math.max(5, num('#s-interval', 20)),
       autoResumeOnLimit: modalEl.querySelector('#s-auto').checked,
+      sessionWindowHours: Math.max(1, num('#s-swin', 5)),
+      weeklyWindowDays: Math.max(1, num('#s-wwin', 7)),
+      sessionLoadLimit: Math.max(0, num('#s-slim', 0)),
+      weeklyLoadLimit: Math.max(0, num('#s-wlim', 0)),
+      weeklyOpusLoadLimit: Math.max(0, num('#s-olim', 0)),
     })
     closeModal()
     await refresh()
@@ -286,3 +376,4 @@ function openLog(title, text) {
 // ── boot ──────────────────────────────────────────────────────────────────
 window.relay.onChanged(() => refresh())
 refresh()
+setInterval(refreshUsage, 30000) // keep the gauges + reset countdowns live
