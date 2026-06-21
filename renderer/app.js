@@ -57,12 +57,20 @@ function barClass(pct) {
 // ── usage panel ──────────────────────────────────────────────────────────────
 const usageEl = document.getElementById('usage')
 
+function fmtAge(sec) {
+  sec = Number(sec) || 0
+  if (sec < 60) return `${Math.round(sec)}s`
+  if (sec < 3600) return `${Math.round(sec / 60)}m`
+  return `${Math.round(sec / 3600)}h`
+}
+
 function gaugeHtml(label, sub, g, opts = {}) {
   const pct = g.pct
-  const fillW = pct == null ? Math.min(100, Math.round((g.used / (opts.fallbackMax || g.used || 1)) * 100)) : pct
-  const valTxt = g.limit > 0
-    ? `${fmtTok(g.used)} / ${fmtTok(g.limit)} <span class="gauge-pct">${pct}%</span>`
-    : `${fmtTok(g.used)} <span style="color:var(--muted)">load</span>`
+  const fillW = pct != null ? pct : (g.used ? Math.min(100, Math.round((g.used / (opts.fallbackMax || g.used)) * 100)) : 0)
+  let valTxt
+  if (g.used != null && g.limit > 0) valTxt = `${fmtTok(g.used)} / ${fmtTok(g.limit)} <span class="gauge-pct">${pct}%</span>`
+  else if (pct != null) valTxt = `<span class="gauge-pct">${pct}%</span>`
+  else valTxt = `${fmtTok(g.used || 0)} <span style="color:var(--muted)">load</span>`
   let reset = ''
   if (opts.resetsAt) reset = `<span class="gauge-reset">resets in <b>${fmtCountdown(opts.resetsAt)}</b> · ${new Date(opts.resetsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`
   else if (opts.rolling) reset = `<span class="gauge-reset">rolling ${esc(sub)}</span>`
@@ -84,15 +92,22 @@ async function refreshUsage() {
   try { snap = await window.relay.usage() } catch { snap = null }
   if (!snap || snap.error) { usageEl.innerHTML = snap && snap.error ? `<div class="usage-err">usage: ${esc(snap.error)}</div>` : ''; return }
   const s = snap.session, w = snap.weekly, o = snap.weeklyOpus
+  const live = snap.source === 'live'
   let html = `<div class="usage-grid">`
   html += gaugeHtml('Session', `${s.windowHours}h window`, s, {
     resetsAt: s.active ? s.resetsAt : null,
+    rolling: !s.resetsAt,
     captureSession: s.active && s.sessionId ? s.sessionId : null,
   })
-  html += gaugeHtml('Weekly', `${w.windowDays}d`, w, { rolling: true })
-  if (o && o.limit > 0) html += gaugeHtml('Weekly · Opus', '7d', o, { rolling: true })
-  html += `</div>
-    <div class="usage-cap">Estimate — "load" = input + output + cache-creation tokens (cache reads excluded). Limits are calibratable in Settings.</div>`
+  html += gaugeHtml('Weekly', `${w.windowDays}d`, w, { resetsAt: w.resetsAt || null, rolling: !w.resetsAt })
+  if (o && o.pct != null && o.limit > 0) html += gaugeHtml('Weekly · Opus', '7d', o, { rolling: true })
+  html += `</div>`
+  if (live) {
+    html += `<div class="usage-cap"><span style="color:var(--green)">● Live</span> from Claude Code statusLine · updated ${fmtAge(snap.ageSec)} ago</div>`
+  } else {
+    const ll = snap.lastLive ? ` · last live: 5h ${snap.lastLive.session}% / 7d ${snap.lastLive.weekly}% (${fmtAge(snap.lastLive.ageSec)} ago)` : ''
+    html += `<div class="usage-cap">Estimate (transcript) — set up the statusLine bridge for live %. Limits calibratable in Settings.${esc(ll)}</div>`
+  }
   usageEl.innerHTML = html
 }
 

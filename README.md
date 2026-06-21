@@ -23,11 +23,20 @@ fallback — it is. Footprint > polish can revisit later.)
 - **Stopped-task handling**: a run flagged as limit-stopped → status `stopped` + a one-click **Resume at
   reset** (queues a continuation at the next reset). Bounded to ≤8 auto-resumes.
 - **Settings**: CLI command, default cwd, daily reset time, scheduler interval, auto-resume toggle.
-- **Usage tracker** (`src/tracker.js`): live **session (5h)** + **weekly (7d)** bars with %, token load, and a
-  session **reset countdown** — computed the `ccusage` way from your real `~/.claude/projects` transcript
-  token counts (load = input + output + cache-creation; cache reads excluded). Limits are calibratable
-  estimates. The session gauge has a **Resume at reset** button that queues a resume of that session at
-  the computed reset time (the "capture timeout work" path). Verified against real data (2,705 turns).
+- **Usage tracker** (`src/tracker.js`): **session (5h)** + **weekly (7d)** bars with % and **reset countdowns**.
+  - **AUTHORITATIVE (live):** Claude Code v2.1.80+ pipes a `rate_limits` field (real `used_percentage` +
+    `resets_at`) to the statusLine script every turn. The bridge `scripts/relay-statusline.js` captures it
+    to `~/.relay/usage.json`; Relay reads it and shows the **real** claude.ai numbers — no credentials,
+    no browser, no extension. Verified end-to-end (sample 74% / 45% round-trips correctly).
+  - **Fallback (estimate):** when the statusLine data is missing/stale, Relay estimates from your
+    `~/.claude/projects` transcript token load (calibratable limits in Settings).
+  - The session gauge has a **Resume at reset** button → queues a resume of that session at the real reset.
+
+  **Setup (one line):** add a `statusLine` to `~/.claude/settings.json`:
+  ```json
+  "statusLine": { "type": "command", "command": "node \"<abs>/relay/scripts/relay-statusline.js\"" }
+  ```
+  The status line itself reads `5h 74% · 7d 45% · Opus 4.8`.
 
 ### ⚠️ Stubbed / needs verification BEFORE trusting (Phase-0 unknowns — `DESIGN.md` §9)
 - **Exact Claude CLI flags** for headless resume. Defaults: `claude -p "<prompt>"` (fresh),

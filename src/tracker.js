@@ -9,7 +9,34 @@
 // cheap context re-reads (hundreds of millions over a long session) and would swamp the gauge.
 const fs = require('fs')
 const path = require('path')
+const os = require('os')
 const { claudeProjectsDir } = require('./paths')
+
+// Most-recently-active session id (from the live ~/.claude/sessions registry) — so the live gauge's
+// "Resume at reset" shortcut knows which session to resume.
+function currentSessionId() {
+  try {
+    const dir = path.join(os.homedir(), '.claude', 'sessions')
+    let best = null
+    for (const f of fs.readdirSync(dir)) {
+      if (!f.endsWith('.json')) continue
+      try {
+        const o = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'))
+        if (o.sessionId && (!best || (o.updatedAt || 0) > (best.updatedAt || 0))) best = o
+      } catch {}
+    }
+    return best && best.sessionId
+  } catch { return null }
+}
+
+// Authoritative reading written by the statusLine bridge (scripts/relay-statusline.js).
+function readAuthoritative(now) {
+  try {
+    const o = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.relay', 'usage.json'), 'utf8'))
+    if (o && o.rate_limits && o.capturedAt) return { o, ageSec: now / 1000 - o.capturedAt }
+  } catch {}
+  return null
+}
 
 const HOUR = 3600e3
 const DAY = 24 * HOUR
@@ -76,6 +103,26 @@ function gauge(used, limit) {
 
 function snapshot(settings, now = Date.now()) {
   settings = settings || {}
+
+  // 1) Prefer the AUTHORITATIVE reading from Claude Code's statusLine (real % + reset timestamps).
+  const auth = readAuthoritative(now)
+  const FRESH = 20 * 60 // seconds
+  if (auth && auth.ageSec < FRESH) {
+    const rl = auth.o.rate_limits
+    const g = w => ({
+      pct: w && w.used_percentage != null ? Math.round(w.used_percentage) : null,
+      used: null, limit: null,
+      resetsAt: w && w.resets_at ? w.resets_at * 1000 : null,
+    })
+    return {
+      now, source: 'live', ageSec: Math.round(auth.ageSec),
+      session: Object.assign(g(rl.five_hour), { windowHours: settings.sessionWindowHours || 5, active: true, sessionId: currentSessionId() }),
+      weekly: Object.assign(g(rl.seven_day), { windowDays: settings.weeklyWindowDays || 7 }),
+      weeklyOpus: { pct: null, used: null, limit: null },
+    }
+  }
+
+  // 2) Fallback: transcript-based ESTIMATE (no statusLine data yet, or it's stale).
   const winMs = (settings.sessionWindowHours || 5) * HOUR
   const weekMs = (settings.weeklyWindowDays || 7) * DAY
   const turns = collectTurns(now - weekMs - HOUR)
@@ -97,6 +144,12 @@ function snapshot(settings, now = Date.now()) {
 
   return {
     now,
+    source: 'estimate',
+    lastLive: auth ? {
+      ageSec: Math.round(auth.ageSec),
+      session: auth.o.rate_limits.five_hour && Math.round(auth.o.rate_limits.five_hour.used_percentage),
+      weekly: auth.o.rate_limits.seven_day && Math.round(auth.o.rate_limits.seven_day.used_percentage),
+    } : null,
     session: Object.assign(gauge(sessionLoad, settings.sessionLoadLimit), {
       windowHours: settings.sessionWindowHours || 5,
       windowStart: sessionStart,
