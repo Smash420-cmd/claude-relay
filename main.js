@@ -56,9 +56,15 @@ async function runDueTask(task) {
   store.updateTask(task.id, { status: 'running', lastRunAt: new Date().toISOString() })
   notifyChange()
   const settings = store.getSettings()
+  // Resume tasks MUST run in the session's own project dir (sessions are cwd-scoped), or
+  // `claude --resume` reports "no conversation found". Fall back to that if no cwd was set.
+  let cwd = task.projectPath || settings.defaultProjectPath || undefined
+  if ((task.mode === 'resume-full' || task.mode === 'resume-compact') && task.sessionId && !task.projectPath) {
+    cwd = sessions.findSessionCwd(task.sessionId) || cwd
+  }
   const res = await executor.runTask(task, {
     command: settings.claudeCommand || 'claude',
-    cwd: task.projectPath || settings.defaultProjectPath || undefined,
+    cwd,
     onStart: (child) => running.set(task.id, child),
   })
   running.delete(task.id)

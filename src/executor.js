@@ -54,6 +54,7 @@ function runTask(task, opts = {}) {
       child = spawn(command, args, {
         cwd: opts.cwd || undefined,
         shell: process.platform === 'win32', // resolve `claude` on PATH under Windows
+        stdio: ['ignore', 'pipe', 'pipe'], // close stdin → claude gets EOF instead of waiting 3s for it
       })
     } catch (err) {
       logStream.write(`\n[spawn error] ${err.message}\n`)

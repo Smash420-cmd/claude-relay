@@ -103,4 +103,23 @@ function clean(s) {
     .slice(0, 100)
 }
 
-module.exports = { listSessions }
+// The project directory a session belongs to — Claude Code sessions are scoped to their original
+// cwd, so `claude --resume <id>` only works when run from there. Read the real cwd off the transcript.
+function findSessionCwd(sessionId) {
+  const root = claudeProjectsDir()
+  try {
+    for (const p of fs.readdirSync(root, { withFileTypes: true })) {
+      if (!p.isDirectory()) continue
+      const fp = path.join(root, p.name, sessionId + '.jsonl')
+      if (!fs.existsSync(fp)) continue
+      for (const line of fs.readFileSync(fp, 'utf8').split('\n')) {
+        if (line.indexOf('"cwd"') === -1) continue
+        try { const o = JSON.parse(line); if (o.cwd) return o.cwd } catch {}
+      }
+      return null
+    }
+  } catch {}
+  return null
+}
+
+module.exports = { listSessions, findSessionCwd }
