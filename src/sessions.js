@@ -1,17 +1,39 @@
 'use strict'
 // Discover local Claude Code conversations so a task can target a specific session to resume.
 // Sessions live as ~/.claude/projects/<encoded-project>/<session-id>.jsonl
+//
+// Claude Code does NOT persist a separate human-readable title we could read; /resume shows the
+// first message + an on-the-fly summary. So we surface: the first user message (the de-facto title),
+// the per-session `slug` codename (e.g. "calm-waddling-engelbart" — friendlier than the UUID), and
+// an "active" flag for any session currently open (from the ~/.claude/sessions registry).
 const fs = require('fs')
 const path = require('path')
+const os = require('os')
 const { claudeProjectsDir } = require('./paths')
+
+// Session ids currently open, from the live registry (~/.claude/sessions/<pid>.json).
+function activeSessionIds() {
+  const dir = path.join(os.homedir(), '.claude', 'sessions')
+  const out = new Map() // sessionId -> status
+  let files = []
+  try { files = fs.readdirSync(dir).filter(f => f.endsWith('.json')) } catch { return out }
+  for (const f of files) {
+    try {
+      const o = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'))
+      if (o.sessionId) out.set(o.sessionId, o.status || 'open')
+    } catch {}
+  }
+  return out
+}
 
 function listSessions(limit = 60) {
   const root = claudeProjectsDir()
+  const active = activeSessionIds()
   let projects = []
   try {
     projects = fs.readdirSync(root, { withFileTypes: true }).filter(d => d.isDirectory())
   } catch {
-    return [] // ~/.claude/projects not present — return empty, UI shows a hint
+    return []
   }
 
   const out = []
@@ -23,40 +45,62 @@ function listSessions(limit = 60) {
       const full = path.join(dir, f)
       let stat
       try { stat = fs.statSync(full) } catch { continue }
+      const sessionId = f.replace(/\.jsonl$/, '')
+      const meta = readMeta(full) // { preview, slug }
       out.push({
-        sessionId: f.replace(/\.jsonl$/, ''),
+        sessionId,
+        slug: meta.slug || '',
         project: decodeProject(proj.name),
         modified: stat.mtimeMs,
-        preview: firstUserText(full),
+        preview: meta.preview,
+        active: active.has(sessionId),
+        status: active.get(sessionId) || null,
       })
     }
   }
-  out.sort((a, b) => b.modified - a.modified)
+  // active sessions first, then most-recently-modified
+  out.sort((a, b) => (b.active - a.active) || (b.modified - a.modified))
   return out.slice(0, limit)
 }
 
-// Claude encodes the project path into the folder name (path separators → '-'). This is a
-// best-effort decode for DISPLAY only; we never rely on it for correctness.
 function decodeProject(encoded) {
   return encoded.replace(/^-/, '').split('-').filter(Boolean).slice(-2).join('/') || encoded
 }
 
-function firstUserText(file) {
+// One pass over the transcript: grab the slug (on every turn) and the first real user message.
+function readMeta(file) {
+  let preview = ''
+  let slug = ''
   try {
     const lines = fs.readFileSync(file, 'utf8').split('\n')
     for (const line of lines) {
       if (!line.trim()) continue
-      let obj
-      try { obj = JSON.parse(line) } catch { continue }
-      const content = obj?.message?.content ?? obj?.content
-      if (typeof content === 'string' && content.trim()) return content.trim().slice(0, 90)
-      if (Array.isArray(content)) {
-        const t = content.find(c => c && c.type === 'text' && c.text)?.text
-        if (t) return t.trim().slice(0, 90)
+      let o
+      try { o = JSON.parse(line) } catch { continue }
+      if (!slug && o.slug) slug = o.slug
+      if (!preview) {
+        const content = o.message && o.message.content
+        if (typeof content === 'string' && content.trim() && o.type === 'user') {
+          preview = clean(content)
+        } else if (Array.isArray(content)) {
+          const t = content.find(c => c && c.type === 'text' && c.text)
+          if (t && o.type === 'user') preview = clean(t.text)
+        }
       }
+      if (slug && preview) break
     }
   } catch {}
-  return ''
+  return { preview, slug }
+}
+
+// Strip injected system-reminder / boilerplate so the preview reads like the user's actual ask.
+function clean(s) {
+  return String(s)
+    .replace(/<[^>]+>[\s\S]*?<\/[^>]+>/g, ' ') // drop tag blocks (system-reminder, etc.)
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 100)
 }
 
 module.exports = { listSessions }

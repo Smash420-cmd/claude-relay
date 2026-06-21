@@ -222,9 +222,9 @@ async function openNewTask() {
       <label>Session to resume</label>
       <div class="session-list" id="f-sessions">
         ${sessions.length ? sessions.map(s => `
-          <div class="session-item" data-sid="${esc(s.sessionId)}">
-            <div>${esc(s.preview || '(no preview)')}</div>
-            <div class="sid">${esc(s.project)} · ${esc(s.sessionId.slice(0, 8))}… · ${esc(fmtWhen(new Date(s.modified).toISOString()))}</div>
+          <div class="session-item${s.active ? ' active' : ''}" data-sid="${esc(s.sessionId)}">
+            <div class="si-title">${s.active ? '<span class="si-live">● live</span>' : ''}${esc(s.preview || '(no preview)')}</div>
+            <div class="sid">${esc(s.slug || s.sessionId.slice(0, 8))} · ${esc(s.project)} · ${esc(fmtWhen(new Date(s.modified).toISOString()))}</div>
           </div>`).join('')
           : `<div class="session-item">No Claude Code sessions found in ~/.claude/projects</div>`}
       </div>

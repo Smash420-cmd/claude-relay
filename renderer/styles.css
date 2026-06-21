@@ -105,6 +105,7 @@ body {
 
 /* ── Modal ── */
 .modal-host { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; }
+.modal-host[hidden] { display: none; }  /* the `hidden` attr must win over the flex above, or the backdrop covers everything */
 .modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.55); }
 .modal { position: relative; width: min(560px, 92vw); max-height: 88vh; overflow-y: auto; background: var(--panel); border: 1px solid var(--border-2); border-radius: 14px; padding: 20px; box-shadow: 0 24px 60px rgba(0,0,0,0.5); }
 .modal h2 { margin: 0 0 14px; font-size: 17px; }
@@ -130,5 +131,8 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .session-item:last-child { border-bottom: none; }
 .session-item:hover { background: var(--panel-2); }
 .session-item.on { background: var(--accent-soft); }
-.session-item .sid { color: var(--muted); font-size: 11px; }
+.session-item.active { border-left: 2px solid var(--green); }
+.si-title { font-weight: 500; }
+.si-live { color: var(--green); font-weight: 700; font-size: 11px; margin-right: 6px; }
+.session-item .sid { color: var(--muted); font-size: 11px; margin-top: 2px; }
 .log-view { white-space: pre-wrap; word-break: break-word; font: 12px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace; background: #0a0d12; border: 1px solid var(--border); border-radius: 8px; padding: 12px; max-height: 60vh; overflow: auto; color: var(--subtle); }
