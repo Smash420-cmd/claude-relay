@@ -8,22 +8,17 @@ const fs = require('fs')
 const path = require('path')
 const { tasksFile } = require('./paths')
 
+const SETTINGS_VERSION = 2 // bump when a default changes meaning so existing stores get migrated
+
 const DEFAULT_SETTINGS = {
   claudeCommand: 'claude',      // CLI binary; set to a full path if `claude` isn't on PATH
   defaultProjectPath: '',       // cwd used for tasks that don't set their own
-  dailyResetTime: '02:20',      // local HH:MM the usage limit resets (drives "at next reset")
-  autoResumeOnLimit: false,     // OFF until limit-detection is verified (Phase 0) — manual resume works today
+  dailyResetTime: '02:20',      // local HH:MM — fallback for "at next reset" when API is unavailable
+  autoResumeOnLimit: true,      // ON: re-schedule stopped tasks at the exact moment the limit resets
   schedulerIntervalSec: 20,     // how often the due-task loop ticks
-  allowExtendedUsage: true,     // false = pause auto-runs at the limit (don't spend credits); wait for reset
-  pauseAtPct: 100,              // when extended usage is off, defer scheduled runs at/above this live session %
-  skipPermissions: true,        // ON (user opted in 2026-06-22 — "the whole point is autonomous workflow").
-                                // --dangerously-skip-permissions: unattended tasks edit/run/commit with no gate.
-  // ── Usage tracker (gauge is an ESTIMATE: load tokens consumed ÷ these limits) ──
-  sessionWindowHours: 5,        // Claude's rolling session window
-  weeklyWindowDays: 7,
-  sessionLoadLimit: 8000000,    // ESTIMATE — calibrate by watching when you actually hit the wall
-  weeklyLoadLimit: 80000000,    // ESTIMATE
-  weeklyOpusLoadLimit: 0,       // 0 = hide the Opus bar until you set it
+  allowExtendedUsage: false,    // OFF by default — don't auto-run past the free limit and spend credits
+  pauseAtPct: 100,              // defer scheduled runs at/above this session % (when allowExtendedUsage is off)
+  skipPermissions: true,        // --dangerously-skip-permissions: unattended tasks edit/run/commit with no gate
 }
 
 function emptyDB() { return { tasks: [], settings: { ...DEFAULT_SETTINGS } } }
@@ -32,7 +27,15 @@ function load() {
   try {
     const db = JSON.parse(fs.readFileSync(tasksFile(), 'utf8'))
     db.tasks = Array.isArray(db.tasks) ? db.tasks : []
-    db.settings = { ...DEFAULT_SETTINGS, ...(db.settings || {}) }
+    // Version migration: if stored version is behind, re-apply defaults for changed keys
+    // so users with existing settings pick up new defaults automatically.
+    if ((db.settingsVersion || 0) < SETTINGS_VERSION) {
+      db.settings = { ...DEFAULT_SETTINGS, ...(db.settings || {}) }
+      db.settingsVersion = SETTINGS_VERSION
+      save(db)
+    } else {
+      db.settings = { ...DEFAULT_SETTINGS, ...(db.settings || {}) }
+    }
     return db
   } catch {
     return emptyDB()
@@ -62,6 +65,22 @@ function deleteTask(id) { const db = load(); db.tasks = db.tasks.filter(t => t.i
 function getSettings() { return load().settings }
 function setSettings(patch) { const db = load(); db.settings = { ...db.settings, ...patch }; save(db); return db.settings }
 
+// When a task is stopped by the session limit, push all pending scheduled tasks to just after
+// the reset so they don't all pile up trying to fire while usage is still at 100%.
+// Stagger by 30s each so the scheduler can sequence them cleanly after the resume task fires first.
+function rescheduleAllPending(resetAt) {
+  const db = load()
+  const resetMs = new Date(resetAt).getTime()
+  let offset = 0
+  for (const t of db.tasks) {
+    if (t.status === 'scheduled' && new Date(t.schedule && t.schedule.at || 0).getTime() <= resetMs) {
+      offset++
+      t.schedule = { kind: 'once', at: new Date(resetMs + offset * 30000).toISOString() }
+    }
+  }
+  save(db)
+}
+
 module.exports = {
-  getTasks, getTask, addTask, updateTask, deleteTask, getSettings, setSettings,
+  getTasks, getTask, addTask, updateTask, deleteTask, getSettings, setSettings, rescheduleAllPending,
 }

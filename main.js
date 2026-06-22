@@ -6,12 +6,31 @@ const path = require('path')
 const fs = require('fs')
 const os = require('os')
 
+const { autoUpdater } = require('electron-updater')
 const store = require('./src/store')
 const sessions = require('./src/sessions')
 const executor = require('./src/executor')
 const scheduler = require('./src/scheduler')
 const tracker = require('./src/tracker')
 const { logsDir, dataDir } = require('./src/paths')
+
+// Shared helper — called by the IPC renderer bridge AND by runDueTask after a limit-stopped run
+// to get the exact reset timestamps so auto-resume fires at precisely the right moment.
+async function fetchClaudeUsage() {
+  const cookies = await session.defaultSession.cookies.get({ url: 'https://claude.ai', name: 'sessionKey' })
+  if (!cookies.length) return { error: 'not_logged_in' }
+  const headers = { 'Cookie': `sessionKey=${cookies[0].value}`, 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Cache-Control': 'no-store' }
+  const orgs = await fetch('https://claude.ai/api/organizations', { headers, cache: 'no-store' }).then(r => r.json())
+  const orgId = orgs[0] && orgs[0].uuid
+  if (!orgId) return { error: 'no_org' }
+  const data = await fetch(`https://claude.ai/api/organizations/${orgId}/usage`, { headers, cache: 'no-store' }).then(r => r.json())
+  return {
+    sessionPct: data.five_hour ? data.five_hour.utilization : null,
+    weeklyPct: data.seven_day ? data.seven_day.utilization : null,
+    sessionResetsAt: data.five_hour && data.five_hour.resets_at ? new Date(data.five_hour.resets_at).getTime() : null,
+    weeklyResetsAt: data.seven_day && data.seven_day.resets_at ? new Date(data.seven_day.resets_at).getTime() : null,
+  }
+}
 
 let win = null
 let tray = null
@@ -72,7 +91,7 @@ function createWindow() {
   win = new BrowserWindow({
     width: 900, height: 700, minWidth: 660, minHeight: 480,
     backgroundColor: '#0d1117',
-    title: 'Relay',
+    title: 'Claude Relay',
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -129,18 +148,33 @@ async function runDueTask(task, opts = {}) {
     lastExitCode: res.exitCode,
     resetHint: res.resetHint || null,
   })
-  // Killer-feature hook (guarded OFF by default until limit-detection is verified — Phase 0):
-  // when a run is stopped by a limit and auto-resume is enabled, queue a resume at next reset.
+  // Core feature: when a run is stopped by the session/weekly limit and auto-resume is on,
+  // fetch the exact reset time from the Claude API and schedule a resume at that moment.
   if (res.status === 'stopped' && settings.autoResumeOnLimit) {
-    queueResume(task)
+    let resetAt = null
+    try {
+      const usage = await fetchClaudeUsage()
+      if (!usage.error) {
+        // Weekly at 100%? wait for the weekly reset — it's the binding constraint.
+        if (usage.weeklyPct >= 100 && usage.weeklyResetsAt) resetAt = new Date(usage.weeklyResetsAt).toISOString()
+        else if (usage.sessionResetsAt) resetAt = new Date(usage.sessionResetsAt).toISOString()
+      }
+    } catch {}
+    queueResume(task, resetAt)
+    // Push every other pending scheduled task to just after the reset so they
+    // don't pile up firing at 100% — they'll queue behind the resumed task.
+    if (resetAt) store.rescheduleAllPending(resetAt)
   }
   notifyChange()
 }
 
-function queueResume(task) {
+// resetAt: ISO string from the Claude API (exact moment the 5h or 7d window resets).
+// Falls back to the configured dailyResetTime estimate when the API is unavailable.
+function queueResume(task, resetAt) {
   const settings = store.getSettings()
   const resumeCount = (task.resumeCount || 0) + 1
   if (resumeCount > 8) return // bounded — never loop forever
+  const at = resetAt || scheduler.nextResetDate(settings.dailyResetTime).toISOString()
   store.addTask({
     id: uid(),
     title: `Resume: ${task.title}`,
@@ -148,7 +182,7 @@ function queueResume(task) {
     mode: task.mode === 'fresh' ? 'fresh' : (task.mode || 'resume-full'),
     sessionId: task.sessionId || null,
     projectPath: task.projectPath || '',
-    schedule: { kind: 'at-next-reset', at: scheduler.nextResetDate(settings.dailyResetTime).toISOString() },
+    schedule: { kind: 'once', at },
     status: 'scheduled',
     createdAt: new Date().toISOString(),
     resumeOf: task.id,
@@ -158,7 +192,7 @@ function queueResume(task) {
 
 function registerIpc() {
   ipcMain.handle('relay:list', () => store.getTasks())
-  ipcMain.handle('relay:usage', () => { try { const s = tracker.snapshot(store.getSettings()); console.log('[relay:usage]', JSON.stringify(s.session)); return s } catch (e) { return { error: String(e && e.message) } } })
+  ipcMain.handle('relay:usage', () => { try { return tracker.snapshot(store.getSettings()) } catch (e) { return { error: String(e && e.message) } } })
   ipcMain.handle('relay:settings:get', () => store.getSettings())
   ipcMain.handle('relay:settings:set', (_e, patch) => store.setSettings(patch))
   ipcMain.handle('relay:sessions:list', () => sessions.listSessions())
@@ -235,21 +269,7 @@ function registerIpc() {
   })
 
   ipcMain.handle('relay:claude-usage', async () => {
-    try {
-      const cookies = await session.defaultSession.cookies.get({ url: 'https://claude.ai', name: 'sessionKey' })
-      if (!cookies.length) return { error: 'not_logged_in' }
-      const headers = { 'Cookie': `sessionKey=${cookies[0].value}`, 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Cache-Control': 'no-store' }
-      const orgs = await fetch('https://claude.ai/api/organizations', { headers, cache: 'no-store' }).then(r => r.json())
-      const orgId = orgs[0] && orgs[0].uuid
-      if (!orgId) return { error: 'no_org' }
-      const data = await fetch(`https://claude.ai/api/organizations/${orgId}/usage`, { headers, cache: 'no-store' }).then(r => r.json())
-      return {
-        sessionPct: data.five_hour ? data.five_hour.utilization : null,
-        weeklyPct: data.seven_day ? data.seven_day.utilization : null,
-        sessionResetsAt: data.five_hour && data.five_hour.resets_at ? new Date(data.five_hour.resets_at).getTime() : null,
-        weeklyResetsAt: data.seven_day && data.seven_day.resets_at ? new Date(data.seven_day.resets_at).getTime() : null,
-      }
-    } catch (e) { return { error: e.message } }
+    try { return await fetchClaudeUsage() } catch (e) { return { error: e.message } }
   })
 
   ipcMain.handle('relay:claude-login', () => {
@@ -259,6 +279,10 @@ function registerIpc() {
     loginWin.webContents.on('did-navigate', (_e, url) => {
       if (url.startsWith('https://claude.ai') && !url.includes('/login') && !url.includes('/auth')) loginWin.close()
     })
+  })
+
+  ipcMain.handle('relay:claude-logout', async () => {
+    await session.defaultSession.cookies.remove('https://claude.ai', 'sessionKey')
   })
 
   ipcMain.handle('relay:logs:get', (_e, logPath) => {
@@ -273,12 +297,12 @@ function makeTray() {
   if (img.isEmpty()) return // no icon → window-only mode (see window-all-closed below)
   try {
     tray = new Tray(img)
-    tray.setToolTip('Relay')
+    tray.setToolTip('Claude Relay')
     tray.setContextMenu(Menu.buildFromTemplate([
-      { label: 'Open Relay', click: () => { if (win) { win.show(); win.focus() } else createWindow() } },
+      { label: 'Open Claude Relay', click: () => { if (win) { win.show(); win.focus() } else createWindow() } },
       { type: 'separator' },
-      { label: 'Restart Relay', click: () => { app.relaunch(); app.exit(0) } },
-      { label: 'Quit Relay', click: () => { app.isQuitting = true; app.quit() } },
+      { label: 'Restart', click: () => { app.relaunch(); app.exit(0) } },
+      { label: 'Quit', click: () => { app.isQuitting = true; app.quit() } },
     ]))
     tray.on('click', () => { if (win) { win.isVisible() ? win.focus() : win.show() } else createWindow() })
     hasTray = true
@@ -287,9 +311,33 @@ function makeTray() {
   }
 }
 
+// On startup, any task still marked 'running' was orphaned by a crash or force-quit.
+// The child process is gone; mark them interrupted so they show up as retryable.
+function rotateLogs(maxAgeDays = 14) {
+  const dir = logsDir()
+  try {
+    const cutoff = Date.now() - maxAgeDays * 86400000
+    for (const f of fs.readdirSync(dir)) {
+      const p = path.join(dir, f)
+      try { if (fs.statSync(p).mtimeMs < cutoff) fs.unlinkSync(p) } catch {}
+    }
+  } catch {}
+}
+
+function cleanupOrphanedTasks() {
+  const db = require('./src/store')
+  const tasks = db.getTasks()
+  for (const t of tasks) {
+    if (t.status === 'running') db.updateTask(t.id, { status: 'interrupted' })
+  }
+}
+
 function main() {
   app.whenReady().then(() => {
+    rotateLogs()
+    cleanupOrphanedTasks()
     registerIpc()
+    if (app.isPackaged) autoUpdater.checkForUpdatesAndNotify()
     createWindow()
     makeTray()
     watchStore()
@@ -303,7 +351,13 @@ function main() {
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
   })
 
-  app.on('before-quit', () => { app.isQuitting = true; if (stopScheduler) stopScheduler() })
+  app.on('before-quit', () => {
+    app.isQuitting = true
+    if (stopScheduler) stopScheduler()
+    // Kill every running child process so claude sessions don't outlive Relay
+    running.forEach((child) => { try { child.kill() } catch {} })
+    running.clear()
+  })
 
   // Stay alive in the tray so the scheduler keeps running. Only quit on all-windows-closed if
   // there is NO tray to keep the app reachable.

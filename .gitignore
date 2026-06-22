@@ -1,6 +1,8 @@
 node_modules/
 dist/
+out/
 *.log
 .DS_Store
 relay-data.json
 logs/
+~/.relay/

@@ -84,11 +84,18 @@ body {
   border: 1px solid var(--border); background: var(--panel); border-radius: var(--radius);
   padding: 13px 15px; display: flex; align-items: flex-start; gap: 13px;
 }
-.task-main { flex: 1; min-width: 0; }
-.task-title { font-weight: 650; display: flex; align-items: center; gap: 8px; }
-.task-prompt { color: var(--subtle); font-size: 12.5px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.task-meta { color: var(--muted); font-size: 12px; margin-top: 6px; display: flex; flex-wrap: wrap; gap: 5px 12px; }
-.task-meta b { color: var(--subtle); font-weight: 600; }
+.task-main { flex: 1; min-width: 0; cursor: pointer; user-select: none; }
+.task-title { font-weight: 650; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.task-expand { color: var(--muted); font-size: 10px; transition: transform 0.15s; display: inline-block; }
+.task.expanded .task-expand { transform: rotate(90deg); }
+.task-meta { color: var(--muted); font-size: 12px; margin-top: 5px; }
+.task-prompt {
+  display: none; color: var(--subtle); font-size: 12.5px; margin-top: 8px;
+  white-space: pre-wrap; word-break: break-word; line-height: 1.55;
+  max-height: 220px; overflow-y: auto;
+  border-left: 2px solid var(--border); padding-left: 10px;
+}
+.task.expanded .task-prompt { display: block; }
 .task-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
 
 /* ── Status pill ── */

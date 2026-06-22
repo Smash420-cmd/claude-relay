@@ -102,8 +102,12 @@ async function refreshUsage() {
     html += gaugeHtml('Session', '5h window', { pct: api.sessionPct }, { resetsAt: api.sessionResetsAt })
     html += gaugeHtml('Weekly', '7d', { pct: api.weeklyPct }, { resetsAt: api.weeklyResetsAt, rolling: !api.weeklyResetsAt })
     html += `</div>`
-    html += `<div class="usage-cap"><span style="color:var(--green)">● Live</span> from Claude.ai API · exact server-side usage</div>`
+    html += `<div class="usage-cap"><span style="color:var(--green)">● Live</span> from Claude.ai · exact server-side usage · <button class="btn tiny" id="claude-logout-btn">Log out</button></div>`
     usageEl.innerHTML = html
+    document.getElementById('claude-logout-btn').addEventListener('click', async () => {
+      await window.relay.claudeLogout()
+      refreshUsage()
+    })
     return
   }
 
@@ -111,7 +115,7 @@ async function refreshUsage() {
     usageEl.innerHTML = `<div class="usage-cap">
       <span style="color:var(--amber)">⚠ Not connected to Claude</span> —
       <button class="btn tiny" id="claude-login-btn">Log in to Claude</button>
-      to show exact usage
+      to show exact usage. Tasks still run — only the usage bars are affected.
     </div>`
     document.getElementById('claude-login-btn').addEventListener('click', async () => {
       await window.relay.claudeLogin()
@@ -178,29 +182,25 @@ function render() {
 function taskRow(t) {
   const canRunNow = t.status !== 'running'
   const canCancel = t.status === 'scheduled' || t.status === 'running'
-  const canRetry  = t.status === 'failed' || t.status === 'stopped' || t.status === 'cancelled'
-  const canResume = t.status === 'stopped' || t.status === 'failed'
+  const canRetry  = t.status === 'failed' || t.status === 'stopped' || t.status === 'cancelled' || t.status === 'interrupted'
+  const canResume = t.status === 'stopped' || t.status === 'failed' || t.status === 'interrupted'
   const hasLog    = !!t.lastLogPath
-  const exit = (t.lastExitCode != null && t.status !== 'scheduled') ? `exit ${esc(t.lastExitCode)}` : ''
-  const reset = t.resetHint ? `reset hint: ${esc(t.resetHint)}` : ''
+
+  // Human-readable single meta line: mode · folder · ran time · exit
+  const folder = t.projectPath ? t.projectPath.replace(/\\/g, '/').split('/').pop() : ''
+  const ranAt  = t.lastRunAt ? `ran ${fmtWhen(t.lastRunAt)}` : scheduleText(t)
+  const exit   = (t.lastExitCode != null && t.status !== 'scheduled') ? `exit ${t.lastExitCode}` : ''
+  const extras = [modeText(t), folder, ranAt, exit, t.resetHint ? `resets ${esc(t.resetHint)}` : ''].filter(Boolean).join(' · ')
 
   return `<div class="task" data-id="${esc(t.id)}">
     <div class="task-main">
       <div class="task-title">
         <span class="pill ${esc(t.status)}">${esc(t.status)}</span>
-        ${esc(t.title)}
-        <span class="mode-tag">${esc(modeText(t))}</span>
+        <span class="title-text">${esc(t.title)}</span>
+        ${t.prompt ? `<span class="task-expand">▶</span>` : ''}
       </div>
+      <div class="task-meta">${esc(extras)}</div>
       ${t.prompt ? `<div class="task-prompt">${esc(t.prompt)}</div>` : ''}
-      <div class="task-meta">
-        <span>${esc(scheduleText(t))}</span>
-        ${t.projectPath ? `<span><b>cwd</b> ${esc(t.projectPath)}</span>` : ''}
-        ${t.sessionId ? `<span><b>session</b> ${esc(String(t.sessionId).slice(0, 8))}…</span>` : ''}
-        ${t.lastRunAt ? `<span><b>ran</b> ${esc(fmtWhen(t.lastRunAt))}</span>` : ''}
-        ${exit ? `<span>${exit}</span>` : ''}
-        ${reset ? `<span>${reset}</span>` : ''}
-        ${t.resumeOf ? `<span>↻ resume of ${esc(String(t.resumeOf).slice(0, 6))}</span>` : ''}
-      </div>
     </div>
     <div class="task-actions">
       ${canRunNow ? `<button class="btn tiny" data-action="run">Run now</button>` : ''}
@@ -216,7 +216,11 @@ function taskRow(t) {
 // ── list actions (delegated) ────────────────────────────────────────────────
 listEl.addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-action]')
-  if (!btn) return
+  if (!btn) {
+    const card = e.target.closest('.task')
+    if (card && e.target.closest('.task-main')) card.classList.toggle('expanded')
+    return
+  }
   const id = btn.closest('.task').dataset.id
   const action = btn.dataset.action
   if (action === 'run') await window.relay.runNow(id)
@@ -262,7 +266,6 @@ async function openNewTask() {
       <div class="radio-row" id="f-mode">
         <div class="radio-chip on" data-v="fresh">Fresh session</div>
         <div class="radio-chip" data-v="resume-full">Resume (full)</div>
-        <div class="radio-chip" data-v="resume-compact">Resume (compact)</div>
       </div>
       <div class="hint">Fresh = any session, reads state from disk (cheapest). Resume = a specific conversation.</div>
     </div>
@@ -371,29 +374,19 @@ function openSettings() {
       </div>
     </div>
     <div class="field">
-      <label class="toggle"><input type="checkbox" id="s-auto" ${s.autoResumeOnLimit ? 'checked' : ''}/> Auto-resume on limit</label>
-      <div class="note">Off by default. Auto-resume depends on reliable limit detection, which is a Phase-0 unknown (DESIGN.md §9). Until verified, use the <b>Resume at reset</b> button on a stopped task — that works today.</div>
+      <label class="toggle"><input type="checkbox" id="s-auto" ${s.autoResumeOnLimit ? 'checked' : ''}/> Auto-resume when limit is hit</label>
+      <div class="note">When a running task is stopped by a session or weekly usage limit, Relay automatically re-schedules it to resume at the exact moment that limit resets — no action needed.</div>
     </div>
     <div class="field">
       <label class="toggle"><input type="checkbox" id="s-ext" ${s.allowExtendedUsage ? 'checked' : ''}/> Allow extended (paid) usage</label>
-      <div class="note" style="border-left-color:var(--accent)">ON: scheduled tasks run even past your free limit (may spend credits). OFF: Relay pauses auto-runs once your <b>live</b> session usage hits the threshold below and waits for the reset. <b>Run now</b> always runs.</div>
+      <div class="note">ON: tasks run past your free limit and may spend credits. OFF: Relay pauses auto-runs at the threshold below and waits for the reset.</div>
+      <div class="note" style="border-left-color:#e3b341;margin-top:6px">⚠ For this to prevent credit spending you must also disable <b>Extended usage</b> in your Claude.ai account settings — Relay cannot enforce this on its own.</div>
     </div>
     <div class="field"><label>Pause auto-runs at session % <span style="color:var(--muted);font-weight:400">(when extended usage is off)</span></label><input type="number" id="s-pause" min="1" max="100" value="${esc(s.pauseAtPct || 100)}" /></div>
     <div class="field">
       <label class="toggle"><input type="checkbox" id="s-skip" ${s.skipPermissions !== false ? 'checked' : ''}/> Autonomous execution (skip permission prompts)</label>
       <div class="note" style="border-left-color:var(--red)">ON: tasks run with <b>--dangerously-skip-permissions</b> — they can edit/run/<b>commit</b> unattended, with no approval gate. This is what makes tasks complete seamlessly. They run in the task's cwd and commit to git (reviewable/revertible), but only queue prompts you trust.</div>
     </div>
-    <h2 style="font-size:14px;margin:18px 0 10px;color:var(--subtle)">Usage tracker (estimate)</h2>
-    <div class="row">
-      <div class="field"><label>Session window (h)</label><input type="number" id="s-swin" min="1" value="${esc(s.sessionWindowHours || 5)}" /></div>
-      <div class="field"><label>Weekly window (d)</label><input type="number" id="s-wwin" min="1" value="${esc(s.weeklyWindowDays || 7)}" /></div>
-    </div>
-    <div class="row">
-      <div class="field"><label>Session load limit</label><input type="number" id="s-slim" min="0" value="${esc(s.sessionLoadLimit || 0)}" /></div>
-      <div class="field"><label>Weekly load limit</label><input type="number" id="s-wlim" min="0" value="${esc(s.weeklyLoadLimit || 0)}" /></div>
-    </div>
-    <div class="field"><label>Weekly Opus load limit <span style="color:var(--muted);font-weight:400">(0 = hide)</span></label><input type="number" id="s-olim" min="0" value="${esc(s.weeklyOpusLoadLimit || 0)}" /></div>
-    <div class="note" style="border-left-color:var(--accent)">"Load" = input + output + cache-creation tokens. The limits are estimates — set them where the bar reads ~100% when you actually hit the wall, and they'll be accurate for you.</div>
     <div class="modal-actions">
       <button class="btn ghost" id="s-open-logs">Open logs folder</button>
       <span style="flex:1"></span>
@@ -413,11 +406,6 @@ function openSettings() {
       allowExtendedUsage: modalEl.querySelector('#s-ext').checked,
       pauseAtPct: Math.min(100, Math.max(1, num('#s-pause', 100))),
       skipPermissions: modalEl.querySelector('#s-skip').checked,
-      sessionWindowHours: Math.max(1, num('#s-swin', 5)),
-      weeklyWindowDays: Math.max(1, num('#s-wwin', 7)),
-      sessionLoadLimit: Math.max(0, num('#s-slim', 0)),
-      weeklyLoadLimit: Math.max(0, num('#s-wlim', 0)),
-      weeklyOpusLoadLimit: Math.max(0, num('#s-olim', 0)),
     })
     closeModal()
     await refresh()

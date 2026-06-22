@@ -1,4 +1,4 @@
-# Relay
+# Claude Relay
 
 > Schedule prompts into local **Claude Code** sessions, and auto-resume work across session limits.
 > Born from the Sojournly workflow; a standalone tool. Full design in **`DESIGN.md`**.
@@ -22,14 +22,14 @@ fallback — it is. Footprint > polish can revisit later.)
 - **Executor**: spawns the Claude CLI, streams output to a per-run log, parses exit/limit state.
 - **Stopped-task handling**: a run flagged as limit-stopped → status `stopped` + a one-click **Resume at
   reset** (queues a continuation at the next reset). Bounded to ≤8 auto-resumes.
-- **Settings**: CLI command, default cwd, daily reset time, scheduler interval, auto-resume toggle.
+- **Settings**: CLI command, default cwd, daily reset time, scheduler interval, auto-resume toggle, extended-usage gate.
 - **Usage tracker** (`src/tracker.js`): **session (5h)** + **weekly (7d)** bars with % and **reset countdowns**.
   - **AUTHORITATIVE (live):** Claude Code v2.1.80+ pipes a `rate_limits` field (real `used_percentage` +
     `resets_at`) to the statusLine script every turn. The bridge `scripts/relay-statusline.js` captures it
     to `~/.relay/usage.json`; Relay reads it and shows the **real** claude.ai numbers — no credentials,
-    no browser, no extension. Verified end-to-end (sample 74% / 45% round-trips correctly).
-  - **Fallback (estimate):** when the statusLine data is missing/stale, Relay estimates from your
-    `~/.claude/projects` transcript token load (calibratable limits in Settings).
+    no browser, no extension. Verified end-to-end.
+  - **Fallback:** when statusLine data is missing/stale, Relay reads the Claude.ai internal usage API
+    directly (via the logged-in browser session cookie) to get exact reset times.
   - The session gauge has a **Resume at reset** button → queues a resume of that session at the real reset.
 
   **Setup (one line):** add a `statusLine` to `~/.claude/settings.json`:
@@ -38,15 +38,15 @@ fallback — it is. Footprint > polish can revisit later.)
   ```
   The status line itself reads `5h 74% · 7d 45% · Opus 4.8`.
 
-### ⚠️ Stubbed / needs verification BEFORE trusting (Phase-0 unknowns — `DESIGN.md` §9)
+### ⚠️ Needs verification before fully trusting
 - **Exact Claude CLI flags** for headless resume. Defaults: `claude -p "<prompt>"` (fresh),
   `claude --resume <id> -p "<prompt>"` (resume). Configurable via Settings → "Claude CLI command".
-  **VERIFY these run a session non-interactively before relying on scheduled runs.**
 - **Limit detection** (`src/executor.js → detectLimit`) is a best-guess regex over CLI output.
   Confirm the real limit message + whether it carries a reset time, then tighten it.
-- **`resume-compact`** runs as `resume-full` for now (non-interactive `/compact` unverified).
-- **Auto-resume on limit** is **OFF by default** (depends on the unverified limit detection). The manual
-  "Resume at reset" button works today regardless.
+- **Auto-resume on limit** is **ON by default**. When a task is stopped by the session or weekly limit,
+  Relay fetches the exact reset time from the Claude.ai API and re-schedules the task to fire at that
+  moment. All other pending tasks are staggered 30s apart after it. ⚠️ Also disable **Extended usage**
+  in your Claude.ai account settings — Relay cannot enforce that on its own.
 
 ### 🚫 Deliberately NOT built yet (later phases, per the outline)
 - Recurring/cron schedules (MVP does `once` + `at-next-reset`).

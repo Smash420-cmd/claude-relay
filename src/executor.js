@@ -81,7 +81,18 @@ function runTask(task, opts = {}) {
       resolve({ exitCode: -1, status: 'failed', logPath, resetHint: null })
     })
 
+    // Hard timeout — if the process doesn't exit within 45 min, kill it.
+    // Prevents the scheduler from blocking forever on a hung task (e.g. Claude Code
+    // pausing for user input after hitting a session limit with stdin already closed).
+    const timeout = setTimeout(() => {
+      try { child.kill() } catch {}
+      logStream.write('\n\n[timeout] process exceeded 45 min — killed\n')
+      logStream.end()
+      resolve({ exitCode: -1, status: 'failed', logPath, resetHint: null })
+    }, 45 * 60 * 1000)
+
     child.on('close', code => {
+      clearTimeout(timeout)
       const limit = detectLimit(output)
       let status = code === 0 ? 'succeeded' : 'failed'
       if (limit.stopped) status = 'stopped'
