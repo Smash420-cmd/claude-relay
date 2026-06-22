@@ -66,23 +66,28 @@ function fmtAge(sec) {
 
 function gaugeHtml(label, sub, g, opts = {}) {
   const pct = g.pct
-  const fillW = pct != null ? pct : (g.used ? Math.min(100, Math.round((g.used / (opts.fallbackMax || g.used)) * 100)) : 0)
+  const overPct = Math.max(0, (g.pct || 0) - 100)
+  const fillW = Math.min(pct != null ? pct : 0, 100)
   let valTxt
   if (g.used != null && g.limit > 0) valTxt = `${fmtTok(g.used)} / ${fmtTok(g.limit)} <span class="gauge-pct">${pct}%</span>`
   else if (pct != null) valTxt = `<span class="gauge-pct">${pct}%</span>`
   else valTxt = `${fmtTok(g.used || 0)} <span style="color:var(--muted)">load</span>`
+  if (overPct > 0) valTxt += ` <span style="color:#9f6ef5">· ${overPct}% extended</span>`
   let reset = ''
   if (opts.resetsAt) reset = `<span class="gauge-reset">resets in <b>${fmtCountdown(opts.resetsAt)}</b> · ${new Date(opts.resetsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`
   else if (opts.rolling) reset = `<span class="gauge-reset">rolling ${esc(sub)}</span>`
   const capture = opts.captureSession
     ? `<button class="btn tiny" data-cap-session="${esc(opts.captureSession)}" ${opts.resetsAt ? `data-cap-reset="${esc(new Date(opts.resetsAt).toISOString())}"` : ''}>Resume at reset</button>`
     : ''
+  const barFill = overPct > 0
+    ? `<div class="bar-fill ${barClass(pct)}" style="flex:${fillW}"></div><div class="bar-fill over" style="flex:${overPct}"></div>`
+    : `<div class="bar-fill ${barClass(pct)}" style="width:${fillW}%"></div>`
   return `<div class="gauge">
     <div class="gauge-head">
       <span class="gauge-label">${esc(label)}<span class="sub">${esc(sub)}</span></span>
       <span class="gauge-val">${valTxt}</span>
     </div>
-    <div class="bar"><div class="bar-fill ${barClass(pct)}" style="width:${fillW}%"></div></div>
+    <div class="bar">${barFill}</div>
     <div class="gauge-foot">${reset || '<span></span>'}${capture}</div>
   </div>`
 }
