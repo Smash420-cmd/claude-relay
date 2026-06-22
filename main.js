@@ -1,9 +1,10 @@
 'use strict'
 // Relay — Electron main process. Owns the window, the tray (so the scheduler stays alive when the
 // window is closed), the due-task scheduler, the executor, and all IPC.
-const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, shell } = require('electron')
+const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, shell, session } = require('electron')
 const path = require('path')
 const fs = require('fs')
+const os = require('os')
 
 const store = require('./src/store')
 const sessions = require('./src/sessions')
@@ -47,6 +48,26 @@ function watchStore() {
   } catch {}
 }
 
+// Watch ~/.relay/ for restart signals and usage.json updates.
+// - restart.signal: written by `relay restart` — relaunches the app remotely.
+// - usage.json: written by the statusLine bridge on every Claude Code response —
+//   push a renderer refresh immediately so the usage bar tracks claude.ai in real time.
+function watchRelayDir() {
+  const relayDir = path.join(os.homedir(), '.relay')
+  const signalPath = path.join(relayDir, 'restart.signal')
+  try {
+    fs.mkdirSync(relayDir, { recursive: true })
+    fs.watch(relayDir, (_event, filename) => {
+      if (filename === 'restart.signal' && fs.existsSync(signalPath)) {
+        try { fs.unlinkSync(signalPath) } catch {}
+        app.relaunch()
+        app.exit(0)
+      }
+      if (filename === 'usage.json') notifyChange()
+    })
+  } catch {}
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 900, height: 700, minWidth: 660, minHeight: 480,
@@ -64,6 +85,7 @@ function createWindow() {
   win.webContents.on('before-input-event', (e, input) => {
     const k = (input.key || '').toLowerCase()
     if (((input.control || input.meta) && k === 'r') || input.key === 'F5') win.webContents.reload()
+    if ((input.control || input.meta) && input.shift && k === 'i') win.webContents.openDevTools()
   })
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'))
   win.on('close', (e) => {
@@ -136,7 +158,7 @@ function queueResume(task) {
 
 function registerIpc() {
   ipcMain.handle('relay:list', () => store.getTasks())
-  ipcMain.handle('relay:usage', () => { try { return tracker.snapshot(store.getSettings()) } catch (e) { return { error: String(e && e.message) } } })
+  ipcMain.handle('relay:usage', () => { try { const s = tracker.snapshot(store.getSettings()); console.log('[relay:usage]', JSON.stringify(s.session)); return s } catch (e) { return { error: String(e && e.message) } } })
   ipcMain.handle('relay:settings:get', () => store.getSettings())
   ipcMain.handle('relay:settings:set', (_e, patch) => store.setSettings(patch))
   ipcMain.handle('relay:sessions:list', () => sessions.listSessions())
@@ -212,6 +234,33 @@ function registerIpc() {
     notifyChange()
   })
 
+  ipcMain.handle('relay:claude-usage', async () => {
+    try {
+      const cookies = await session.defaultSession.cookies.get({ url: 'https://claude.ai', name: 'sessionKey' })
+      if (!cookies.length) return { error: 'not_logged_in' }
+      const headers = { 'Cookie': `sessionKey=${cookies[0].value}`, 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Cache-Control': 'no-store' }
+      const orgs = await fetch('https://claude.ai/api/organizations', { headers, cache: 'no-store' }).then(r => r.json())
+      const orgId = orgs[0] && orgs[0].uuid
+      if (!orgId) return { error: 'no_org' }
+      const data = await fetch(`https://claude.ai/api/organizations/${orgId}/usage`, { headers, cache: 'no-store' }).then(r => r.json())
+      return {
+        sessionPct: data.five_hour ? data.five_hour.utilization : null,
+        weeklyPct: data.seven_day ? data.seven_day.utilization : null,
+        sessionResetsAt: data.five_hour && data.five_hour.resets_at ? new Date(data.five_hour.resets_at).getTime() : null,
+        weeklyResetsAt: data.seven_day && data.seven_day.resets_at ? new Date(data.seven_day.resets_at).getTime() : null,
+      }
+    } catch (e) { return { error: e.message } }
+  })
+
+  ipcMain.handle('relay:claude-login', () => {
+    const loginWin = new BrowserWindow({ width: 960, height: 700, title: 'Log in to Claude' })
+    loginWin.loadURL('https://claude.ai/login')
+    // Close once the user lands back on claude.ai (login complete)
+    loginWin.webContents.on('did-navigate', (_e, url) => {
+      if (url.startsWith('https://claude.ai') && !url.includes('/login') && !url.includes('/auth')) loginWin.close()
+    })
+  })
+
   ipcMain.handle('relay:logs:get', (_e, logPath) => {
     try { return fs.readFileSync(logPath, 'utf8') } catch { return '(log not found)' }
   })
@@ -228,6 +277,7 @@ function makeTray() {
     tray.setContextMenu(Menu.buildFromTemplate([
       { label: 'Open Relay', click: () => { if (win) { win.show(); win.focus() } else createWindow() } },
       { type: 'separator' },
+      { label: 'Restart Relay', click: () => { app.relaunch(); app.exit(0) } },
       { label: 'Quit Relay', click: () => { app.isQuitting = true; app.quit() } },
     ]))
     tray.on('click', () => { if (win) { win.isVisible() ? win.focus() : win.show() } else createWindow() })
@@ -249,6 +299,7 @@ function main() {
       getState: () => ({ tasks: store.getTasks(), settings: store.getSettings() }),
       runDueTask,
     })
+    watchRelayDir()
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
   })
 

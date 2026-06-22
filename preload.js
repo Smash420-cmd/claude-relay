@@ -17,5 +17,7 @@ contextBridge.exposeInMainWorld('relay', {
   listSessions:  () => ipcRenderer.invoke('relay:sessions:list'),
   getLog:        (logPath) => ipcRenderer.invoke('relay:logs:get', logPath),
   openLogs:      () => ipcRenderer.invoke('relay:logs:open'),
+  claudeUsage:   () => ipcRenderer.invoke('relay:claude-usage'),
+  claudeLogin:   () => ipcRenderer.invoke('relay:claude-login'),
   onChanged:     (cb) => ipcRenderer.on('relay:changed', () => cb()),
 })

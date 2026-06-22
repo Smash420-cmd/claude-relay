@@ -93,6 +93,34 @@ function gaugeHtml(label, sub, g, opts = {}) {
 }
 
 async function refreshUsage() {
+  // Try the authoritative Claude API first (exact server-side numbers).
+  // Fall back to the statusLine snapshot if not logged in or the call fails.
+  const api = await window.relay.claudeUsage().catch(() => null)
+
+  if (api && !api.error) {
+    let html = `<div class="usage-grid">`
+    html += gaugeHtml('Session', '5h window', { pct: api.sessionPct }, { resetsAt: api.sessionResetsAt })
+    html += gaugeHtml('Weekly', '7d', { pct: api.weeklyPct }, { resetsAt: api.weeklyResetsAt, rolling: !api.weeklyResetsAt })
+    html += `</div>`
+    html += `<div class="usage-cap"><span style="color:var(--green)">● Live</span> from Claude.ai API · exact server-side usage</div>`
+    usageEl.innerHTML = html
+    return
+  }
+
+  if (api && api.error === 'not_logged_in') {
+    usageEl.innerHTML = `<div class="usage-cap">
+      <span style="color:var(--amber)">⚠ Not connected to Claude</span> —
+      <button class="btn tiny" id="claude-login-btn">Log in to Claude</button>
+      to show exact usage
+    </div>`
+    document.getElementById('claude-login-btn').addEventListener('click', async () => {
+      await window.relay.claudeLogin()
+      setTimeout(refreshUsage, 3000)
+    })
+    return
+  }
+
+  // Fallback: statusLine snapshot
   let snap
   try { snap = await window.relay.usage() } catch { snap = null }
   if (!snap || snap.error) { usageEl.innerHTML = snap && snap.error ? `<div class="usage-err">usage: ${esc(snap.error)}</div>` : ''; return }
@@ -408,4 +436,4 @@ function openLog(title, text) {
 // ── boot ──────────────────────────────────────────────────────────────────
 window.relay.onChanged(() => refresh())
 refresh()
-setInterval(refreshUsage, 30000) // keep the gauges + reset countdowns live
+setInterval(refreshUsage, 5000) // keep the gauges + reset countdowns live

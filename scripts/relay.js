@@ -142,6 +142,13 @@ function cmdCancel(id) {
   if (!t) { console.error('no task ' + id); process.exit(1) }
   t.status = 'cancelled'; saveStore(db); console.log('✓ cancelled ' + id)
 }
+function cmdRestart() {
+  const signalDir = path.join(os.homedir(), '.relay')
+  const signalPath = path.join(signalDir, 'restart.signal')
+  fs.mkdirSync(signalDir, { recursive: true })
+  fs.writeFileSync(signalPath, new Date().toISOString())
+  console.log('✓ restart signal sent — Relay will relaunch in a moment')
+}
 
 const { f, pos } = parseFlags(process.argv.slice(2))
 const cmd = pos[0]
@@ -149,10 +156,12 @@ try {
   if (cmd === 'schedule') cmdSchedule(f)
   else if (cmd === 'list') cmdList()
   else if (cmd === 'cancel') cmdCancel(pos[1])
+  else if (cmd === 'restart') cmdRestart()
   else {
     console.log('relay — usage:')
     console.log('  schedule --prompt "..." [--mode fresh|resume-full|resume-compact] [--resume <id|current>] [--at next-reset|+30m|<ISO>] [--cwd <path>] [--title "..."]')
     console.log('  list')
     console.log('  cancel <id>')
+    console.log('  restart              — signal the running Relay tray app to relaunch')
   }
 } catch (e) { console.error('error:', e.message); process.exit(1) }

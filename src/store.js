@@ -63,5 +63,5 @@ function getSettings() { return load().settings }
 function setSettings(patch) { const db = load(); db.settings = { ...db.settings, ...patch }; save(db); return db.settings }
 
 module.exports = {
-  DEFAULT_SETTINGS, getTasks, getTask, addTask, updateTask, deleteTask, getSettings, setSettings,
+  getTasks, getTask, addTask, updateTask, deleteTask, getSettings, setSettings,
 }

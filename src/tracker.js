@@ -105,10 +105,35 @@ function snapshot(settings, now = Date.now()) {
   settings = settings || {}
 
   // 1) Prefer the AUTHORITATIVE reading from Claude Code's statusLine (real % + reset timestamps).
+  // Trust it as long as the 5h window hasn't ROLLED (resets_at still in the future) — NOT a
+  // time-since-capture cutoff. During an idle stretch the last reading is still roughly valid (the %
+  // is last-known, the reset is an absolute timestamp), and that beats slamming the bar to an
+  // estimate-zero. Only once the window resets does the captured % become meaningless.
   const auth = readAuthoritative(now)
-  const FRESH = 20 * 60 // seconds
-  if (auth && auth.ageSec < FRESH) {
+  const fh = auth && auth.o.rate_limits && auth.o.rate_limits.five_hour
+  const windowOpen = fh && fh.resets_at && fh.resets_at * 1000 > now
+  if (auth && windowOpen) {
     const rl = auth.o.rate_limits
+    const capturedAtMs = auth.o.capturedAt * 1000
+    const capturedPct = fh.used_percentage != null ? fh.used_percentage : null
+
+    // Blend: live base % + transcript delta since capture.
+    // delta% = (tokens_since_capture / tokens_at_capture) * captured_pct
+    // This keeps the authoritative reset timestamp + window shape, while tracking tokens
+    // consumed since the last statusLine fire (which only happens on Claude Code responses).
+    let sessionPct = capturedPct != null ? Math.round(capturedPct) : null
+    if (capturedPct != null && capturedPct > 0 && auth.ageSec > 30) {
+      try {
+        const winMs = (settings.sessionWindowHours || 5) * HOUR
+        const turns = collectTurns(now - winMs)
+        const tokensAtCapture = turns.filter(t => t.ts <= capturedAtMs).reduce((s, t) => s + t.load, 0)
+        const tokensSince = turns.filter(t => t.ts > capturedAtMs).reduce((s, t) => s + t.load, 0)
+        if (tokensAtCapture > 0 && tokensSince > 0) {
+          sessionPct = Math.round(capturedPct + (tokensSince / tokensAtCapture) * capturedPct)
+        }
+      } catch {}
+    }
+
     const g = w => ({
       pct: w && w.used_percentage != null ? Math.round(w.used_percentage) : null,
       used: null, limit: null,
@@ -116,7 +141,7 @@ function snapshot(settings, now = Date.now()) {
     })
     return {
       now, source: 'live', ageSec: Math.round(auth.ageSec),
-      session: Object.assign(g(rl.five_hour), { windowHours: settings.sessionWindowHours || 5, active: true, sessionId: currentSessionId() }),
+      session: Object.assign(g(rl.five_hour), { pct: sessionPct, windowHours: settings.sessionWindowHours || 5, active: true, sessionId: currentSessionId() }),
       weekly: Object.assign(g(rl.seven_day), { windowDays: settings.weeklyWindowDays || 7 }),
       weeklyOpus: { pct: null, used: null, limit: null },
     }
