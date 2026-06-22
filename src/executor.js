@@ -11,16 +11,20 @@ const fs = require('fs')
 const path = require('path')
 const { logsDir } = require('./paths')
 
-function buildArgs(task) {
-  const prompt = task.prompt && task.prompt.trim() ? task.prompt : 'continue'
-  switch (task.mode) {
-    case 'resume-full':
-    case 'resume-compact': // compaction-before-resume not wired yet → behaves as resume-full (logged)
-      return ['--resume', task.sessionId, '-p', prompt]
-    case 'fresh':
-    default:
-      return ['-p', prompt]
+// Flags only — the PROMPT is passed via stdin, never as an arg. With shell:true (needed to resolve
+// `claude` on Windows) a spaced prompt arg gets re-split by the shell into separate words, which
+// silently truncates it. stdin sidesteps that entirely.
+function buildArgs(task, opts = {}) {
+  const args = []
+  if (task.mode === 'resume-full' || task.mode === 'resume-compact') {
+    args.push('--resume', task.sessionId)
   }
+  args.push('-p')
+  // Unattended runs can't answer permission prompts; without this the session just replies with text
+  // and "succeeds" without editing/committing. OPT-IN only (settings.skipPermissions, default OFF) —
+  // it lets a headless session run anything with no gate, so the user must consciously enable it.
+  if (opts.skipPermissions) args.push('--dangerously-skip-permissions')
+  return args
 }
 
 // Best-guess limit detection. VERIFY in Phase-0 against a real limit-reached message.
@@ -42,8 +46,9 @@ function runTask(task, opts = {}) {
     fs.mkdirSync(dir, { recursive: true })
     const logPath = path.join(dir, `${task.id}-${Date.now()}.log`)
     const logStream = fs.createWriteStream(logPath, { flags: 'a' })
-    const args = buildArgs(task)
-    logStream.write(`# Relay run @ ${new Date().toISOString()}\n$ ${command} ${args.join(' ')}\n# cwd: ${opts.cwd || process.cwd()}\n\n`)
+    const promptText = task.prompt && task.prompt.trim() ? task.prompt : 'continue'
+    const args = buildArgs(task, opts)
+    logStream.write(`# Relay run @ ${new Date().toISOString()}\n$ ${command} ${args.join(' ')}\n# cwd: ${opts.cwd || process.cwd()}\n# prompt (via stdin): ${promptText.slice(0, 300)}\n\n`)
     if (task.mode === 'resume-compact') {
       logStream.write('[note] resume-compact not yet wired — running as resume-full (no /compact).\n\n')
     }
@@ -54,7 +59,7 @@ function runTask(task, opts = {}) {
       child = spawn(command, args, {
         cwd: opts.cwd || undefined,
         shell: process.platform === 'win32', // resolve `claude` on PATH under Windows
-        stdio: ['ignore', 'pipe', 'pipe'], // close stdin → claude gets EOF instead of waiting 3s for it
+        stdio: ['pipe', 'pipe', 'pipe'], // pipe stdin so we can feed the prompt + then EOF (no 3s wait)
       })
     } catch (err) {
       logStream.write(`\n[spawn error] ${err.message}\n`)
@@ -63,6 +68,9 @@ function runTask(task, opts = {}) {
     }
 
     if (typeof opts.onStart === 'function') opts.onStart(child)
+
+    // Feed the prompt via stdin (immune to shell arg-splitting), then close it.
+    try { child.stdin.write(promptText); child.stdin.end() } catch {}
 
     child.stdout && child.stdout.on('data', d => { const s = d.toString(); output += s; logStream.write(s) })
     child.stderr && child.stderr.on('data', d => { const s = d.toString(); output += s; logStream.write(s) })
