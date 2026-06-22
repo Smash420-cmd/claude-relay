@@ -346,6 +346,10 @@ function openSettings() {
       <div class="note" style="border-left-color:var(--accent)">ON: scheduled tasks run even past your free limit (may spend credits). OFF: Relay pauses auto-runs once your <b>live</b> session usage hits the threshold below and waits for the reset. <b>Run now</b> always runs.</div>
     </div>
     <div class="field"><label>Pause auto-runs at session % <span style="color:var(--muted);font-weight:400">(when extended usage is off)</span></label><input type="number" id="s-pause" min="1" max="100" value="${esc(s.pauseAtPct || 100)}" /></div>
+    <div class="field">
+      <label class="toggle"><input type="checkbox" id="s-skip" ${s.skipPermissions !== false ? 'checked' : ''}/> Autonomous execution (skip permission prompts)</label>
+      <div class="note" style="border-left-color:var(--red)">ON: tasks run with <b>--dangerously-skip-permissions</b> — they can edit/run/<b>commit</b> unattended, with no approval gate. This is what makes tasks complete seamlessly. They run in the task's cwd and commit to git (reviewable/revertible), but only queue prompts you trust.</div>
+    </div>
     <h2 style="font-size:14px;margin:18px 0 10px;color:var(--subtle)">Usage tracker (estimate)</h2>
     <div class="row">
       <div class="field"><label>Session window (h)</label><input type="number" id="s-swin" min="1" value="${esc(s.sessionWindowHours || 5)}" /></div>
@@ -375,6 +379,7 @@ function openSettings() {
       autoResumeOnLimit: modalEl.querySelector('#s-auto').checked,
       allowExtendedUsage: modalEl.querySelector('#s-ext').checked,
       pauseAtPct: Math.min(100, Math.max(1, num('#s-pause', 100))),
+      skipPermissions: modalEl.querySelector('#s-skip').checked,
       sessionWindowHours: Math.max(1, num('#s-swin', 5)),
       weeklyWindowDays: Math.max(1, num('#s-wwin', 7)),
       sessionLoadLimit: Math.max(0, num('#s-slim', 0)),

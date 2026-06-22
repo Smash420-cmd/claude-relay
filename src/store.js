@@ -16,8 +16,8 @@ const DEFAULT_SETTINGS = {
   schedulerIntervalSec: 20,     // how often the due-task loop ticks
   allowExtendedUsage: true,     // false = pause auto-runs at the limit (don't spend credits); wait for reset
   pauseAtPct: 100,              // when extended usage is off, defer scheduled runs at/above this live session %
-  skipPermissions: false,       // OFF by default. ON = --dangerously-skip-permissions: unattended tasks
-                                // can edit/run/commit with NO approval gate. Opt-in only (your machine, your call).
+  skipPermissions: true,        // ON (user opted in 2026-06-22 — "the whole point is autonomous workflow").
+                                // --dangerously-skip-permissions: unattended tasks edit/run/commit with no gate.
   // ── Usage tracker (gauge is an ESTIMATE: load tokens consumed ÷ these limits) ──
   sessionWindowHours: 5,        // Claude's rolling session window
   weeklyWindowDays: 7,

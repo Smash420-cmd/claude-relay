@@ -97,6 +97,7 @@ async function runDueTask(task, opts = {}) {
   const res = await executor.runTask(task, {
     command: settings.claudeCommand || 'claude',
     cwd,
+    skipPermissions: settings.skipPermissions !== false, // user-enabled autonomous execution (default on)
     onStart: (child) => running.set(task.id, child),
   })
   running.delete(task.id)

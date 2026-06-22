@@ -21,8 +21,8 @@ function buildArgs(task, opts = {}) {
   }
   args.push('-p')
   // Unattended runs can't answer permission prompts; without this the session just replies with text
-  // and "succeeds" without editing/committing. OPT-IN only (settings.skipPermissions, default OFF) —
-  // it lets a headless session run anything with no gate, so the user must consciously enable it.
+  // and "succeeds" without editing/committing. User-enabled (settings.skipPermissions, default ON) so
+  // tasks complete seamlessly — a headless session runs anything with no gate, in the task's cwd.
   if (opts.skipPermissions) args.push('--dangerously-skip-permissions')
   return args
 }
