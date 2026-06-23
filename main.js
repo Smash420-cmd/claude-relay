@@ -48,6 +48,10 @@ let hasTray = false
 let stopScheduler = null
 const running = new Map() // taskId -> child process (for cancel)
 
+// Force a stable userData path regardless of productName / Electron default.
+// The CLI (scripts/relay.js) writes to %APPDATA%\relay — keep them in sync.
+app.setPath('userData', path.join(app.getPath('appData'), 'relay'))
+
 // Single instance: a scheduler running twice would double-fire tasks.
 if (!app.requestSingleInstanceLock()) {
   app.quit()
