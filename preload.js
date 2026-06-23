@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('relay', {
   claudeLogin:   () => ipcRenderer.invoke('relay:claude-login'),
   claudeLogout:      () => ipcRenderer.invoke('relay:claude-logout'),
   update:      (id, patch) => ipcRenderer.invoke('relay:update', id, patch),
+  setupSkill:  () => ipcRenderer.invoke('relay:setup-skill'),
   onCtxAction: (cb) => ipcRenderer.on('relay:ctx-action', (_e, taskId, action) => cb(taskId, action)),
   statuslinePath:  () => ipcRenderer.invoke('relay:statusline-path'),
   onChanged:     (cb) => ipcRenderer.on('relay:changed', () => cb()),

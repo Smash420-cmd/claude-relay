@@ -525,6 +525,13 @@ async function openWelcome() {
       <div class="hint">In your Claude.ai account settings, turn off <b>Extended usage</b> — otherwise Claude will spend credits past the free limit even while Claude Relay is paused waiting for a reset.</div>
     </div>
 
+    <div class="field">
+      <label>4 · Set up the <code>/relay</code> skill <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+      <div class="hint" style="margin-bottom:8px">Adds <code>relay</code> to your PATH and installs a Claude Code skill so you can type <code>/relay do X at 4pm</code> to schedule tasks without opening this app. No admin password needed.</div>
+      <button class="btn" id="welcome-skill-btn">Set up /relay skill</button>
+      <div id="welcome-skill-status" style="margin-top:6px;font-size:12px"></div>
+    </div>
+
     <div class="modal-actions">
       <button class="btn ghost" id="welcome-skip-btn">Skip for now</button>
       <button class="btn primary" id="welcome-done-btn">All done</button>
@@ -545,6 +552,19 @@ async function openWelcome() {
     if (btn) { btn.textContent = 'Copied!'; setTimeout(() => { if (btn) btn.textContent = 'Copy' }, 2000) }
   })
 
+  document.getElementById('welcome-skill-btn').addEventListener('click', async () => {
+    const statusEl = document.getElementById('welcome-skill-status')
+    statusEl.style.color = 'var(--subtle)'
+    statusEl.textContent = 'Installing…'
+    const res = await window.relay.setupSkill()
+    if (res.ok) {
+      statusEl.style.color = 'var(--green)'
+      statusEl.textContent = '✓ Done — open a new terminal and try /relay in Claude Code'
+    } else {
+      statusEl.style.color = 'var(--red)'
+      statusEl.textContent = `✗ ${res.error}`
+    }
+  })
   document.getElementById('welcome-done-btn').addEventListener('click', dismissWelcome)
   document.getElementById('welcome-skip-btn').addEventListener('click', dismissWelcome)
 
@@ -614,6 +634,12 @@ function openSettings() {
       <label class="toggle"><input type="checkbox" id="s-skip" ${s.skipPermissions !== false ? 'checked' : ''}/> Autonomous execution (skip permission prompts)</label>
       <div class="note" style="border-left-color:var(--red)">ON: tasks run with <b>--dangerously-skip-permissions</b> — they can edit/run/<b>commit</b> unattended, with no approval gate. This is what makes tasks complete seamlessly. They run in the task's cwd and commit to git (reviewable/revertible), but only queue prompts you trust.</div>
     </div>
+    <div class="field">
+      <label>Claude Code integration</label>
+      <div class="hint" style="margin-bottom:8px">Install the <code>/relay</code> skill so you can type <code>/relay do X at 4pm</code> in any Claude Code session to schedule tasks without opening this app.</div>
+      <button class="btn" id="s-setup-skill">Set up /relay skill</button>
+      <div id="s-skill-status" style="margin-top:6px;font-size:12px"></div>
+    </div>
     <details style="margin-top:18px;border:1px solid var(--border);border-radius:8px;padding:10px 13px">
       <summary style="cursor:pointer;font-weight:650;font-size:13px;color:var(--subtle)">Security &amp; privacy</summary>
       <div style="margin-top:12px;display:flex;flex-direction:column;gap:10px;font-size:12.5px;color:var(--subtle)">
@@ -636,6 +662,19 @@ function openSettings() {
   `)
   window.relay.version().then(v => { const el = document.getElementById('s-version'); if (el) el.textContent = `v${v}` })
   modalEl.querySelector('#s-open-logs').addEventListener('click', () => window.relay.openLogs())
+  modalEl.querySelector('#s-setup-skill').addEventListener('click', async () => {
+    const statusEl = document.getElementById('s-skill-status')
+    statusEl.style.color = 'var(--subtle)'
+    statusEl.textContent = 'Installing…'
+    const res = await window.relay.setupSkill()
+    if (res.ok) {
+      statusEl.style.color = 'var(--green)'
+      statusEl.textContent = '✓ /relay skill installed — open a new terminal and try it in Claude Code'
+    } else {
+      statusEl.style.color = 'var(--red)'
+      statusEl.textContent = `✗ ${res.error}`
+    }
+  })
   modalEl.querySelector('#s-save').addEventListener('click', async () => {
     const num = (sel, d) => { const v = parseInt(modalEl.querySelector(sel).value, 10); return isNaN(v) ? d : v }
     await window.relay.setSettings({

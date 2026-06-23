@@ -2,6 +2,7 @@
 // Relay — Electron main process. Owns the window, the tray (so the scheduler stays alive when the
 // window is closed), the due-task scheduler, the executor, and all IPC.
 const { app, BrowserWindow, Tray, Menu, MenuItem, ipcMain, nativeImage, shell, session } = require('electron')
+const { execFileSync } = require('child_process')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -351,6 +352,54 @@ function registerIpc() {
     try { return fs.readFileSync(logPath, 'utf8') } catch { return '(log not found)' }
   })
   ipcMain.handle('relay:logs:open', () => shell.openPath(logsDir()))
+
+  ipcMain.handle('relay:setup-skill', () => {
+    const scriptsDir = app.isPackaged
+      ? path.join(process.resourcesPath, 'app.asar.unpacked', 'scripts')
+      : path.join(app.getAppPath(), 'scripts')
+
+    // Write relay.cmd so `relay` works as a bare command on Windows PATH
+    fs.writeFileSync(path.join(scriptsDir, 'relay.cmd'), '@echo off\nnode "%~dp0relay.js" %*\n')
+
+    // Add scripts dir to user PATH (HKCU — no elevation needed)
+    try {
+      const cur = execFileSync('powershell', ['-NoProfile', '-Command',
+        '[Environment]::GetEnvironmentVariable("Path","User")'
+      ], { encoding: 'utf8' }).trim()
+      const parts = cur.split(';').map(p => p.trim()).filter(Boolean)
+      if (!parts.some(p => p.toLowerCase() === scriptsDir.toLowerCase())) {
+        const next = [...parts, scriptsDir].join(';')
+        execFileSync('powershell', ['-NoProfile', '-Command',
+          `[Environment]::SetEnvironmentVariable("Path","${next}","User")`
+        ])
+      }
+    } catch (e) {
+      return { ok: false, error: `PATH update failed: ${e.message}` }
+    }
+
+    // Write the /relay Claude Code skill
+    const skillDir = path.join(os.homedir(), '.claude', 'commands')
+    fs.mkdirSync(skillDir, { recursive: true })
+    fs.writeFileSync(path.join(skillDir, 'relay.md'), [
+      'Schedule the described work into the Relay queue for later autonomous Claude Code execution.',
+      '',
+      'Parse the user\'s message and extract:',
+      '- **title**: short label ≤60 chars',
+      '- **prompt**: the full task Claude should run — be specific, it runs unattended in a headless session',
+      '- **at**: when to run — convert natural language ("4pm tuesday", "tomorrow 9am", "in 2 hours") to ISO 8601 in the user\'s local timezone',
+      '',
+      'Run via Bash:',
+      '```bash',
+      'relay schedule --title "TITLE" --prompt "PROMPT" --at "ISO_DATETIME"',
+      '```',
+      '',
+      'Add `--cwd "PROJECT_PATH"` if the task is for a specific project directory.',
+      '',
+      'Confirm with one line after scheduling: `✓ "TITLE" → HUMAN_READABLE_TIME`',
+    ].join('\n'))
+
+    return { ok: true }
+  })
 }
 
 function makeTray() {
