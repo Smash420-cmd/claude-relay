@@ -188,7 +188,7 @@ function taskRow(t) {
 
   // Human-readable single meta line: mode · folder · ran time · exit
   const folder = t.projectPath ? t.projectPath.replace(/\\/g, '/').split('/').pop() : ''
-  const ranAt  = t.lastRunAt ? `ran ${fmtWhen(t.lastRunAt)}` : scheduleText(t)
+  const ranAt  = t.status === 'scheduled' ? scheduleText(t) : (t.lastRunAt ? `ran ${fmtWhen(t.lastRunAt)}` : scheduleText(t))
   const exit   = (t.lastExitCode != null && t.status !== 'scheduled') ? `exit ${t.lastExitCode}` : ''
   const extras = [modeText(t), folder, ranAt, exit, t.resetHint ? `resets ${esc(t.resetHint)}` : ''].filter(Boolean).join(' · ')
 
@@ -208,6 +208,7 @@ function taskRow(t) {
       ${canRetry ? `<button class="btn tiny" data-action="retry">Re-arm</button>` : ''}
       ${canCancel ? `<button class="btn tiny" data-action="cancel">Cancel</button>` : ''}
       ${hasLog ? `<button class="btn tiny" data-action="log">Log</button>` : ''}
+      <button class="btn tiny" data-action="edit">Edit</button>
       <button class="btn tiny danger" data-action="delete">Delete</button>
     </div>
   </div>`
@@ -223,15 +224,34 @@ listEl.addEventListener('click', async (e) => {
   }
   const id = btn.closest('.task').dataset.id
   const action = btn.dataset.action
-  if (action === 'run') await window.relay.runNow(id)
+  const t = TASKS.find(x => x.id === id)
+  if (action === 'edit') { if (t) openEditTask(t); return }
+  if (action === 'retry')       await window.relay.retry(id)
+  else if (action === 'run')    await window.relay.runNow(id)
   else if (action === 'cancel') await window.relay.cancel(id)
-  else if (action === 'retry') await window.relay.retry(id)
   else if (action === 'resume') await window.relay.resumeAtReset(id)
   else if (action === 'delete') await window.relay.remove(id)
   else if (action === 'log') {
-    const t = TASKS.find(x => x.id === id)
-    const text = await window.relay.getLog(t.lastLogPath)
-    openLog(t.title, text)
+    if (t) { const text = await window.relay.getLog(t.lastLogPath); openLog(t.title, text) }
+  }
+  await refresh()
+})
+
+document.addEventListener('contextmenu', (e) => {
+  window.__ctxTaskId = e.target.closest('[data-id]')?.dataset.id ?? null
+})
+
+window.relay.onCtxAction(async (id, action) => {
+  const t = TASKS.find(x => x.id === id)
+  if (action === 'edit') { if (t) openEditTask(t); return }
+  if (action === 'retry')       await window.relay.retry(id)
+  else if (action === 'run')    await window.relay.runNow(id)
+  else if (action === 'cancel') await window.relay.cancel(id)
+  else if (action === 'resume') await window.relay.resumeAtReset(id)
+  else if (action === 'delete') await window.relay.remove(id)
+  else if (action === 'log') {
+    if (t) { const text = await window.relay.getLog(t.lastLogPath); openLog(t.title, text) }
+    return
   }
   await refresh()
 })
@@ -343,6 +363,128 @@ async function openNewTask() {
     })
     closeModal()
     await refresh()
+  })
+}
+
+// ── edit task ───────────────────────────────────────────────────────────────
+async function openEditTask(task) {
+  const sessions = await window.relay.listSessions()
+  let mode = task.mode || 'fresh'
+  let scheduleKind = task.schedule?.kind || 'at-next-reset'
+  let pickedSession = task.sessionId || null
+
+  const localAt = (scheduleKind === 'once' && task.schedule?.at)
+    ? new Date(new Date(task.schedule.at).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+    : ''
+
+  openModal(`
+    <h2>Edit task</h2>
+    <div class="field">
+      <label>Title <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+      <input type="text" id="f-title" value="${esc(task.title || '')}" />
+    </div>
+    <div class="field">
+      <label>Prompt</label>
+      <textarea id="f-prompt">${esc(task.prompt || '')}</textarea>
+    </div>
+    <div class="field">
+      <label>Mode</label>
+      <div class="radio-row" id="f-mode">
+        <div class="radio-chip${mode === 'fresh' ? ' on' : ''}" data-v="fresh">Fresh session</div>
+        <div class="radio-chip${mode === 'resume-full' ? ' on' : ''}" data-v="resume-full">Resume (full)</div>
+      </div>
+    </div>
+    <div class="field" id="f-session-wrap"${mode === 'fresh' ? ' hidden' : ''}>
+      <label>Session to resume</label>
+      <div class="session-list" id="f-sessions">
+        ${sessions.length ? sessions.map(s => `
+          <div class="session-item${s.active ? ' active' : ''}${s.sessionId === pickedSession ? ' on' : ''}" data-sid="${esc(s.sessionId)}">
+            <div class="si-title">${s.active ? '<span class="si-live">● live</span>' : ''}${esc(s.preview || '(no preview)')}</div>
+            <div class="sid">${esc(s.slug || s.sessionId.slice(0, 8))} · ${esc(s.project)} · ${esc(fmtWhen(new Date(s.modified).toISOString()))}</div>
+          </div>`).join('')
+          : `<div class="session-item">No sessions found</div>`}
+      </div>
+    </div>
+    <div class="field">
+      <label>Project path <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+      <input type="text" id="f-project" value="${esc(task.projectPath || '')}" placeholder="${esc(SETTINGS.defaultProjectPath || '')}" />
+    </div>
+    <div class="field">
+      <label>When</label>
+      <div class="radio-row" id="f-sched">
+        <div class="radio-chip${scheduleKind === 'at-next-reset' ? ' on' : ''}" data-v="at-next-reset">At next reset (${esc(SETTINGS.dailyResetTime || '02:20')})</div>
+        <div class="radio-chip${scheduleKind === 'once' ? ' on' : ''}" data-v="once">At a specific time</div>
+      </div>
+      <div id="f-once-wrap"${scheduleKind !== 'once' ? ' hidden' : ''} style="margin-top:10px">
+        <input type="datetime-local" id="f-once" value="${esc(localAt)}" />
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" data-close>Cancel</button>
+      <button class="btn primary" id="f-save">Save changes</button>
+    </div>
+  `)
+
+  const sessionWrap = modalEl.querySelector('#f-session-wrap')
+  const onceWrap = modalEl.querySelector('#f-once-wrap')
+
+  modalEl.querySelector('#f-mode').addEventListener('click', (e) => {
+    const chip = e.target.closest('.radio-chip'); if (!chip) return
+    mode = chip.dataset.v
+    modalEl.querySelectorAll('#f-mode .radio-chip').forEach(c => c.classList.toggle('on', c === chip))
+    sessionWrap.hidden = (mode === 'fresh')
+  })
+  modalEl.querySelector('#f-sessions')?.addEventListener('click', (e) => {
+    const item = e.target.closest('.session-item[data-sid]'); if (!item) return
+    pickedSession = item.dataset.sid
+    modalEl.querySelectorAll('.session-item').forEach(s => s.classList.toggle('on', s === item))
+  })
+  modalEl.querySelector('#f-sched').addEventListener('click', (e) => {
+    const chip = e.target.closest('.radio-chip'); if (!chip) return
+    scheduleKind = chip.dataset.v
+    modalEl.querySelectorAll('#f-sched .radio-chip').forEach(c => c.classList.toggle('on', c === chip))
+    onceWrap.hidden = (scheduleKind !== 'once')
+  })
+  modalEl.querySelector('#f-save').addEventListener('click', async () => {
+    const prompt = modalEl.querySelector('#f-prompt').value.trim()
+    if (!prompt) { modalEl.querySelector('#f-prompt').focus(); return }
+    let schedule
+    if (scheduleKind === 'once') {
+      const v = modalEl.querySelector('#f-once').value
+      if (!v) { alert('Pick a date/time.'); return }
+      schedule = { kind: 'once', at: new Date(v).toISOString() }
+    } else {
+      schedule = { kind: 'at-next-reset' }
+    }
+    await window.relay.update(task.id, {
+      title: modalEl.querySelector('#f-title').value.trim(),
+      prompt,
+      mode,
+      sessionId: mode === 'fresh' ? null : pickedSession,
+      projectPath: modalEl.querySelector('#f-project').value.trim(),
+      schedule,
+      status: 'scheduled',
+    })
+    closeModal()
+    await refresh()
+  })
+}
+
+function openRearmDialog(task) {
+  openModal(`
+    <h2>Task is past due</h2>
+    <p style="color:var(--subtle);margin:0 0 18px">The scheduled time for <b>${esc(task.title || 'this task')}</b> has already passed.</p>
+    <div class="modal-actions">
+      <button class="btn ghost" data-close>Cancel</button>
+      <button class="btn" id="rd-reschedule">Reschedule</button>
+      <button class="btn primary" id="rd-now">Run now</button>
+    </div>
+  `)
+  modalEl.querySelector('#rd-now').addEventListener('click', async () => {
+    closeModal(); await window.relay.runNow(task.id); await refresh()
+  })
+  modalEl.querySelector('#rd-reschedule').addEventListener('click', () => {
+    closeModal(); openEditTask(task)
   })
 }
 
@@ -523,7 +665,18 @@ function openLog(title, text) {
 // ── boot ──────────────────────────────────────────────────────────────────
 window.relay.onChanged(() => refresh())
 window.relay.version().then(v => { document.getElementById('appVersion').textContent = `v${v}` })
-window.relay.onUpdateReady(() => { document.getElementById('updatePill').hidden = false })
+window.relay.onUpdateAvailable((version) => {
+  const pill = document.getElementById('updatePill')
+  pill.textContent = `↓ v${version} downloading…`
+  pill.hidden = false
+  pill.disabled = true
+})
+window.relay.onUpdateReady(() => {
+  const pill = document.getElementById('updatePill')
+  pill.textContent = '↑ Update ready — click to restart'
+  pill.hidden = false
+  pill.disabled = false
+})
 document.getElementById('updatePill').addEventListener('click', () => window.relay.installUpdate())
 refresh().then(() => { if (!SETTINGS.hasSeenWelcome) openWelcome() })
 setInterval(refreshUsage, 5000) // keep the gauges + reset countdowns live

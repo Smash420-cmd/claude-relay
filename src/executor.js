@@ -56,10 +56,16 @@ function runTask(task, opts = {}) {
     let output = ''
     let child
     try {
+      const spawnEnv = process.platform === 'win32' ? {
+        ...process.env,
+        SystemRoot: process.env.SystemRoot || 'C:\\Windows',
+        ComSpec:    process.env.ComSpec    || 'C:\\Windows\\System32\\cmd.exe',
+      } : process.env
       child = spawn(command, args, {
         cwd: opts.cwd || undefined,
-        shell: process.platform === 'win32', // resolve `claude` on PATH under Windows
-        stdio: ['pipe', 'pipe', 'pipe'], // pipe stdin so we can feed the prompt + then EOF (no 3s wait)
+        shell: process.platform === 'win32' ? (spawnEnv.ComSpec) : false,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: spawnEnv,
       })
     } catch (err) {
       logStream.write(`\n[spawn error] ${err.message}\n`)
@@ -96,8 +102,10 @@ function runTask(task, opts = {}) {
       const limit = detectLimit(output)
       let status = code === 0 ? 'succeeded' : 'failed'
       if (limit.stopped) status = 'stopped'
-      logStream.write(`\n\n[exit ${code}] status=${status}${limit.resetHint ? ` resetHint=${limit.resetHint}` : ''}\n`)
-      logStream.end()
+      if (!logStream.writableEnded) {
+        logStream.write(`\n\n[exit ${code}] status=${status}${limit.resetHint ? ` resetHint=${limit.resetHint}` : ''}\n`)
+        logStream.end()
+      }
       resolve({ exitCode: code, status, logPath, resetHint: limit.resetHint })
     })
   })

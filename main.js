@@ -1,7 +1,7 @@
 'use strict'
 // Relay — Electron main process. Owns the window, the tray (so the scheduler stays alive when the
 // window is closed), the due-task scheduler, the executor, and all IPC.
-const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, shell, session } = require('electron')
+const { app, BrowserWindow, Tray, Menu, MenuItem, ipcMain, nativeImage, shell, session } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -117,6 +117,43 @@ function createWindow() {
     if ((input.control || input.meta) && input.shift && k === 'i') win.webContents.openDevTools()
   })
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'))
+  win.webContents.on('context-menu', async (_e, params) => {
+    const menu = new Menu()
+    const ef = params.editFlags
+    if (ef.canCut || ef.canCopy || ef.canPaste || ef.canSelectAll) {
+      if (params.dictionarySuggestions?.length) {
+        for (const s of params.dictionarySuggestions)
+          menu.append(new MenuItem({ label: s, click: () => win.webContents.replaceMisspelling(s) }))
+        menu.append(new MenuItem({ type: 'separator' }))
+      }
+      menu.append(new MenuItem({ role: 'cut',       enabled: ef.canCut }))
+      menu.append(new MenuItem({ role: 'copy',      enabled: ef.canCopy }))
+      menu.append(new MenuItem({ role: 'paste',     enabled: ef.canPaste }))
+      menu.append(new MenuItem({ role: 'selectAll', enabled: ef.canSelectAll }))
+      menu.popup()
+      return
+    }
+    const taskId = await win.webContents.executeJavaScript('window.__ctxTaskId ?? null').catch(() => null)
+    if (!taskId) return
+    const t = store.getTasks().find(x => x.id === taskId)
+    if (!t) return
+    const send = (action) => win.webContents.send('relay:ctx-action', taskId, action)
+    const canRunNow = t.status !== 'running'
+    const canCancel = t.status === 'scheduled' || t.status === 'running'
+    const canRetry  = ['failed','stopped','cancelled','interrupted'].includes(t.status)
+    const canResume = ['stopped','failed','interrupted'].includes(t.status)
+    Menu.buildFromTemplate([
+      { label: 'Edit',                             click: () => send('edit') },
+      { type: 'separator' },
+      ...(canRunNow ? [{ label: 'Run now',         click: () => send('run') }]    : []),
+      ...(canResume ? [{ label: 'Resume at reset', click: () => send('resume') }] : []),
+      ...(canRetry  ? [{ label: 'Re-arm',          click: () => send('retry') }]  : []),
+      ...(canCancel ? [{ label: 'Cancel',          click: () => send('cancel') }] : []),
+      ...(t.lastLogPath ? [{ label: 'View log',    click: () => send('log') }]    : []),
+      { type: 'separator' },
+      { label: 'Delete', click: () => send('delete') },
+    ]).popup()
+  })
   win.on('close', (e) => {
     // Keep the app (and scheduler) alive in the tray instead of quitting — unless there's no tray.
     if (hasTray && !app.isQuitting) { e.preventDefault(); win.hide() }
@@ -243,7 +280,8 @@ function registerIpc() {
     notifyChange()
   })
 
-  ipcMain.handle('relay:retry', (_e, id) => { store.updateTask(id, { status: 'scheduled' }); notifyChange() })
+  ipcMain.handle('relay:retry',  (_e, id) => { store.updateTask(id, { status: 'scheduled' }); notifyChange() })
+  ipcMain.handle('relay:update', (_e, id, patch) => { store.updateTask(id, patch); notifyChange() })
 
   ipcMain.handle('relay:run-now', async (_e, id) => {
     const t = store.getTask(id)
@@ -312,7 +350,7 @@ function registerIpc() {
 }
 
 function makeTray() {
-  const iconPath = path.join(__dirname, 'assets', 'tray.png')
+  const iconPath = path.join(__dirname, 'assets', 'relay_tray', 'favicon.ico')
   let img = nativeImage.createFromPath(iconPath)
   if (img.isEmpty()) return // no icon → window-only mode (see window-all-closed below)
   try {
@@ -359,6 +397,9 @@ function main() {
     registerIpc()
     if (app.isPackaged) {
       autoUpdater.checkForUpdatesAndNotify()
+      autoUpdater.on('update-available', (info) => {
+        if (win && !win.isDestroyed()) win.webContents.send('relay:update-available', info.version)
+      })
       autoUpdater.on('update-downloaded', () => {
         if (win && !win.isDestroyed()) win.webContents.send('relay:update-ready')
       })

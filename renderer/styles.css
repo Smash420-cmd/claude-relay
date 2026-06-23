@@ -1,18 +1,20 @@
 :root {
-  --bg: #0d1117;
-  --panel: #161b22;
-  --panel-2: #1c2230;
-  --border: #2a313c;
-  --border-2: #353d4a;
+  --bg: #000000;
+  --panel: #0c0c14;
+  --panel-2: #131320;
+  --border: #1d1d2e;
+  --border-2: #28283e;
   --text: #e6edf3;
   --subtle: #aab2bd;
   --muted: #6e7681;
-  --accent: #1E9FA3;
-  --accent-soft: rgba(30,159,163,0.15);
-  --blue: #4a8df0;
+  --accent: #4A6CF7;
+  --accent-soft: rgba(74,108,247,0.15);
+  --brand-cyan: #00FFD1;
+  --brand-purple: #7B2FFF;
+  --blue: #4A6CF7;
   --green: #3fb950;
   --amber: #d29922;
-  --orange: #db8b3a;
+  --orange: #E8622A;
   --red: #f0556a;
   --gray: #6e7681;
   --radius: 10px;
@@ -34,13 +36,13 @@ body {
   backdrop-filter: blur(8px); -webkit-app-region: drag;
 }
 .brand { display: flex; align-items: center; gap: 9px; }
-.brand-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
-.brand-name { font-weight: 800; letter-spacing: 0.2px; }
+.brand-logo { height: 40px; width: auto; display: block; }
 .brand-sub { color: var(--muted); font-size: 12px; }
 .brand-version { color: var(--muted); font-size: 11px; margin-left: 2px; }
 .update-pill { background: var(--accent); color: #fff; border: none; border-radius: 20px; padding: 3px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer; -webkit-app-region: no-drag; }
 .update-pill:hover { filter: brightness(1.1); }
 .update-pill[hidden] { display: none; }
+.update-pill:disabled { opacity: 0.7; cursor: default; filter: none; }
 .topbar-actions { display: flex; gap: 8px; -webkit-app-region: no-drag; }
 
 /* ── Buttons ── */

@@ -1,6 +1,6 @@
 {
   "name": "claude-relay",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Schedule prompts into local Claude Code sessions and auto-resume work across session limits.",
   "main": "main.js",
   "author": "Patrick",
@@ -24,7 +24,8 @@
     },
     "asarUnpack": ["scripts/**"],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "assets/relay_tray/relay_tray.ico"
     },
     "nsis": {
       "oneClick": true,
