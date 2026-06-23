@@ -28,6 +28,10 @@ body {
   font: 14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
   display: flex; flex-direction: column; height: 100vh;
 }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--panel-2); }
+::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
 /* ── Topbar ── */
 .topbar {

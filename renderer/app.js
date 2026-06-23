@@ -44,7 +44,10 @@ function fmtTok(n) {
 function fmtCountdown(toMs) {
   const ms = toMs - Date.now()
   if (ms <= 0) return 'now'
-  const h = Math.floor(ms / 3600e3), m = Math.floor((ms % 3600e3) / 60000)
+  const d = Math.floor(ms / 86400e3)
+  const h = Math.floor((ms % 86400e3) / 3600e3)
+  const m = Math.floor((ms % 3600e3) / 60000)
+  if (d > 0) return `${d}d ${h}h ${m}m`
   return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 function barClass(pct) {
