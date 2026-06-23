@@ -37,6 +37,10 @@ body {
 .brand-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
 .brand-name { font-weight: 800; letter-spacing: 0.2px; }
 .brand-sub { color: var(--muted); font-size: 12px; }
+.brand-version { color: var(--muted); font-size: 11px; margin-left: 2px; }
+.update-pill { background: var(--accent); color: #fff; border: none; border-radius: 20px; padding: 3px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer; -webkit-app-region: no-drag; }
+.update-pill:hover { filter: brightness(1.1); }
+.update-pill[hidden] { display: none; }
 .topbar-actions { display: flex; gap: 8px; -webkit-app-region: no-drag; }
 
 /* ── Buttons ── */

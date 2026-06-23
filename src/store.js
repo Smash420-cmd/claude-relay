@@ -11,6 +11,7 @@ const { tasksFile } = require('./paths')
 const SETTINGS_VERSION = 2 // bump when a default changes meaning so existing stores get migrated
 
 const DEFAULT_SETTINGS = {
+  hasSeenWelcome: false,
   claudeCommand: 'claude',      // CLI binary; set to a full path if `claude` isn't on PATH
   defaultProjectPath: '',       // cwd used for tasks that don't set their own
   dailyResetTime: '02:20',      // local HH:MM — fallback for "at next reset" when API is unavailable

@@ -281,6 +281,16 @@ function registerIpc() {
     })
   })
 
+  ipcMain.handle('relay:version', () => app.getVersion())
+  ipcMain.handle('relay:install-update', () => autoUpdater.quitAndInstall(false, true))
+
+  ipcMain.handle('relay:statusline-path', () => {
+    const base = app.isPackaged
+      ? path.join(process.resourcesPath, 'app.asar.unpacked')
+      : app.getAppPath()
+    return path.join(base, 'scripts', 'relay-statusline.js').replace(/\\/g, '/')
+  })
+
   ipcMain.handle('relay:claude-logout', async () => {
     await session.defaultSession.cookies.remove('https://claude.ai', 'sessionKey')
   })
@@ -337,7 +347,12 @@ function main() {
     rotateLogs()
     cleanupOrphanedTasks()
     registerIpc()
-    if (app.isPackaged) autoUpdater.checkForUpdatesAndNotify()
+    if (app.isPackaged) {
+      autoUpdater.checkForUpdatesAndNotify()
+      autoUpdater.on('update-downloaded', () => {
+        if (win && !win.isDestroyed()) win.webContents.send('relay:update-ready')
+      })
+    }
     createWindow()
     makeTray()
     watchStore()

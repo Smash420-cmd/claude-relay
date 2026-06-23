@@ -1,6 +1,7 @@
 node_modules/
 dist/
 out/
+.cache/
 *.log
 .DS_Store
 relay-data.json

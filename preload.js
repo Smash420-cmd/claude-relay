@@ -19,6 +19,10 @@ contextBridge.exposeInMainWorld('relay', {
   openLogs:      () => ipcRenderer.invoke('relay:logs:open'),
   claudeUsage:   () => ipcRenderer.invoke('relay:claude-usage'),
   claudeLogin:   () => ipcRenderer.invoke('relay:claude-login'),
-  claudeLogout:  () => ipcRenderer.invoke('relay:claude-logout'),
+  claudeLogout:    () => ipcRenderer.invoke('relay:claude-logout'),
+  statuslinePath:  () => ipcRenderer.invoke('relay:statusline-path'),
   onChanged:     (cb) => ipcRenderer.on('relay:changed', () => cb()),
+  onUpdateReady: (cb) => ipcRenderer.on('relay:update-ready', () => cb()),
+  version:       () => ipcRenderer.invoke('relay:version'),
+  installUpdate: () => ipcRenderer.invoke('relay:install-update'),
 })

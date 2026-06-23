@@ -346,13 +346,98 @@ async function openNewTask() {
   })
 }
 
+// ── welcome screen ───────────────────────────────────────────────────────────
+let welcomePoller = null
+
+async function openWelcome() {
+  const scriptPath = await window.relay.statuslinePath().catch(() => '')
+  const statusLineSnippet = `"statusLine": { "type": "command", "command": "node \\"${scriptPath}\\"" }`
+  const api = await window.relay.claudeUsage().catch(() => null)
+  const loggedIn = api && !api.error
+
+  openModal(`
+    <h2 style="margin-bottom:6px">Welcome to Claude Relay</h2>
+    <p style="color:var(--subtle);margin:0 0 18px">Quick setup — takes about a minute.</p>
+
+    <div class="field">
+      <label>1 · Log in to Claude</label>
+      <div id="welcome-login-state">
+        ${loggedIn
+          ? `<div style="color:var(--green);font-weight:600;padding:4px 0">✓ Logged in</div>`
+          : `<button class="btn primary" id="welcome-login-btn">Log in to Claude</button>`}
+      </div>
+      <div class="hint">Lets Claude Relay read your exact session and weekly usage from Claude.ai.</div>
+    </div>
+
+    <div class="field">
+      <label>2 · Enable live usage tracking <span style="color:var(--muted);font-weight:400">(recommended)</span></label>
+      <div class="hint" style="margin-bottom:6px">Add this to <code>~/.claude/settings.json</code> — one-time setup, works for every Claude Code session on this machine:</div>
+      <div style="display:flex;gap:6px;align-items:flex-start">
+        <code id="welcome-snippet" style="flex:1;background:var(--panel-2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:11px;word-break:break-all;display:block;line-height:1.5">${esc(statusLineSnippet)}</code>
+        <button class="btn tiny" id="welcome-copy-btn" style="flex-shrink:0;margin-top:2px">Copy</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>3 · Disable Extended usage in Claude.ai</label>
+      <div class="hint">In your Claude.ai account settings, turn off <b>Extended usage</b> — otherwise Claude will spend credits past the free limit even while Claude Relay is paused waiting for a reset.</div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn ghost" id="welcome-skip-btn">Skip for now</button>
+      <button class="btn primary" id="welcome-done-btn">All done</button>
+    </div>
+  `)
+
+  const loginBtn = document.getElementById('welcome-login-btn')
+  if (loginBtn) {
+    loginBtn.addEventListener('click', async () => {
+      await window.relay.claudeLogin()
+      startWelcomePoller()
+    })
+  }
+
+  document.getElementById('welcome-copy-btn').addEventListener('click', () => {
+    navigator.clipboard.writeText(statusLineSnippet).catch(() => {})
+    const btn = document.getElementById('welcome-copy-btn')
+    if (btn) { btn.textContent = 'Copied!'; setTimeout(() => { if (btn) btn.textContent = 'Copy' }, 2000) }
+  })
+
+  document.getElementById('welcome-done-btn').addEventListener('click', dismissWelcome)
+  document.getElementById('welcome-skip-btn').addEventListener('click', dismissWelcome)
+
+  if (!loggedIn) startWelcomePoller()
+}
+
+function startWelcomePoller() {
+  if (welcomePoller) return
+  welcomePoller = setInterval(async () => {
+    if (modalHost.hidden) { clearInterval(welcomePoller); welcomePoller = null; return }
+    const api = await window.relay.claudeUsage().catch(() => null)
+    if (api && !api.error) {
+      clearInterval(welcomePoller)
+      welcomePoller = null
+      const state = document.getElementById('welcome-login-state')
+      if (state) state.innerHTML = `<div style="color:var(--green);font-weight:600;padding:4px 0">✓ Logged in</div>`
+      setTimeout(dismissWelcome, 1200)
+    }
+  }, 2000)
+}
+
+function dismissWelcome() {
+  if (welcomePoller) { clearInterval(welcomePoller); welcomePoller = null }
+  window.relay.setSettings({ hasSeenWelcome: true })
+  closeModal()
+  refresh()
+}
+
 // ── settings ────────────────────────────────────────────────────────────────
 document.getElementById('settingsBtn').addEventListener('click', openSettings)
 
 function openSettings() {
   const s = SETTINGS
   openModal(`
-    <h2>Settings</h2>
+    <h2>Settings <span id="s-version" style="font-size:12px;font-weight:400;color:var(--muted)"></span></h2>
     <div class="field">
       <label>Claude CLI command</label>
       <input type="text" id="s-cmd" value="${esc(s.claudeCommand || 'claude')}" />
@@ -387,6 +472,19 @@ function openSettings() {
       <label class="toggle"><input type="checkbox" id="s-skip" ${s.skipPermissions !== false ? 'checked' : ''}/> Autonomous execution (skip permission prompts)</label>
       <div class="note" style="border-left-color:var(--red)">ON: tasks run with <b>--dangerously-skip-permissions</b> — they can edit/run/<b>commit</b> unattended, with no approval gate. This is what makes tasks complete seamlessly. They run in the task's cwd and commit to git (reviewable/revertible), but only queue prompts you trust.</div>
     </div>
+    <details style="margin-top:18px;border:1px solid var(--border);border-radius:8px;padding:10px 13px">
+      <summary style="cursor:pointer;font-weight:650;font-size:13px;color:var(--subtle)">Security &amp; privacy</summary>
+      <div style="margin-top:12px;display:flex;flex-direction:column;gap:10px;font-size:12.5px;color:var(--subtle)">
+        <div><b style="color:var(--text)">What does "skip permissions" mean?</b><br>
+        Tasks run with <code>--dangerously-skip-permissions</code> — Claude Code can edit files, run commands, and commit code with no approval gate. Only queue prompts you trust. You can turn this off in Settings if you want to supervise each run.</div>
+        <div><b style="color:var(--text)">Can other people on my machine see my tasks?</b><br>
+        Yes. Tasks and settings are stored in a plain JSON file in the app's data folder. Anyone with access to your machine can read or modify them. Treat your machine access accordingly.</div>
+        <div><b style="color:var(--text)">Why does Claude Relay access my Claude.ai session?</b><br>
+        To read your exact usage % and reset times directly from Claude.ai. This data is only sent back to Claude.ai — never stored or shared elsewhere.</div>
+        <div><b style="color:var(--text)">Does Claude Relay send my prompts anywhere?</b><br>
+        No. Prompts go directly to the Claude Code CLI on your machine. Claude Relay is a local scheduler only — no cloud component, no telemetry.</div>
+      </div>
+    </details>
     <div class="modal-actions">
       <button class="btn ghost" id="s-open-logs">Open logs folder</button>
       <span style="flex:1"></span>
@@ -394,6 +492,7 @@ function openSettings() {
       <button class="btn primary" id="s-save">Save</button>
     </div>
   `)
+  window.relay.version().then(v => { const el = document.getElementById('s-version'); if (el) el.textContent = `v${v}` })
   modalEl.querySelector('#s-open-logs').addEventListener('click', () => window.relay.openLogs())
   modalEl.querySelector('#s-save').addEventListener('click', async () => {
     const num = (sel, d) => { const v = parseInt(modalEl.querySelector(sel).value, 10); return isNaN(v) ? d : v }
@@ -423,5 +522,8 @@ function openLog(title, text) {
 
 // ── boot ──────────────────────────────────────────────────────────────────
 window.relay.onChanged(() => refresh())
-refresh()
+window.relay.version().then(v => { document.getElementById('appVersion').textContent = `v${v}` })
+window.relay.onUpdateReady(() => { document.getElementById('updatePill').hidden = false })
+document.getElementById('updatePill').addEventListener('click', () => window.relay.installUpdate())
+refresh().then(() => { if (!SETTINGS.hasSeenWelcome) openWelcome() })
 setInterval(refreshUsage, 5000) // keep the gauges + reset countdowns live

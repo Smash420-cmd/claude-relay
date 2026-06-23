@@ -1,6 +1,6 @@
 {
   "name": "claude-relay",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Schedule prompts into local Claude Code sessions and auto-resume work across session limits.",
   "main": "main.js",
   "author": "Patrick",
@@ -10,8 +10,8 @@
   },
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win",
-    "publish": "electron-builder --win --publish always",
+    "build": "set ELECTRON_BUILDER_CACHE=.cache && electron-builder --win",
+    "publish": "set ELECTRON_BUILDER_CACHE=.cache && electron-builder --win --publish always",
     "check": "node --check main.js && node --check preload.js && node --check src/paths.js && node --check src/store.js && node --check src/sessions.js && node --check src/executor.js && node --check src/scheduler.js && node --check src/tracker.js && node --check scripts/relay.js && node --check scripts/relay-statusline.js && node --check renderer/app.js"
   },
   "build": {
@@ -22,6 +22,7 @@
       "owner": "Smash420-cmd",
       "repo": "claude-relay"
     },
+    "asarUnpack": ["scripts/**"],
     "win": {
       "target": "nsis"
     },
