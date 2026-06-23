@@ -449,13 +449,16 @@ function main() {
     cleanupOrphanedTasks()
     registerIpc()
     if (app.isPackaged) {
-      autoUpdater.checkForUpdatesAndNotify()
+      autoUpdater.on('error', (err) => console.error('[updater] error:', err.message))
       autoUpdater.on('update-available', (info) => {
         if (win && !win.isDestroyed()) win.webContents.send('relay:update-available', info.version)
       })
       autoUpdater.on('update-downloaded', () => {
         if (win && !win.isDestroyed()) win.webContents.send('relay:update-ready')
       })
+      autoUpdater.checkForUpdates().catch(e => console.error('[updater] check failed:', e.message))
+      // recheck every 30 min in case the app was open when a release landed
+      setInterval(() => autoUpdater.checkForUpdates().catch(e => console.error('[updater] check failed:', e.message)), 30 * 60 * 1000)
     }
     createWindow()
     makeTray()
