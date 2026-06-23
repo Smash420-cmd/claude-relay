@@ -53,6 +53,10 @@ npm run publish   # build + upload to GitHub Releases as new version
 
 Before publishing: bump `"version"` in `package.json`. Set `GH_TOKEN` env var (or add permanently to Windows user environment variables) — token lives at github.com/settings/tokens, needs `repo` scope, no expiration.
 
+## Security Rules (do not remove or work around)
+
+- **ANTHROPIC_API_KEY must always be stripped** before spawning Claude — `src/executor.js` does `delete spawnEnv.ANTHROPIC_API_KEY` on the copied env before every `spawn()` call. This is intentional: relay must use the user's claude.ai subscription, never an API key that could incur charges. Do not restore this key, pass it through, or forward it to any child process.
+
 ## Settings Defaults (do not change defaults without good reason)
 
 - `autoResumeOnLimit: true` — re-schedule stopped tasks at exact reset time

@@ -19,6 +19,7 @@ function buildArgs(task, opts = {}) {
   if (task.mode === 'resume-full' || task.mode === 'resume-compact') {
     args.push('--resume', task.sessionId)
   }
+  if (task.model) args.push('--model', task.model)
   args.push('-p')
   // Unattended runs can't answer permission prompts; without this the session just replies with text
   // and "succeeds" without editing/committing. User-enabled (settings.skipPermissions, default ON) so

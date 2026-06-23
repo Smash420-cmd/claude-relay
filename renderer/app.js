@@ -273,6 +273,7 @@ async function openNewTask() {
   let mode = 'fresh'
   let scheduleKind = 'at-next-reset'
   let pickedSession = null
+  let taskModel = SETTINGS.defaultModel || ''
 
   openModal(`
     <h2>New task</h2>
@@ -308,6 +309,15 @@ async function openNewTask() {
       <input type="text" id="f-project" placeholder="${esc(SETTINGS.defaultProjectPath || 'e.g. C:\\\\Users\\\\you\\\\project')}" />
     </div>
     <div class="field">
+      <label>Model</label>
+      <div class="radio-row" id="f-model">
+        <div class="radio-chip${!taskModel ? ' on' : ''}" data-v="">Default · Sonnet</div>
+        <div class="radio-chip${taskModel === 'claude-haiku-4-5-20251001' ? ' on' : ''}" data-v="claude-haiku-4-5-20251001">Fast · Haiku</div>
+        <div class="radio-chip${taskModel === 'claude-opus-4-8' ? ' on' : ''}" data-v="claude-opus-4-8">Deep · Opus</div>
+      </div>
+      <div class="hint">Haiku is ~5× cheaper for simple tasks (commits, file moves). Opus for complex reasoning.</div>
+    </div>
+    <div class="field">
       <label>When</label>
       <div class="radio-row" id="f-sched">
         <div class="radio-chip on" data-v="at-next-reset">At next reset (${esc(SETTINGS.dailyResetTime || '02:20')})</div>
@@ -337,6 +347,11 @@ async function openNewTask() {
     pickedSession = item.dataset.sid
     modalEl.querySelectorAll('.session-item').forEach(s => s.classList.toggle('on', s === item))
   })
+  modalEl.querySelector('#f-model').addEventListener('click', (e) => {
+    const chip = e.target.closest('.radio-chip'); if (!chip) return
+    taskModel = chip.dataset.v
+    modalEl.querySelectorAll('#f-model .radio-chip').forEach(c => c.classList.toggle('on', c === chip))
+  })
   modalEl.querySelector('#f-sched').addEventListener('click', (e) => {
     const chip = e.target.closest('.radio-chip'); if (!chip) return
     scheduleKind = chip.dataset.v
@@ -362,6 +377,7 @@ async function openNewTask() {
       mode,
       sessionId: mode === 'fresh' ? null : pickedSession,
       projectPath: modalEl.querySelector('#f-project').value.trim(),
+      model: taskModel || null,
       schedule,
     })
     closeModal()
@@ -375,6 +391,7 @@ async function openEditTask(task) {
   let mode = task.mode || 'fresh'
   let scheduleKind = task.schedule?.kind || 'at-next-reset'
   let pickedSession = task.sessionId || null
+  let taskModel = task.model || ''
 
   const localAt = (scheduleKind === 'once' && task.schedule?.at)
     ? new Date(new Date(task.schedule.at).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
@@ -413,6 +430,14 @@ async function openEditTask(task) {
       <input type="text" id="f-project" value="${esc(task.projectPath || '')}" placeholder="${esc(SETTINGS.defaultProjectPath || '')}" />
     </div>
     <div class="field">
+      <label>Model</label>
+      <div class="radio-row" id="f-model">
+        <div class="radio-chip${!taskModel ? ' on' : ''}" data-v="">Default · Sonnet</div>
+        <div class="radio-chip${taskModel === 'claude-haiku-4-5-20251001' ? ' on' : ''}" data-v="claude-haiku-4-5-20251001">Fast · Haiku</div>
+        <div class="radio-chip${taskModel === 'claude-opus-4-8' ? ' on' : ''}" data-v="claude-opus-4-8">Deep · Opus</div>
+      </div>
+    </div>
+    <div class="field">
       <label>When</label>
       <div class="radio-row" id="f-sched">
         <div class="radio-chip${scheduleKind === 'at-next-reset' ? ' on' : ''}" data-v="at-next-reset">At next reset (${esc(SETTINGS.dailyResetTime || '02:20')})</div>
@@ -442,6 +467,11 @@ async function openEditTask(task) {
     pickedSession = item.dataset.sid
     modalEl.querySelectorAll('.session-item').forEach(s => s.classList.toggle('on', s === item))
   })
+  modalEl.querySelector('#f-model').addEventListener('click', (e) => {
+    const chip = e.target.closest('.radio-chip'); if (!chip) return
+    taskModel = chip.dataset.v
+    modalEl.querySelectorAll('#f-model .radio-chip').forEach(c => c.classList.toggle('on', c === chip))
+  })
   modalEl.querySelector('#f-sched').addEventListener('click', (e) => {
     const chip = e.target.closest('.radio-chip'); if (!chip) return
     scheduleKind = chip.dataset.v
@@ -465,6 +495,7 @@ async function openEditTask(task) {
       mode,
       sessionId: mode === 'fresh' ? null : pickedSession,
       projectPath: modalEl.querySelector('#f-project').value.trim(),
+      model: taskModel || null,
       schedule,
       status: 'scheduled',
     })
@@ -604,6 +635,15 @@ function openSettings() {
   openModal(`
     <h2>Settings <span id="s-version" style="font-size:12px;font-weight:400;color:var(--muted)"></span></h2>
     <div class="field">
+      <label>Default model</label>
+      <select id="s-model">
+        <option value="" ${!s.defaultModel ? 'selected' : ''}>Default · Sonnet 4.6</option>
+        <option value="claude-haiku-4-5-20251001" ${s.defaultModel === 'claude-haiku-4-5-20251001' ? 'selected' : ''}>Fast · Haiku 4.5 (~5× cheaper)</option>
+        <option value="claude-opus-4-8" ${s.defaultModel === 'claude-opus-4-8' ? 'selected' : ''}>Deep · Opus 4.8 (complex reasoning)</option>
+      </select>
+      <div class="hint">Tasks can override this per-task.</div>
+    </div>
+    <div class="field">
       <label>Claude CLI command</label>
       <input type="text" id="s-cmd" value="${esc(s.claudeCommand || 'claude')}" />
       <div class="hint">The binary Relay spawns. Use a full path if <code>claude</code> isn't on PATH.</div>
@@ -681,6 +721,7 @@ function openSettings() {
   modalEl.querySelector('#s-save').addEventListener('click', async () => {
     const num = (sel, d) => { const v = parseInt(modalEl.querySelector(sel).value, 10); return isNaN(v) ? d : v }
     await window.relay.setSettings({
+      defaultModel: modalEl.querySelector('#s-model').value,
       claudeCommand: modalEl.querySelector('#s-cmd').value.trim() || 'claude',
       defaultProjectPath: modalEl.querySelector('#s-proj').value.trim(),
       dailyResetTime: modalEl.querySelector('#s-reset').value || '02:20',
