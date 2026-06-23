@@ -1,6 +1,6 @@
 {
   "name": "claude-relay",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Schedule prompts into local Claude Code sessions and auto-resume work across session limits.",
   "main": "main.js",
   "author": "Patrick",
@@ -16,7 +16,7 @@
   },
   "build": {
     "appId": "au.sojournly.relay",
-    "productName": "Claude Relay",
+    "productName": "Relay",
     "publish": {
       "provider": "github",
       "owner": "Smash420-cmd",

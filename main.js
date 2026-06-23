@@ -16,19 +16,29 @@ const { logsDir, dataDir } = require('./src/paths')
 
 // Shared helper — called by the IPC renderer bridge AND by runDueTask after a limit-stopped run
 // to get the exact reset timestamps so auto-resume fires at precisely the right moment.
-async function fetchClaudeUsage() {
-  const cookies = await session.defaultSession.cookies.get({ url: 'https://claude.ai', name: 'sessionKey' })
-  if (!cookies.length) return { error: 'not_logged_in' }
-  const headers = { 'Cookie': `sessionKey=${cookies[0].value}`, 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Cache-Control': 'no-store' }
-  const orgs = await fetch('https://claude.ai/api/organizations', { headers, cache: 'no-store' }).then(r => r.json())
-  const orgId = orgs[0] && orgs[0].uuid
-  if (!orgId) return { error: 'no_org' }
-  const data = await fetch(`https://claude.ai/api/organizations/${orgId}/usage`, { headers, cache: 'no-store' }).then(r => r.json())
-  return {
-    sessionPct: data.five_hour ? data.five_hour.utilization : null,
-    weeklyPct: data.seven_day ? data.seven_day.utilization : null,
-    sessionResetsAt: data.five_hour && data.five_hour.resets_at ? new Date(data.five_hour.resets_at).getTime() : null,
-    weeklyResetsAt: data.seven_day && data.seven_day.resets_at ? new Date(data.seven_day.resets_at).getTime() : null,
+async function fetchClaudeUsage({ retries = 2, retryDelayMs = 3000 } = {}) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const cookies = await session.defaultSession.cookies.get({ url: 'https://claude.ai', name: 'sessionKey' })
+      if (!cookies.length) {
+        if (attempt < retries) { await new Promise(r => setTimeout(r, retryDelayMs)); continue }
+        return { error: 'not_logged_in' }
+      }
+      const headers = { 'Cookie': `sessionKey=${cookies[0].value}`, 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Cache-Control': 'no-store' }
+      const orgs = await fetch('https://claude.ai/api/organizations', { headers, cache: 'no-store' }).then(r => r.json())
+      const orgId = orgs[0] && orgs[0].uuid
+      if (!orgId) return { error: 'no_org' }
+      const data = await fetch(`https://claude.ai/api/organizations/${orgId}/usage`, { headers, cache: 'no-store' }).then(r => r.json())
+      return {
+        sessionPct: data.five_hour ? data.five_hour.utilization : null,
+        weeklyPct: data.seven_day ? data.seven_day.utilization : null,
+        sessionResetsAt: data.five_hour && data.five_hour.resets_at ? new Date(data.five_hour.resets_at).getTime() : null,
+        weeklyResetsAt: data.seven_day && data.seven_day.resets_at ? new Date(data.seven_day.resets_at).getTime() : null,
+      }
+    } catch (e) {
+      if (attempt < retries) { await new Promise(r => setTimeout(r, retryDelayMs)); continue }
+      throw e
+    }
   }
 }
 
@@ -91,7 +101,7 @@ function createWindow() {
   win = new BrowserWindow({
     width: 900, height: 700, minWidth: 660, minHeight: 480,
     backgroundColor: '#0d1117',
-    title: 'Claude Relay',
+    title: '/relay',
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -307,9 +317,9 @@ function makeTray() {
   if (img.isEmpty()) return // no icon → window-only mode (see window-all-closed below)
   try {
     tray = new Tray(img)
-    tray.setToolTip('Claude Relay')
+    tray.setToolTip('/relay')
     tray.setContextMenu(Menu.buildFromTemplate([
-      { label: 'Open Claude Relay', click: () => { if (win) { win.show(); win.focus() } else createWindow() } },
+      { label: 'Open /relay', click: () => { if (win) { win.show(); win.focus() } else createWindow() } },
       { type: 'separator' },
       { label: 'Restart', click: () => { app.relaunch(); app.exit(0) } },
       { label: 'Quit', click: () => { app.isQuitting = true; app.quit() } },
