@@ -56,11 +56,13 @@ function runTask(task, opts = {}) {
     let output = ''
     let child
     try {
-      const spawnEnv = process.platform === 'win32' ? {
-        ...process.env,
-        SystemRoot: process.env.SystemRoot || 'C:\\Windows',
-        ComSpec:    process.env.ComSpec    || 'C:\\Windows\\System32\\cmd.exe',
-      } : process.env
+      const spawnEnv = { ...process.env }
+      if (process.platform === 'win32') {
+        spawnEnv.SystemRoot = spawnEnv.SystemRoot || 'C:\\Windows'
+        spawnEnv.ComSpec    = spawnEnv.ComSpec    || 'C:\\Windows\\System32\\cmd.exe'
+      }
+      // Strip API key so relay tasks use the claude.ai subscription, not a (possibly depleted) API key
+      delete spawnEnv.ANTHROPIC_API_KEY
       child = spawn(command, args, {
         cwd: opts.cwd || undefined,
         shell: process.platform === 'win32' ? (spawnEnv.ComSpec) : false,
