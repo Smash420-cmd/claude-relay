@@ -23,8 +23,7 @@
       "repo": "claude-relay"
     },
     "win": {
-      "target": "nsis",
-      "icon": "assets/tray.png"
+      "target": "nsis"
     },
     "nsis": {
       "oneClick": true,

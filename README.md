@@ -1,68 +1,67 @@
 # Claude Relay
 
-> Schedule prompts into local **Claude Code** sessions, and auto-resume work across session limits.
-> Born from the Sojournly workflow; a standalone tool. Full design in **`DESIGN.md`**.
+A lightweight Windows tray app that schedules prompts into local Claude Code sessions and auto-resumes work when usage limits reset.
 
 ---
 
-## Status — MVP scaffold (built 2026-06-22, overnight)
+## Install
 
-A working **Electron** desktop app (tray + window), built strictly to the outline — no feature creep.
-Stack chosen for reliability: Electron + a vanilla renderer (no bundler) + a JSON store. (Tauri was the
-outline's first pick, but **cargo/Rust isn't installed** on this machine, so Electron — the documented
-fallback — it is. Footprint > polish can revisit later.)
+1. Go to [Releases](https://github.com/Smash420-cmd/claude-relay/releases)
+2. Download `Claude Relay Setup x.x.x.exe`
+3. Run the installer — Claude Relay starts immediately and lives in your system tray
 
-### ✅ What works in this scaffold (Phase 1 MVP)
-- **Tray app that stays alive** when the window is closed, so the scheduler keeps running (autostart-ready).
-- **Task list** (Linear-style dark UI): create, run-now, cancel, re-arm, delete, view log.
-- **Create task**: title, prompt, **mode** (`fresh` / `resume-full` / `resume-compact`), **session picker**
-  (reads your real `~/.claude/projects` sessions), project cwd, and **when** (`at next reset` / `once at a time`).
-- **Scheduler engine**: internal timer loop fires due tasks (`once` and `at-next-reset` — reset time
-  configurable in Settings, default `02:20`).
-- **Executor**: spawns the Claude CLI, streams output to a per-run log, parses exit/limit state.
-- **Stopped-task handling**: a run flagged as limit-stopped → status `stopped` + a one-click **Resume at
-  reset** (queues a continuation at the next reset). Bounded to ≤8 auto-resumes.
-- **Settings**: CLI command, default cwd, daily reset time, scheduler interval, auto-resume toggle, extended-usage gate.
-- **Usage tracker** (`src/tracker.js`): **session (5h)** + **weekly (7d)** bars with % and **reset countdowns**.
-  - **AUTHORITATIVE (live):** Claude Code v2.1.80+ pipes a `rate_limits` field (real `used_percentage` +
-    `resets_at`) to the statusLine script every turn. The bridge `scripts/relay-statusline.js` captures it
-    to `~/.relay/usage.json`; Relay reads it and shows the **real** claude.ai numbers — no credentials,
-    no browser, no extension. Verified end-to-end.
-  - **Fallback:** when statusLine data is missing/stale, Relay reads the Claude.ai internal usage API
-    directly (via the logged-in browser session cookie) to get exact reset times.
-  - The session gauge has a **Resume at reset** button → queues a resume of that session at the real reset.
-
-  **Setup (one line):** add a `statusLine` to `~/.claude/settings.json`:
-  ```json
-  "statusLine": { "type": "command", "command": "node \"<abs>/relay/scripts/relay-statusline.js\"" }
-  ```
-  The status line itself reads `5h 74% · 7d 45% · Opus 4.8`.
-
-### ⚠️ Needs verification before fully trusting
-- **Exact Claude CLI flags** for headless resume. Defaults: `claude -p "<prompt>"` (fresh),
-  `claude --resume <id> -p "<prompt>"` (resume). Configurable via Settings → "Claude CLI command".
-- **Limit detection** (`src/executor.js → detectLimit`) is a best-guess regex over CLI output.
-  Confirm the real limit message + whether it carries a reset time, then tighten it.
-- **Auto-resume on limit** is **ON by default**. When a task is stopped by the session or weekly limit,
-  Relay fetches the exact reset time from the Claude.ai API and re-schedules the task to fire at that
-  moment. All other pending tasks are staggered 30s apart after it. ⚠️ Also disable **Extended usage**
-  in your Claude.ai account settings — Relay cannot enforce that on its own.
-
-### 🚫 Deliberately NOT built yet (later phases, per the outline)
-- Recurring/cron schedules (MVP does `once` + `at-next-reset`).
-- **Auto** detection of an *interactive* session stopping at a limit (the `.jsonl` limit-marker watcher).
-  Deferred on purpose: the limit marker is a Phase-0 unknown and this very session's transcript is full of
-  the words "usage limit" (we discussed them all day) → a naive scan would false-positive. The tracker
-  instead gives the session **reset countdown** + a one-click **Resume at reset** to capture the work safely.
-- Authoritative usage via network/proxy interception (the tracker is a transcript-based *estimate*).
-- Companion VS Code extension.
+**Requirements:** [Claude Code](https://claude.ai/code) must be installed and logged in.
 
 ---
 
-## Queue work from anywhere — the `relay` CLI
+## What it does
 
-The §4b "Claude-connected scheduling" primitive. Any process (Claude, a script, the bench loop)
-can enqueue a task with one command; the running app's file-watcher shows it instantly.
+- **Schedule tasks** — write a prompt, pick a project folder, choose when to run (`now` / `at next reset` / a specific time)
+- **Auto-resume on limit** — when a running task is stopped by a session or weekly usage limit, Claude Relay automatically re-schedules it to resume at the exact moment that limit resets
+- **Live usage bars** — session (5h) and weekly (7d) usage pulled directly from Claude.ai, with reset countdowns
+- **Stays alive in the tray** — close the window and the scheduler keeps running
+- **View logs** — every run saves a full output log, viewable in one click
+
+---
+
+## Setup
+
+### 1. Log in to Claude
+Open Claude Relay → the usage panel will prompt you to **Log in to Claude** if you haven't already. This lets Claude Relay read your exact usage from Claude.ai.
+
+### 2. Live usage (optional but recommended)
+For real-time usage tracking inside Claude Code sessions, add one line to `~/.claude/settings.json`:
+
+```json
+"statusLine": {
+  "type": "command",
+  "command": "node \"C:/path/to/claude-relay/scripts/relay-statusline.js\""
+}
+```
+
+Replace the path with wherever you installed Claude Relay. Your Claude Code status line will show `5h 74% · 7d 45%` after every turn.
+
+### 3. Disable Extended usage (important)
+In your Claude.ai account settings, turn off **Extended usage** — otherwise Claude will spend credits past the free limit even when Claude Relay is waiting to pause. Claude Relay cannot enforce this on its own.
+
+---
+
+## Settings
+
+| Setting | Default | What it does |
+|---------|---------|--------------|
+| Claude CLI command | `claude` | Path to the Claude Code binary if it's not on PATH |
+| Default project path | — | Fallback cwd for tasks that don't set their own |
+| Daily reset time | `02:20` | Fallback reset time used when the API is unreachable |
+| Auto-resume on limit | On | Re-schedule stopped tasks at the exact reset moment |
+| Allow extended usage | Off | Let tasks run past the free limit (spends credits) |
+| Skip permissions | On | Run tasks unattended without permission prompts |
+
+---
+
+## Queue work from a terminal
+
+Any script or Claude session can enqueue tasks directly:
 
 ```bash
 node scripts/relay.js schedule --prompt "continue the bench run" --resume current --at next-reset
@@ -70,36 +69,28 @@ node scripts/relay.js schedule --prompt "build day 7" --at +30m
 node scripts/relay.js list
 node scripts/relay.js cancel <id>
 ```
-- `--resume current` auto-detects the live session; `--resume <id>` targets a specific one (cwd auto-resolved).
-- `--at next-reset` uses your real 5h reset (from the statusLine bridge), else the configured daily reset; also `+30m`/`+2h`/ISO.
-- `--mode fresh|resume-full|resume-compact` (default `fresh`, or `resume-full` if `--resume` given).
 
-## Run it
+- `--resume current` — auto-detects the live Claude Code session
+- `--at next-reset` — fires at the real 5h reset time; also accepts `+30m`, `+2h`, or an ISO timestamp
+- `--mode fresh|resume-full` — default `fresh`, or `resume-full` if `--resume` is given
+
+---
+
+## Build from source
 
 ```bash
-cd relay
-npm install      # pulls electron
-npm start        # opens the app (also lives in the tray)
-npm run check    # syntax-checks all source files
+git clone https://github.com/Smash420-cmd/claude-relay.git
+cd claude-relay
+npm install
+npm start        # run in dev mode
+npm run build    # build the Windows installer to dist/
+npm run check    # syntax-check all source files
 ```
 
-Data + logs live under Electron's userData dir (Settings → "Open logs folder" reveals it).
+Data and logs live under Electron's userData directory — **Settings → Open logs folder** will take you there.
 
-## First-thing-to-do (the Phase-0 spike)
-Before scheduling anything important: open a terminal and confirm how `claude` resumes a session
-non-interactively (`claude --resume <id> -p "…"` / `--continue` / print mode) and what a usage-limit
-message actually looks like. Plug the real values into Settings + `src/executor.js`. Everything else is
-already wired around those two facts.
+---
 
-## Layout
-```
-main.js            Electron main: window, tray, IPC, wires scheduler+executor+store
-preload.js         secure IPC bridge (window.relay)
-src/paths.js       data/log/claude-projects locations
-src/store.js       task + settings persistence (JSON; swap for SQLite later)
-src/sessions.js    discovers ~/.claude/projects sessions
-src/executor.js    spawns the claude CLI, logs output, detects limits   ← Phase-0 unknowns live here
-src/scheduler.js   due-task loop + next-reset calc
-renderer/          vanilla HTML/CSS/JS UI (Linear-style dark)
-DESIGN.md          the full design outline
-```
+## License
+
+MIT — see [LICENSE](LICENSE)
