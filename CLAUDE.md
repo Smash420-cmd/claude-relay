@@ -48,40 +48,71 @@ Slashes are invalid in Windows file/shortcut names, so the productName is `Relay
 
 ### Every time — exact steps in order
 
-1. **Bump version** in `package.json` (e.g. `"version": "0.4.8"`)
+1. **Bump version** in `package.json` (e.g. `"version": "0.4.9"`)
 2. **Commit it** — `git add package.json && git commit -m "chore: bump version to X.Y.Z"`
    - electron-updater compares installed version against the GitHub Release tag; if `package.json` isn't bumped and committed the update will never be detected
-3. **Clear stale build output** — Windows `rename` fails if the destination already exists:
+3. **Build** (handles the EPERM rename issue in two steps):
    ```powershell
+   # Step A — let it fail at the rename, then fix it manually
    Remove-Item -Recurse -Force dist\win-unpacked -ErrorAction SilentlyContinue
    Remove-Item -Recurse -Force dist\win-unpacked.tmp -ErrorAction SilentlyContinue
+   Remove-Item -Force "dist\Relay Setup X.Y.Z.exe" -ErrorAction SilentlyContinue
+   $env:GH_TOKEN = "ghp_..."
+   npm run publish   # will EPERM on rename — that's expected
+   
+   # Step B — rename the .tmp manually now that Defender has released the lock
+   Rename-Item dist\win-unpacked.tmp win-unpacked
+   
+   # Step C — retry; extraction is skipped, NSIS builds the installer
+   Remove-Item -Force "dist\Relay Setup X.Y.Z.exe" -ErrorAction SilentlyContinue
+   npm run publish   # builds installer but creates GitHub release as DRAFT — expected
    ```
-4. **Set GH_TOKEN** for the current session (the global env var doesn't always flow through to sandboxed shells):
-   ```powershell
-   $env:GH_TOKEN = "ghp_..."   # token from github.com/settings/tokens, repo scope, no expiry
-   ```
-5. **Publish**:
-   ```powershell
-   npm run publish
-   ```
+4. **Publish via GitHub API** — `npm run publish` consistently creates draft releases in this environment; publish the real release manually:
+
+```powershell
+$token = $env:GH_TOKEN  # or paste directly
+$headers = @{ Authorization = "token $token"; Accept = "application/vnd.github+json" }
+
+# Delete the draft(s) electron-builder created and their tag
+$releases = Invoke-RestMethod "https://api.github.com/repos/Smash420-cmd/claude-relay/releases" -Headers $headers
+$releases | Where-Object { $_.tag_name -eq "vX.Y.Z" } | ForEach-Object {
+  Invoke-RestMethod "https://api.github.com/repos/Smash420-cmd/claude-relay/releases/$($_.id)" -Method Delete -Headers $headers
+}
+try { Invoke-RestMethod "https://api.github.com/repos/Smash420-cmd/claude-relay/git/refs/tags/vX.Y.Z" -Method Delete -Headers $headers } catch {}
+
+# Create a real published release and upload the three files
+$body = @{ tag_name = "vX.Y.Z"; name = "vX.Y.Z"; draft = $false; prerelease = $false } | ConvertTo-Json
+$release = Invoke-RestMethod "https://api.github.com/repos/Smash420-cmd/claude-relay/releases" -Method Post -Headers $headers -Body $body -ContentType "application/json"
+$up = "https://uploads.github.com/repos/Smash420-cmd/claude-relay/releases/$($release.id)/assets"
+@(
+  @{ path = "dist\Relay Setup X.Y.Z.exe";          name = "Relay-Setup-X.Y.Z.exe" },
+  @{ path = "dist\Relay Setup X.Y.Z.exe.blockmap"; name = "Relay-Setup-X.Y.Z.exe.blockmap" },
+  @{ path = "dist\latest.yml";                     name = "latest.yml" }
+) | ForEach-Object {
+  Invoke-RestMethod "$up`?name=$($_.name)" -Method Post -Headers $headers -Body ([System.IO.File]::ReadAllBytes($_.path)) -ContentType "application/octet-stream" | Out-Null
+  "uploaded $($_.name)"
+}
+```
 
 ### Troubleshooting
 
 | Error | Cause | Fix |
 |-------|-------|-----|
-| `EPERM: operation not permitted, rename dist\win-unpacked.tmp -> dist\win-unpacked` | Windows Defender scanning the extracted Electron binary locks it before rename completes | Delete both folders (step 3 above) and retry. If it keeps failing but `dist\Relay Setup X.exe`, `.blockmap`, and `latest.yml` already exist from a prior successful build, skip the rebuild and upload directly via GitHub API (see below) |
-| `GitHub Personal Access Token is not set` | `GH_TOKEN` not inherited by the npm script's cmd.exe subprocess | Set `$env:GH_TOKEN` explicitly in the same PowerShell session (step 4 above) |
-| Update not detected by running app | `package.json` version wasn't bumped, or wasn't committed before publish | Bump + commit (steps 1–2), republish |
-| Update not detected even after publish | App was already open when the release landed; old code only checked once on startup | Fixed in 0.4.8 — app now rechecks every 30 min. Restart the app to force an immediate check |
+| `EPERM: rename dist\win-unpacked.tmp -> dist\win-unpacked` | Windows Defender scans the extracted Electron binary and holds a lock briefly | Let it fail, then `Rename-Item dist\win-unpacked.tmp win-unpacked` and retry (see step 3 above) |
+| `GitHub Personal Access Token is not set` | `GH_TOKEN` not inherited by the npm cmd.exe subprocess | Set `$env:GH_TOKEN` explicitly before running |
+| `Can't open output file` (NSIS) | Previous `Relay Setup X.Y.Z.exe` still in dist | `Remove-Item -Force "dist\Relay Setup X.Y.Z.exe"` and retry |
+| Release created as draft, update not detected | `npm run publish` always creates drafts in this environment | Use the GitHub API publish script above (step 4) |
+| Update not detected by running app | `package.json` version wasn't bumped/committed before publish | Bump + commit (steps 1–2), republish |
 
 ```bash
 npm run build     # local build only, no upload — useful for testing the installer
-npm run publish   # build + upload to GitHub Releases
 ```
 
-### Fallback: upload existing build artifacts directly via GitHub API
+### Legacy note: why not just `npm run publish` end-to-end?
 
-If `npm run publish` keeps hitting EPERM but `dist\` already has the built files, create the release and upload manually:
+`npm run publish` creates GitHub releases as **drafts** in this environment (root cause unknown — likely a GH_TOKEN scoping issue in the cmd.exe subprocess electron-builder spawns). The API upload in step 4 is the reliable path and should be used every time.
+
+### Old fallback script (kept for reference)
 
 ```powershell
 $token = $env:GH_TOKEN
