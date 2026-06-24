@@ -51,7 +51,7 @@ npm run build     # local build only (no upload)
 npm run publish   # build + upload to GitHub Releases as new version
 ```
 
-Before publishing: bump `"version"` in `package.json` **and commit it** — electron-updater compares the installed version against the GitHub Release tag, so the version in `package.json` must match the release or the update won't be detected. Set `GH_TOKEN` env var (or add permanently to Windows user environment variables) — token lives at github.com/settings/tokens, needs `repo` scope, no expiration.
+Before publishing: delete `dist\win-unpacked` and `dist\win-unpacked.tmp` if they exist (Windows rename fails if destination exists). Then bump `"version"` in `package.json` **and commit it** — electron-updater compares the installed version against the GitHub Release tag, so the version in `package.json` must match the release or the update won't be detected. Set `GH_TOKEN` env var (or add permanently to Windows user environment variables) — token lives at github.com/settings/tokens, needs `repo` scope, no expiration.
 
 ## Security Rules (do not remove or work around)
 
