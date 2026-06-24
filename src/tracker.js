@@ -124,7 +124,7 @@ function snapshot(settings, now = Date.now()) {
     let sessionPct = capturedPct != null ? Math.round(capturedPct) : null
     if (capturedPct != null && capturedPct > 0 && auth.ageSec > 30) {
       try {
-        const winMs = (settings.sessionWindowHours || 5) * HOUR
+        const winMs = (5) * HOUR
         const turns = collectTurns(now - winMs)
         const tokensAtCapture = turns.filter(t => t.ts <= capturedAtMs).reduce((s, t) => s + t.load, 0)
         const tokensSince = turns.filter(t => t.ts > capturedAtMs).reduce((s, t) => s + t.load, 0)
@@ -141,15 +141,15 @@ function snapshot(settings, now = Date.now()) {
     })
     return {
       now, source: 'live', ageSec: Math.round(auth.ageSec),
-      session: Object.assign(g(rl.five_hour), { pct: sessionPct, windowHours: settings.sessionWindowHours || 5, active: true, sessionId: currentSessionId() }),
-      weekly: Object.assign(g(rl.seven_day), { windowDays: settings.weeklyWindowDays || 7 }),
+      session: Object.assign(g(rl.five_hour), { pct: sessionPct, windowHours: 5, active: true, sessionId: currentSessionId() }),
+      weekly: Object.assign(g(rl.seven_day), { windowDays: 7 }),
       weeklyOpus: { pct: null, used: null, limit: null },
     }
   }
 
   // 2) Fallback: transcript-based ESTIMATE (no statusLine data yet, or it's stale).
-  const winMs = (settings.sessionWindowHours || 5) * HOUR
-  const weekMs = (settings.weeklyWindowDays || 7) * DAY
+  const winMs = (5) * HOUR
+  const weekMs = (7) * DAY
   const turns = collectTurns(now - weekMs - HOUR)
 
   const blk = activeBlock(turns, winMs, now)
@@ -176,18 +176,17 @@ function snapshot(settings, now = Date.now()) {
       weekly: auth.o.rate_limits.seven_day && Math.round(auth.o.rate_limits.seven_day.used_percentage),
     } : null,
     session: Object.assign(gauge(sessionLoad, settings.sessionLoadLimit), {
-      windowHours: settings.sessionWindowHours || 5,
+      windowHours: 5,
       windowStart: sessionStart,
       resetsAt: sessionReset,
       active: !!(blk && blk.active),
       sessionId: lastSession,
     }),
     weekly: Object.assign(gauge(weeklyLoad, settings.weeklyLoadLimit), {
-      windowDays: settings.weeklyWindowDays || 7,
-      rolling: true, // rolling window — no single hard reset unless an anchor is configured later
+      windowDays: 7,
+      rolling: true,
     }),
     weeklyOpus: Object.assign(gauge(weeklyOpus, settings.weeklyOpusLoadLimit), { rolling: true }),
-    turnsConsidered: turns.length,
   }
 }
 

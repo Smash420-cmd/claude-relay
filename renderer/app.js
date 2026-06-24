@@ -551,23 +551,6 @@ async function openEditTask(task) {
   })
 }
 
-function openRearmDialog(task) {
-  openModal(`
-    <h2>Task is past due</h2>
-    <p style="color:var(--subtle);margin:0 0 18px">The scheduled time for <b>${esc(task.title || 'this task')}</b> has already passed.</p>
-    <div class="modal-actions">
-      <button class="btn ghost" data-close>Cancel</button>
-      <button class="btn" id="rd-reschedule">Reschedule</button>
-      <button class="btn primary" id="rd-now">Run now</button>
-    </div>
-  `)
-  modalEl.querySelector('#rd-now').addEventListener('click', async () => {
-    closeModal(); await window.relay.runNow(task.id); await refresh()
-  })
-  modalEl.querySelector('#rd-reschedule').addEventListener('click', () => {
-    closeModal(); openEditTask(task)
-  })
-}
 
 // ── welcome screen ───────────────────────────────────────────────────────────
 let welcomePoller = null

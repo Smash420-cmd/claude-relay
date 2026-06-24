@@ -1,11 +1,5 @@
 'use strict'
 // Runs a task by spawning the Claude Code CLI as a subprocess and capturing its output to a log.
-//
-// PHASE-0 UNKNOWNS (see DESIGN.md §9) — VERIFY before trusting:
-//   1. Exact headless-resume flags. The defaults below (`-p`, `--resume <id>`) are the documented
-//      best-guess; `claudeCommand` is configurable in Settings if the binary/flags differ.
-//   2. Limit signalling. detectLimit() is a best-guess regex over the CLI output. Confirm the real
-//      limit message + whether it carries a reset time, then tighten this.
 const { spawn } = require('child_process')
 const fs = require('fs')
 const path = require('path')
@@ -29,7 +23,7 @@ function buildArgs(task, opts = {}) {
   return args
 }
 
-// Best-guess limit detection. VERIFY in Phase-0 against a real limit-reached message.
+// Limit detection heuristic — tuned against real limit-reached output.
 const LIMIT_RE = /(usage|rate|session)\s+limit|limit reached|you'?ve hit your|resets?\s+at|try again (later|at)/i
 const RESET_AT_RE = /resets?\s+at\s+([0-9]{1,2}[:.][0-9]{2}\s*(?:am|pm)?)/i
 

@@ -20,7 +20,7 @@ function dueTime(task, settings) {
   if (s.kind === 'at-next-reset') {
     return s.at ? new Date(s.at).getTime() : nextResetDate(settings.dailyResetTime).getTime()
   }
-  return Infinity // 'cron'/recurring not in the MVP (DESIGN.md Phase 2)
+  return Infinity // 'cron'/recurring not yet supported
 }
 
 // start({ intervalMs, getState, runDueTask }) -> stop()
