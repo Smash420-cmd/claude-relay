@@ -137,6 +137,10 @@ $distDir = "C:\Users\pmdse\Documents\relay\dist"
 }
 ```
 
+## Model Availability Notes
+
+- **claude-fable-5 is excluded** from the model list — unavailable due to US Government security concerns. Do not add it back until Patrick confirms it's cleared.
+
 ## Security Rules (do not remove or work around)
 
 - **ANTHROPIC_API_KEY must always be stripped** before spawning Claude — `src/executor.js` does `delete spawnEnv.ANTHROPIC_API_KEY` on the copied env before every `spawn()` call. This is intentional: relay must use the user's claude.ai subscription, never an API key that could incur charges. Do not restore this key, pass it through, or forward it to any child process.

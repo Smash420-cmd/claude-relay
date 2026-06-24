@@ -60,7 +60,6 @@ function barClass(pct) {
 // ── model + effort data ───────────────────────────────────────────────────────
 const MODELS = [
   { id: '',                          label: 'Default · Sonnet 4.6',  group: null,      effort: ['low','medium','high','max'] },
-  { id: 'claude-fable-5',            label: 'Fable 5',               group: 'Current', effort: ['low','medium','high','xhigh','max'] },
   { id: 'claude-opus-4-8',           label: 'Opus 4.8',              group: 'Current', effort: ['low','medium','high','xhigh','max'] },
   { id: 'claude-sonnet-4-6',         label: 'Sonnet 4.6',            group: 'Current', effort: ['low','medium','high','max'] },
   { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5',             group: 'Current', effort: null },
