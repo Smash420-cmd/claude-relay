@@ -69,7 +69,7 @@ Slashes are invalid in Windows file/shortcut names, so the productName is `Relay
 
 | Error | Cause | Fix |
 |-------|-------|-----|
-| `EPERM: operation not permitted, rename dist\win-unpacked.tmp -> dist\win-unpacked` | `dist\win-unpacked` or `.tmp` left over from a previous run | Delete both folders (step 3 above) and retry |
+| `EPERM: operation not permitted, rename dist\win-unpacked.tmp -> dist\win-unpacked` | Windows Defender scanning the extracted Electron binary locks it before rename completes | Delete both folders (step 3 above) and retry. If it keeps failing but `dist\Relay Setup X.exe`, `.blockmap`, and `latest.yml` already exist from a prior successful build, skip the rebuild and upload directly via GitHub API (see below) |
 | `GitHub Personal Access Token is not set` | `GH_TOKEN` not inherited by the npm script's cmd.exe subprocess | Set `$env:GH_TOKEN` explicitly in the same PowerShell session (step 4 above) |
 | Update not detected by running app | `package.json` version wasn't bumped, or wasn't committed before publish | Bump + commit (steps 1–2), republish |
 | Update not detected even after publish | App was already open when the release landed; old code only checked once on startup | Fixed in 0.4.8 — app now rechecks every 30 min. Restart the app to force an immediate check |
@@ -77,6 +77,31 @@ Slashes are invalid in Windows file/shortcut names, so the productName is `Relay
 ```bash
 npm run build     # local build only, no upload — useful for testing the installer
 npm run publish   # build + upload to GitHub Releases
+```
+
+### Fallback: upload existing build artifacts directly via GitHub API
+
+If `npm run publish` keeps hitting EPERM but `dist\` already has the built files, create the release and upload manually:
+
+```powershell
+$token = $env:GH_TOKEN
+$headers = @{ Authorization = "token $token"; Accept = "application/vnd.github+json" }
+
+# 1. Create the release
+$body = @{ tag_name = "vX.Y.Z"; name = "vX.Y.Z"; draft = $false; prerelease = $false } | ConvertTo-Json
+$release = Invoke-RestMethod "https://api.github.com/repos/Smash420-cmd/claude-relay/releases" -Method Post -Headers $headers -Body $body -ContentType "application/json"
+
+# 2. Upload the three required files
+$uploadBase = $release.upload_url -replace '\{.*\}', ''
+$distDir = "C:\Users\pmdse\Documents\relay\dist"
+@(
+  @{ path = "$distDir\Relay Setup X.Y.Z.exe";          name = "Relay-Setup-X.Y.Z.exe" },
+  @{ path = "$distDir\Relay Setup X.Y.Z.exe.blockmap"; name = "Relay-Setup-X.Y.Z.exe.blockmap" },
+  @{ path = "$distDir\latest.yml";                     name = "latest.yml" }
+) | ForEach-Object {
+  Invoke-RestMethod "$uploadBase`?name=$($_.name)" -Method Post -Headers $headers -Body ([System.IO.File]::ReadAllBytes($_.path)) -ContentType "application/octet-stream" | Out-Null
+  "uploaded $($_.name)"
+}
 ```
 
 ## Security Rules (do not remove or work around)
