@@ -242,6 +242,36 @@ function queueResume(task, resetAt) {
   })
 }
 
+function writeRelaySkill() {
+  try {
+    const skillDir = path.join(os.homedir(), '.claude', 'commands')
+    fs.mkdirSync(skillDir, { recursive: true })
+    fs.writeFileSync(path.join(skillDir, 'relay.md'), [
+      'Schedule the described work into the Relay queue for later autonomous Claude Code execution.',
+      '',
+      'Parse the user\'s message and extract:',
+      '- **title**: short label ≤60 chars',
+      '- **prompt**: the full task Claude should run — be specific, it runs unattended in a headless session',
+      '- **at**: when to run — convert natural language ("4pm tuesday", "tomorrow 9am", "in 2 hours") to ISO 8601 in the user\'s local timezone',
+      '- **model** *(optional)*: one of `claude-opus-4-8`, `claude-sonnet-4-6`, `claude-haiku-4-5-20251001`, `claude-opus-4-7`, `claude-opus-4-6`, `claude-sonnet-4-5-20250929` — omit to use the default (Sonnet 4.6)',
+      '- **effort** *(optional)*: `low`, `medium`, `high`, `xhigh` (Opus 4.8/4.7 only), or `max` — omit to use the model default; not supported on Haiku 4.5',
+      '',
+      'Run via Bash:',
+      '```bash',
+      'relay schedule --title "TITLE" --prompt "PROMPT" --at "ISO_DATETIME"',
+      '```',
+      '',
+      'Add `--cwd "PROJECT_PATH"` if the task is for a specific project directory.',
+      'Add `--model "MODEL_ID"` if the user specified a model.',
+      'Add `--effort "LEVEL"` if the user specified an effort level (and the model supports it).',
+      '',
+      'Confirm with one line after scheduling: `✓ "TITLE" → HUMAN_READABLE_TIME`',
+    ].join('\n'))
+  } catch (e) {
+    console.warn('[skill] could not write relay.md:', e.message)
+  }
+}
+
 function registerIpc() {
   ipcMain.handle('relay:list', () => store.getTasks())
   ipcMain.handle('relay:usage', () => { try { return tracker.snapshot(store.getSettings()) } catch (e) { return { error: String(e && e.message) } } })
@@ -378,25 +408,7 @@ function registerIpc() {
     }
 
     // Write the /relay Claude Code skill
-    const skillDir = path.join(os.homedir(), '.claude', 'commands')
-    fs.mkdirSync(skillDir, { recursive: true })
-    fs.writeFileSync(path.join(skillDir, 'relay.md'), [
-      'Schedule the described work into the Relay queue for later autonomous Claude Code execution.',
-      '',
-      'Parse the user\'s message and extract:',
-      '- **title**: short label ≤60 chars',
-      '- **prompt**: the full task Claude should run — be specific, it runs unattended in a headless session',
-      '- **at**: when to run — convert natural language ("4pm tuesday", "tomorrow 9am", "in 2 hours") to ISO 8601 in the user\'s local timezone',
-      '',
-      'Run via Bash:',
-      '```bash',
-      'relay schedule --title "TITLE" --prompt "PROMPT" --at "ISO_DATETIME"',
-      '```',
-      '',
-      'Add `--cwd "PROJECT_PATH"` if the task is for a specific project directory.',
-      '',
-      'Confirm with one line after scheduling: `✓ "TITLE" → HUMAN_READABLE_TIME`',
-    ].join('\n'))
+    writeRelaySkill()
 
     return { ok: true }
   })
@@ -447,6 +459,7 @@ function main() {
   app.whenReady().then(() => {
     rotateLogs()
     cleanupOrphanedTasks()
+    writeRelaySkill()
     registerIpc()
     if (app.isPackaged) {
       autoUpdater.on('error', (err) => console.error('[updater] error:', err.message))

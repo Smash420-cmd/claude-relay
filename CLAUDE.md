@@ -22,6 +22,8 @@ Slashes are invalid in Windows file/shortcut names, so the productName is `Relay
 - **Auto-resume** — when a task is stopped by a session/weekly limit, fetches the exact reset time from the Claude.ai API and re-schedules automatically
 - **Live usage bars** — session (5h) + weekly (7d) pulled from Claude.ai API via sessionKey cookie
 - **`/relay` CLI** — `node scripts/relay.js schedule …` lets any process (Claude, scripts) enqueue tasks
+- **Per-task model + effort** — each task (and the settings default) carries an optional `model` and `effort`; executor passes `--model` / `--effort` to Claude CLI when set
+- **`/relay` Claude Code skill** — `~/.claude/commands/relay.md` lets users type `/relay do X at 4pm` inside any Claude Code session; written on every app startup so it self-updates silently when the app ships a new version
 
 ## Stack
 
@@ -137,9 +139,44 @@ $distDir = "C:\Users\pmdse\Documents\relay\dist"
 }
 ```
 
-## Model Availability Notes
+## Model + Effort
+
+### Available models (as of 0.4.11)
+
+| Model ID | Label | Effort support |
+|----------|-------|---------------|
+| *(empty)* | Default · Sonnet 4.6 | low / medium / high / max |
+| `claude-opus-4-8` | Opus 4.8 | low / medium / high / **xhigh** / max |
+| `claude-sonnet-4-6` | Sonnet 4.6 | low / medium / high / max |
+| `claude-haiku-4-5-20251001` | Haiku 4.5 | **none** — effort flag must be omitted |
+| `claude-opus-4-7` | Opus 4.7 (Legacy) | low / medium / high / **xhigh** / max |
+| `claude-opus-4-6` | Opus 4.6 (Legacy) | low / medium / high / max |
+| `claude-sonnet-4-5-20250929` | Sonnet 4.5 (Legacy) | low / medium / high / max |
+
+`xhigh` is only valid on Opus 4.8 and Opus 4.7. Sending it to other models causes a CLI error.
+
+All 33 model × effort combinations are smoke-tested by `scripts/test-models.js` — run it before bumping a version if model/effort code changes.
+
+### Rules when adding/removing models
+
+1. Update `MODELS` array in `renderer/app.js` (UI dropdowns)
+2. Update the `writeRelaySkill()` function in `main.js` (skill text lists valid model IDs)
+3. Update `~/.claude/commands/relay.md` locally (your own skill — overwritten at next app launch anyway)
+4. Update the model table above in this file
+5. Run `node scripts/test-models.js` to verify all combinations pass
+
+### Model Availability Notes
 
 - **claude-fable-5 is excluded** from the model list — unavailable due to US Government security concerns. Do not add it back until Patrick confirms it's cleared.
+
+## `/relay` Claude Code Skill
+
+The skill (`~/.claude/commands/relay.md`) is what lets users type `/relay build feature X at 9am` inside any Claude Code session. Key facts:
+
+- **Single source of truth**: the skill content lives in `writeRelaySkill()` in `main.js`. The file at `~/.claude/commands/relay.md` (your local dev copy) is overwritten on every app launch — editing it directly is fine for testing but changes must also be made in `main.js` to persist.
+- **Auto-updates silently**: `writeRelaySkill()` is called at startup before `registerIpc()`. Every time the user launches Relay, the skill is overwritten with the current version. No user action needed when the skill changes — just ship an app update.
+- **Setup button still needed for PATH**: the "Set up /relay skill" button in Settings / Welcome also adds the `scripts/` dir to the user's PATH so `relay` works as a bare command. This is not done at startup (no admin risk). The skill write in the button handler now just calls `writeRelaySkill()` — same content, single source.
+- **When you change the skill**: update `writeRelaySkill()` in `main.js`. The local `~/.claude/commands/relay.md` will sync itself at next launch.
 
 ## Security Rules (do not remove or work around)
 
