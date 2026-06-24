@@ -60,10 +60,12 @@ Slashes are invalid in Windows file/shortcut names, so the productName is `Relay
    $env:GH_TOKEN = "ghp_..."
    npm run publish   # will EPERM on rename — that's expected
    
-   # Step B — rename the .tmp manually now that Defender has released the lock
+   # Step B — rename .tmp now that Defender has released the lock
+   # IMPORTANT: do NOT delete win-unpacked first — electron-builder skips
+   # extraction only if win-unpacked already exists when it starts
    Rename-Item dist\win-unpacked.tmp win-unpacked
    
-   # Step C — retry; extraction is skipped, NSIS builds the installer
+   # Step C — retry WITHOUT deleting win-unpacked; extraction is skipped, NSIS builds installer
    Remove-Item -Force "dist\Relay Setup X.Y.Z.exe" -ErrorAction SilentlyContinue
    npm run publish   # builds installer but creates GitHub release as DRAFT — expected
    ```
