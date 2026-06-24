@@ -457,8 +457,8 @@ function main() {
         if (win && !win.isDestroyed()) win.webContents.send('relay:update-ready')
       })
       autoUpdater.checkForUpdates().catch(e => console.error('[updater] check failed:', e.message))
-      // recheck every 30 min in case the app was open when a release landed
-      setInterval(() => autoUpdater.checkForUpdates().catch(e => console.error('[updater] check failed:', e.message)), 30 * 60 * 1000)
+      // recheck every 10 min in case the app was open when a release landed
+      setInterval(() => autoUpdater.checkForUpdates().catch(e => console.error('[updater] check failed:', e.message)), 10 * 60 * 1000)
     }
     createWindow()
     makeTray()
