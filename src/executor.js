@@ -20,6 +20,7 @@ function buildArgs(task, opts = {}) {
     args.push('--resume', task.sessionId)
   }
   if (task.model) args.push('--model', task.model)
+  if (task.effort) args.push('--effort', task.effort)
   args.push('-p')
   // Unattended runs can't answer permission prompts; without this the session just replies with text
   // and "succeeds" without editing/committing. User-enabled (settings.skipPermissions, default ON) so

@@ -57,6 +57,47 @@ function barClass(pct) {
   return 'ok'
 }
 
+// ── model + effort data ───────────────────────────────────────────────────────
+const MODELS = [
+  { id: '',                          label: 'Default · Sonnet 4.6',  group: null,      effort: ['low','medium','high','max'] },
+  { id: 'claude-fable-5',            label: 'Fable 5',               group: 'Current', effort: ['low','medium','high','xhigh','max'] },
+  { id: 'claude-opus-4-8',           label: 'Opus 4.8',              group: 'Current', effort: ['low','medium','high','xhigh','max'] },
+  { id: 'claude-sonnet-4-6',         label: 'Sonnet 4.6',            group: 'Current', effort: ['low','medium','high','max'] },
+  { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5',             group: 'Current', effort: null },
+  { id: 'claude-opus-4-7',           label: 'Opus 4.7',              group: 'Legacy',  effort: ['low','medium','high','xhigh','max'] },
+  { id: 'claude-opus-4-6',           label: 'Opus 4.6',              group: 'Legacy',  effort: ['low','medium','high','max'] },
+  { id: 'claude-sonnet-4-5-20250929',label: 'Sonnet 4.5',            group: 'Legacy',  effort: ['low','medium','high','max'] },
+]
+const EFFORT_LABELS = { low: 'Low — fastest & cheapest', medium: 'Medium', high: 'High (default)', xhigh: 'xHigh — agentic / coding', max: 'Max — highest capability' }
+
+function modelOptsHtml(selectedId) {
+  let h = `<option value=""${!selectedId ? ' selected' : ''}>Default · Sonnet 4.6</option>`
+  for (const g of ['Current', 'Legacy']) {
+    h += `<optgroup label="${g}">`
+    for (const m of MODELS.filter(m => m.group === g))
+      h += `<option value="${esc(m.id)}"${selectedId === m.id ? ' selected' : ''}>${esc(m.label)}</option>`
+    h += '</optgroup>'
+  }
+  return h
+}
+function effortOptsHtml(modelId, selectedEffort) {
+  const m = MODELS.find(m => m.id === modelId) || MODELS[0]
+  if (!m.effort) return '<option value="">N/A</option>'
+  let h = `<option value=""${!selectedEffort ? ' selected' : ''}>Default</option>`
+  for (const e of ['low','medium','high','xhigh','max']) {
+    const avail = m.effort.includes(e)
+    h += `<option value="${e}"${selectedEffort === e ? ' selected' : ''}${!avail ? ' disabled' : ''}>${esc(EFFORT_LABELS[e])}</option>`
+  }
+  return h
+}
+function syncEffortSelect(effortSel, modelId) {
+  const m = MODELS.find(m => m.id === modelId) || MODELS[0]
+  effortSel.disabled = !m.effort
+  if (!m.effort) { effortSel.value = ''; return }
+  const cur = effortSel.value
+  effortSel.innerHTML = effortOptsHtml(modelId, cur)
+}
+
 // ── usage panel ──────────────────────────────────────────────────────────────
 const usageEl = document.getElementById('usage')
 
@@ -274,6 +315,7 @@ async function openNewTask() {
   let scheduleKind = 'at-next-reset'
   let pickedSession = null
   let taskModel = SETTINGS.defaultModel || ''
+  let taskEffort = SETTINGS.defaultEffort || ''
 
   openModal(`
     <h2>New task</h2>
@@ -308,14 +350,15 @@ async function openNewTask() {
       <label>Project path <span style="color:var(--muted);font-weight:400">(cwd — optional)</span></label>
       <input type="text" id="f-project" placeholder="${esc(SETTINGS.defaultProjectPath || 'e.g. C:\\\\Users\\\\you\\\\project')}" />
     </div>
-    <div class="field">
-      <label>Model</label>
-      <div class="radio-row" id="f-model">
-        <div class="radio-chip${!taskModel ? ' on' : ''}" data-v="">Default · Sonnet</div>
-        <div class="radio-chip${taskModel === 'claude-haiku-4-5-20251001' ? ' on' : ''}" data-v="claude-haiku-4-5-20251001">Fast · Haiku</div>
-        <div class="radio-chip${taskModel === 'claude-opus-4-8' ? ' on' : ''}" data-v="claude-opus-4-8">Deep · Opus</div>
+    <div class="row">
+      <div class="field">
+        <label>Model</label>
+        <select id="f-model">${modelOptsHtml(taskModel)}</select>
       </div>
-      <div class="hint">Haiku is ~5× cheaper for simple tasks (commits, file moves). Opus for complex reasoning.</div>
+      <div class="field">
+        <label>Effort</label>
+        <select id="f-effort" ${!(MODELS.find(m=>m.id===taskModel)||MODELS[0]).effort ? 'disabled' : ''}>${effortOptsHtml(taskModel, taskEffort)}</select>
+      </div>
     </div>
     <div class="field">
       <label>When</label>
@@ -347,11 +390,11 @@ async function openNewTask() {
     pickedSession = item.dataset.sid
     modalEl.querySelectorAll('.session-item').forEach(s => s.classList.toggle('on', s === item))
   })
-  modalEl.querySelector('#f-model').addEventListener('click', (e) => {
-    const chip = e.target.closest('.radio-chip'); if (!chip) return
-    taskModel = chip.dataset.v
-    modalEl.querySelectorAll('#f-model .radio-chip').forEach(c => c.classList.toggle('on', c === chip))
+  modalEl.querySelector('#f-model').addEventListener('change', (e) => {
+    taskModel = e.target.value
+    syncEffortSelect(modalEl.querySelector('#f-effort'), taskModel)
   })
+  modalEl.querySelector('#f-effort').addEventListener('change', (e) => { taskEffort = e.target.value })
   modalEl.querySelector('#f-sched').addEventListener('click', (e) => {
     const chip = e.target.closest('.radio-chip'); if (!chip) return
     scheduleKind = chip.dataset.v
@@ -378,6 +421,7 @@ async function openNewTask() {
       sessionId: mode === 'fresh' ? null : pickedSession,
       projectPath: modalEl.querySelector('#f-project').value.trim(),
       model: taskModel || null,
+      effort: modalEl.querySelector('#f-effort').value || null,
       schedule,
     })
     closeModal()
@@ -392,6 +436,7 @@ async function openEditTask(task) {
   let scheduleKind = task.schedule?.kind || 'at-next-reset'
   let pickedSession = task.sessionId || null
   let taskModel = task.model || ''
+  let taskEffort = task.effort || ''
 
   const localAt = (scheduleKind === 'once' && task.schedule?.at)
     ? new Date(new Date(task.schedule.at).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
@@ -429,12 +474,14 @@ async function openEditTask(task) {
       <label>Project path <span style="color:var(--muted);font-weight:400">(optional)</span></label>
       <input type="text" id="f-project" value="${esc(task.projectPath || '')}" placeholder="${esc(SETTINGS.defaultProjectPath || '')}" />
     </div>
-    <div class="field">
-      <label>Model</label>
-      <div class="radio-row" id="f-model">
-        <div class="radio-chip${!taskModel ? ' on' : ''}" data-v="">Default · Sonnet</div>
-        <div class="radio-chip${taskModel === 'claude-haiku-4-5-20251001' ? ' on' : ''}" data-v="claude-haiku-4-5-20251001">Fast · Haiku</div>
-        <div class="radio-chip${taskModel === 'claude-opus-4-8' ? ' on' : ''}" data-v="claude-opus-4-8">Deep · Opus</div>
+    <div class="row">
+      <div class="field">
+        <label>Model</label>
+        <select id="f-model">${modelOptsHtml(taskModel)}</select>
+      </div>
+      <div class="field">
+        <label>Effort</label>
+        <select id="f-effort" ${!(MODELS.find(m=>m.id===taskModel)||MODELS[0]).effort ? 'disabled' : ''}>${effortOptsHtml(taskModel, taskEffort)}</select>
       </div>
     </div>
     <div class="field">
@@ -467,11 +514,11 @@ async function openEditTask(task) {
     pickedSession = item.dataset.sid
     modalEl.querySelectorAll('.session-item').forEach(s => s.classList.toggle('on', s === item))
   })
-  modalEl.querySelector('#f-model').addEventListener('click', (e) => {
-    const chip = e.target.closest('.radio-chip'); if (!chip) return
-    taskModel = chip.dataset.v
-    modalEl.querySelectorAll('#f-model .radio-chip').forEach(c => c.classList.toggle('on', c === chip))
+  modalEl.querySelector('#f-model').addEventListener('change', (e) => {
+    taskModel = e.target.value
+    syncEffortSelect(modalEl.querySelector('#f-effort'), taskModel)
   })
+  modalEl.querySelector('#f-effort').addEventListener('change', (e) => { taskEffort = e.target.value })
   modalEl.querySelector('#f-sched').addEventListener('click', (e) => {
     const chip = e.target.closest('.radio-chip'); if (!chip) return
     scheduleKind = chip.dataset.v
@@ -496,6 +543,7 @@ async function openEditTask(task) {
       sessionId: mode === 'fresh' ? null : pickedSession,
       projectPath: modalEl.querySelector('#f-project').value.trim(),
       model: taskModel || null,
+      effort: modalEl.querySelector('#f-effort').value || null,
       schedule,
       status: 'scheduled',
     })
@@ -634,14 +682,16 @@ function openSettings() {
   const s = SETTINGS
   openModal(`
     <h2>Settings <span id="s-version" style="font-size:12px;font-weight:400;color:var(--muted)"></span></h2>
-    <div class="field">
-      <label>Default model</label>
-      <select id="s-model">
-        <option value="" ${!s.defaultModel ? 'selected' : ''}>Default · Sonnet 4.6</option>
-        <option value="claude-haiku-4-5-20251001" ${s.defaultModel === 'claude-haiku-4-5-20251001' ? 'selected' : ''}>Fast · Haiku 4.5 (~5× cheaper)</option>
-        <option value="claude-opus-4-8" ${s.defaultModel === 'claude-opus-4-8' ? 'selected' : ''}>Deep · Opus 4.8 (complex reasoning)</option>
-      </select>
-      <div class="hint">Tasks can override this per-task.</div>
+    <div class="row">
+      <div class="field">
+        <label>Default model</label>
+        <select id="s-model">${modelOptsHtml(s.defaultModel || '')}</select>
+      </div>
+      <div class="field">
+        <label>Default effort</label>
+        <select id="s-effort">${effortOptsHtml(s.defaultModel || '', s.defaultEffort || '')}</select>
+        <div class="hint">Tasks can override both per-task. Effort is disabled for Haiku.</div>
+      </div>
     </div>
     <div class="field">
       <label>Claude CLI command</label>
@@ -718,10 +768,14 @@ function openSettings() {
       statusEl.textContent = `✗ ${res.error}`
     }
   })
+  modalEl.querySelector('#s-model').addEventListener('change', (e) => {
+    syncEffortSelect(modalEl.querySelector('#s-effort'), e.target.value)
+  })
   modalEl.querySelector('#s-save').addEventListener('click', async () => {
     const num = (sel, d) => { const v = parseInt(modalEl.querySelector(sel).value, 10); return isNaN(v) ? d : v }
     await window.relay.setSettings({
       defaultModel: modalEl.querySelector('#s-model').value,
+      defaultEffort: modalEl.querySelector('#s-effort').value,
       claudeCommand: modalEl.querySelector('#s-cmd').value.trim() || 'claude',
       defaultProjectPath: modalEl.querySelector('#s-proj').value.trim(),
       dailyResetTime: modalEl.querySelector('#s-reset').value || '02:20',

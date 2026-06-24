@@ -120,6 +120,8 @@ function cmdSchedule(f) {
     mode,
     sessionId: sessionId || null,
     projectPath: cwd,
+    model: f.model || null,
+    effort: f.effort || null,
     schedule: { kind: 'once', at },
     status: 'scheduled',
     createdAt: new Date().toISOString(),

@@ -21,6 +21,7 @@ const DEFAULT_SETTINGS = {
   pauseAtPct: 100,              // defer scheduled runs at/above this session % (when allowExtendedUsage is off)
   skipPermissions: true,        // --dangerously-skip-permissions: unattended tasks edit/run/commit with no gate
   defaultModel: '',             // empty = no --model flag (Claude Code default, currently Sonnet 4.6)
+  defaultEffort: '',            // empty = no --effort flag (model default, currently high)
 }
 
 function emptyDB() { return { tasks: [], settings: { ...DEFAULT_SETTINGS } } }
