@@ -46,12 +46,38 @@ Slashes are invalid in Windows file/shortcut names, so the productName is `Relay
 
 ## Publish Flow
 
-```bash
-npm run build     # local build only (no upload)
-npm run publish   # build + upload to GitHub Releases as new version
-```
+### Every time — exact steps in order
 
-Before publishing: delete `dist\win-unpacked` and `dist\win-unpacked.tmp` if they exist (Windows rename fails if destination exists). Then bump `"version"` in `package.json` **and commit it** — electron-updater compares the installed version against the GitHub Release tag, so the version in `package.json` must match the release or the update won't be detected. Set `GH_TOKEN` env var (or add permanently to Windows user environment variables) — token lives at github.com/settings/tokens, needs `repo` scope, no expiration.
+1. **Bump version** in `package.json` (e.g. `"version": "0.4.8"`)
+2. **Commit it** — `git add package.json && git commit -m "chore: bump version to X.Y.Z"`
+   - electron-updater compares installed version against the GitHub Release tag; if `package.json` isn't bumped and committed the update will never be detected
+3. **Clear stale build output** — Windows `rename` fails if the destination already exists:
+   ```powershell
+   Remove-Item -Recurse -Force dist\win-unpacked -ErrorAction SilentlyContinue
+   Remove-Item -Recurse -Force dist\win-unpacked.tmp -ErrorAction SilentlyContinue
+   ```
+4. **Set GH_TOKEN** for the current session (the global env var doesn't always flow through to sandboxed shells):
+   ```powershell
+   $env:GH_TOKEN = "ghp_..."   # token from github.com/settings/tokens, repo scope, no expiry
+   ```
+5. **Publish**:
+   ```powershell
+   npm run publish
+   ```
+
+### Troubleshooting
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `EPERM: operation not permitted, rename dist\win-unpacked.tmp -> dist\win-unpacked` | `dist\win-unpacked` or `.tmp` left over from a previous run | Delete both folders (step 3 above) and retry |
+| `GitHub Personal Access Token is not set` | `GH_TOKEN` not inherited by the npm script's cmd.exe subprocess | Set `$env:GH_TOKEN` explicitly in the same PowerShell session (step 4 above) |
+| Update not detected by running app | `package.json` version wasn't bumped, or wasn't committed before publish | Bump + commit (steps 1–2), republish |
+| Update not detected even after publish | App was already open when the release landed; old code only checked once on startup | Fixed in 0.4.8 — app now rechecks every 30 min. Restart the app to force an immediate check |
+
+```bash
+npm run build     # local build only, no upload — useful for testing the installer
+npm run publish   # build + upload to GitHub Releases
+```
 
 ## Security Rules (do not remove or work around)
 
