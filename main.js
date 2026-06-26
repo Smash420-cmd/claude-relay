@@ -171,7 +171,7 @@ async function runDueTask(task, opts = {}) {
   // limit (it would spend credits). Leave it scheduled; the scheduler retries each tick and it runs
   // once usage resets. Manual "Run now" bypasses this (you explicitly asked). Only gates on LIVE
   // usage data — never on the rough transcript estimate.
-  if (!opts.manual && !settings.allowExtendedUsage) {
+  if (!opts.manual && !settings.allowExtendedUsage && (task.schedule || {}).kind !== 'once') {
     try {
       const snap = tracker.snapshot(settings)
       if (snap.source === 'live' && snap.session && snap.session.pct != null && snap.session.pct >= (settings.pauseAtPct || 100)) {
@@ -364,6 +364,8 @@ function registerIpc() {
     })
   })
 
+  ipcMain.handle('relay:login-item:get', () => app.getLoginItemSettings().openAtLogin)
+  ipcMain.handle('relay:login-item:set', (_e, val) => app.setLoginItemSettings({ openAtLogin: !!val }))
   ipcMain.handle('relay:version', () => app.getVersion())
   ipcMain.handle('relay:install-update', () => autoUpdater.quitAndInstall(false, true))
 

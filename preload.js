@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('relay', {
   onChanged:     (cb) => ipcRenderer.on('relay:changed', () => cb()),
   onUpdateAvailable: (cb) => ipcRenderer.on('relay:update-available', (_e, version) => cb(version)),
   onUpdateReady:     (cb) => ipcRenderer.on('relay:update-ready', () => cb()),
+  getLoginItem:  () => ipcRenderer.invoke('relay:login-item:get'),
+  setLoginItem:  (val) => ipcRenderer.invoke('relay:login-item:set', val),
   version:       () => ipcRenderer.invoke('relay:version'),
   installUpdate: () => ipcRenderer.invoke('relay:install-update'),
 })

@@ -229,6 +229,8 @@ function taskRow(t) {
   const canResume = t.status === 'stopped' || t.status === 'failed' || t.status === 'interrupted'
   const hasLog    = !!t.lastLogPath
 
+  const overdue = t.status === 'scheduled' && t.schedule && t.schedule.at && new Date(t.schedule.at) < new Date()
+
   // Human-readable single meta line: mode · folder · ran time · exit
   const folder = t.projectPath ? t.projectPath.replace(/\\/g, '/').split('/').pop() : ''
   const ranAt  = t.status === 'scheduled' ? scheduleText(t) : (t.lastRunAt ? `ran ${fmtWhen(t.lastRunAt)}` : scheduleText(t))
@@ -238,12 +240,19 @@ function taskRow(t) {
   return `<div class="task" data-id="${esc(t.id)}">
     <div class="task-main">
       <div class="task-title">
-        <span class="pill ${esc(t.status)}">${esc(t.status)}</span>
+        <span class="pill ${overdue ? 'overdue' : esc(t.status)}">${overdue ? '⏸ waiting' : esc(t.status)}</span>
         <span class="title-text">${esc(t.title)}</span>
         ${t.prompt ? `<span class="task-expand">▶</span>` : ''}
       </div>
       <div class="task-meta">${esc(extras)}</div>
-      ${t.prompt ? `<div class="task-prompt">${esc(t.prompt)}</div>` : ''}
+      ${t.prompt ? `<div class="task-body">
+        <div class="task-prompt">${esc(t.prompt)}</div>
+        <div class="task-info">
+          <div><b>Mode</b>${esc(modeText(t))}</div>
+          <div><b>Model</b>${esc(t.model ? (MODELS.find(m => m.id === t.model) || {label: t.model}).label : 'Default')}</div>
+          <div><b>Effort</b>${esc(t.effort || 'Default')}</div>
+        </div>
+      </div>` : ''}
     </div>
     <div class="task-actions">
       ${canRunNow ? `<button class="btn tiny" data-action="run">Run now</button>` : ''}
@@ -660,8 +669,9 @@ function dismissWelcome() {
 // ── settings ────────────────────────────────────────────────────────────────
 document.getElementById('settingsBtn').addEventListener('click', openSettings)
 
-function openSettings() {
+async function openSettings() {
   const s = SETTINGS
+  const launchAtLogin = await window.relay.getLoginItem().catch(() => false)
   openModal(`
     <h2>Settings <span id="s-version" style="font-size:12px;font-weight:400;color:var(--muted)"></span></h2>
     <div class="row">
@@ -710,6 +720,10 @@ function openSettings() {
       <div class="note" style="border-left-color:var(--red)">ON: tasks run with <b>--dangerously-skip-permissions</b> — they can edit/run/<b>commit</b> unattended, with no approval gate. This is what makes tasks complete seamlessly. They run in the task's cwd and commit to git (reviewable/revertible), but only queue prompts you trust.</div>
     </div>
     <div class="field">
+      <label class="toggle"><input type="checkbox" id="s-launch" ${launchAtLogin ? 'checked' : ''}/> Launch at login</label>
+      <div class="hint">Start Relay automatically when you log in to Windows so the scheduler is always running and scheduled tasks never miss.</div>
+    </div>
+    <div class="field">
       <label>Claude Code integration</label>
       <div class="hint" style="margin-bottom:8px">Install the <code>/relay</code> skill so you can type <code>/relay do X at 4pm</code> in any Claude Code session to schedule tasks without opening this app.</div>
       <button class="btn" id="s-setup-skill">Set up /relay skill</button>
@@ -755,6 +769,7 @@ function openSettings() {
   })
   modalEl.querySelector('#s-save').addEventListener('click', async () => {
     const num = (sel, d) => { const v = parseInt(modalEl.querySelector(sel).value, 10); return isNaN(v) ? d : v }
+    await window.relay.setLoginItem(modalEl.querySelector('#s-launch').checked)
     await window.relay.setSettings({
       defaultModel: modalEl.querySelector('#s-model').value,
       defaultEffort: modalEl.querySelector('#s-effort').value,

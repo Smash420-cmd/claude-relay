@@ -78,11 +78,11 @@ function resolveAt(at, settings) {
   if (rel) {
     const n = parseInt(rel[1], 10), unit = rel[2].toLowerCase()
     const ms = unit === 'm' ? 60e3 : unit === 'h' ? 3600e3 : 86400e3
-    return new Date(Date.now() + n * ms).toISOString()
+    return new Date(Math.round((Date.now() + n * ms) / 60000) * 60000).toISOString()
   }
   const d = new Date(at)
   if (isNaN(d)) throw new Error(`--at: can't parse "${at}" (use next-reset, +30m, +2h, or an ISO datetime)`)
-  return d.toISOString()
+  return new Date(Math.round(d.getTime() / 60000) * 60000).toISOString()
 }
 
 // ── arg parse ──
