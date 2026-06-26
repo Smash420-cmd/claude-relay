@@ -199,10 +199,12 @@ async function runDueTask(task, opts = {}) {
     lastLogPath: res.logPath,
     lastExitCode: res.exitCode,
     resetHint: res.resetHint || null,
+    resultSessionId: res.resultSessionId || null,
   })
   // Core feature: when a run is stopped by the session/weekly limit and auto-resume is on,
   // fetch the exact reset time from the Claude API and schedule a resume at that moment.
   if (res.status === 'stopped' && settings.autoResumeOnLimit) {
+    if (res.resultSessionId && !task.sessionId) task = { ...task, sessionId: res.resultSessionId, mode: 'resume-full' }
     let resetAt = null
     try {
       const usage = await fetchClaudeUsage()
@@ -265,6 +267,26 @@ relay schedule --title "TITLE" --prompt "PROMPT" --at "ISO_DATETIME"
 Add \`--cwd "PROJECT_PATH"\` if the task is for a specific project directory.
 Add \`--model "MODEL_ID"\` if the user specified a model.
 Add \`--effort "LEVEL"\` if the user specified an effort level (and the model supports it).
+
+## Resuming a previous Relay session
+
+When a relay task runs, it creates or uses a Claude Code session. Relay records that session's UUID in the task log. To schedule a follow-up that resumes the same session:
+
+\`\`\`bash
+# 1. Find the session UUID from the completed task's log
+relay log TASK_ID
+# Look for the last line: "# session: <uuid>"
+
+# 2. Schedule the follow-up targeting that session
+relay schedule --title "TITLE" --prompt "PROMPT" --at "ISO_DATETIME" \\
+  --mode resume-full --resume SESSION_UUID --cwd "PROJECT_PATH"
+\`\`\`
+
+To resume your *current* session (the one you are running in right now):
+\`\`\`bash
+relay schedule --title "TITLE" --prompt "PROMPT" --at "ISO_DATETIME" \\
+  --mode resume-full --resume current --cwd "PROJECT_PATH"
+\`\`\`
 
 Confirm with one line after scheduling: \`✓ "TITLE" → HUMAN_READABLE_TIME\`
 `)

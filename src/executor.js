@@ -3,7 +3,30 @@
 const { spawn } = require('child_process')
 const fs = require('fs')
 const path = require('path')
+const os = require('os')
 const { logsDir } = require('./paths')
+
+// After a task exits, find the Claude session that was created/used by scanning
+// ~/.claude/projects/ for the most-recently-modified .jsonl newer than taskStartMs.
+function findResultSession(taskStartMs) {
+  const root = path.join(os.homedir(), '.claude', 'projects')
+  let best = null
+  try {
+    for (const proj of fs.readdirSync(root, { withFileTypes: true })) {
+      if (!proj.isDirectory()) continue
+      const dir = path.join(root, proj.name)
+      try {
+        for (const f of fs.readdirSync(dir)) {
+          if (!f.endsWith('.jsonl')) continue
+          const mtime = fs.statSync(path.join(dir, f)).mtimeMs
+          if (mtime < taskStartMs) continue
+          if (!best || mtime > best.mtime) best = { mtime, uuid: f.replace('.jsonl', '') }
+        }
+      } catch {}
+    }
+  } catch {}
+  return best ? best.uuid : null
+}
 
 // Flags only — the PROMPT is passed via stdin, never as an arg. With shell:true (needed to resolve
 // `claude` on Windows) a spaced prompt arg gets re-split by the shell into separate words, which
@@ -49,6 +72,7 @@ function runTask(task, opts = {}) {
       logStream.write('[note] resume-compact not yet wired — running as resume-full (no /compact).\n\n')
     }
 
+    const taskStartMs = Date.now()
     let output = ''
     let child
     try {
@@ -100,11 +124,13 @@ function runTask(task, opts = {}) {
       const limit = detectLimit(output)
       let status = code === 0 ? 'succeeded' : 'failed'
       if (limit.stopped) status = 'stopped'
+      const resultSessionId = findResultSession(taskStartMs)
       if (!logStream.writableEnded) {
         logStream.write(`\n\n[exit ${code}] status=${status}${limit.resetHint ? ` resetHint=${limit.resetHint}` : ''}\n`)
+        if (resultSessionId) logStream.write(`# session: ${resultSessionId}\n`)
         logStream.end()
       }
-      resolve({ exitCode: code, status, logPath, resetHint: limit.resetHint })
+      resolve({ exitCode: code, status, logPath, resetHint: limit.resetHint, resultSessionId: resultSessionId || null })
     })
   })
 }

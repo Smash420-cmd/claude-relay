@@ -144,6 +144,15 @@ function cmdCancel(id) {
   if (!t) { console.error('no task ' + id); process.exit(1) }
   t.status = 'cancelled'; saveStore(db); console.log('✓ cancelled ' + id)
 }
+function cmdLog(taskId) {
+  if (!taskId) { console.error('error: log needs a task id'); process.exit(1) }
+  const logsDir = path.join(userDataDir(), 'logs')
+  let files
+  try { files = fs.readdirSync(logsDir) } catch { console.error('no logs dir found'); process.exit(1) }
+  const matches = files.filter(f => f.startsWith(taskId + '-') && f.endsWith('.log')).sort().reverse()
+  if (!matches.length) { console.error('no log found for task ' + taskId); process.exit(1) }
+  console.log(fs.readFileSync(path.join(logsDir, matches[0]), 'utf8'))
+}
 function cmdRestart() {
   const signalDir = path.join(os.homedir(), '.relay')
   const signalPath = path.join(signalDir, 'restart.signal')
@@ -159,11 +168,13 @@ try {
   else if (cmd === 'list') cmdList()
   else if (cmd === 'cancel') cmdCancel(pos[1])
   else if (cmd === 'restart') cmdRestart()
+  else if (cmd === 'log') cmdLog(pos[1])
   else {
     console.log('relay — usage:')
     console.log('  schedule --prompt "..." [--mode fresh|resume-full|resume-compact] [--resume <id|current>] [--at next-reset|+30m|<ISO>] [--cwd <path>] [--title "..."]')
     console.log('  list')
     console.log('  cancel <id>')
+    console.log('  log <task-id>        — print the task log (last line: # session: <uuid> for --resume)')
     console.log('  restart              — signal the running Relay tray app to relaunch')
   }
 } catch (e) { console.error('error:', e.message); process.exit(1) }
