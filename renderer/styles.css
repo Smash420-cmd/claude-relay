@@ -99,16 +99,17 @@ body {
 .task-expand { color: var(--muted); font-size: 10px; transition: transform 0.15s; display: inline-block; }
 .task.expanded .task-expand { transform: rotate(90deg); }
 .task-meta { color: var(--muted); font-size: 12px; margin-top: 5px; }
-.task-body { display: none; margin-top: 8px; gap: 12px; }
-.task.expanded .task-body { display: flex; }
+.task-body { display: none; margin-top: 8px; }
+.task.expanded .task-body { display: block; }
 .task-prompt {
-  flex: 1; min-width: 0; color: var(--subtle); font-size: 12.5px;
+  color: var(--subtle); font-size: 12.5px;
   white-space: pre-wrap; word-break: break-word; line-height: 1.55;
   max-height: 220px; overflow-y: auto;
   border-left: 2px solid var(--border); padding-left: 10px;
 }
-.task-info { width: 110px; flex-shrink: 0; display: flex; flex-direction: column; gap: 7px; font-size: 11.5px; color: var(--subtle); }
-.task-info b { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 1px; }
+.task-info { display: none; width: 100%; margin-top: 10px; text-align: right; font-size: 11.5px; color: var(--subtle); display: flex; flex-direction: column; gap: 5px; align-items: flex-end; }
+.task.expanded .task-info { display: flex; }
+.task-info b { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
 .task-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
 
 /* ── Status pill ── */

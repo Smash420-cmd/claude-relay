@@ -245,14 +245,7 @@ function taskRow(t) {
         ${t.prompt ? `<span class="task-expand">▶</span>` : ''}
       </div>
       <div class="task-meta">${esc(extras)}</div>
-      ${t.prompt ? `<div class="task-body">
-        <div class="task-prompt">${esc(t.prompt)}</div>
-        <div class="task-info">
-          <div><b>Mode</b>${esc(modeText(t))}</div>
-          <div><b>Model</b>${esc(t.model ? (MODELS.find(m => m.id === t.model) || {label: t.model}).label : 'Default')}</div>
-          <div><b>Effort</b>${esc(t.effort || 'Default')}</div>
-        </div>
-      </div>` : ''}
+      ${t.prompt ? `<div class="task-body"><div class="task-prompt">${esc(t.prompt)}</div></div>` : ''}
     </div>
     <div class="task-actions">
       ${canRunNow ? `<button class="btn tiny" data-action="run">Run now</button>` : ''}
@@ -262,6 +255,11 @@ function taskRow(t) {
       ${hasLog ? `<button class="btn tiny" data-action="log">Log</button>` : ''}
       <button class="btn tiny" data-action="edit">Edit</button>
       <button class="btn tiny danger" data-action="delete">Delete</button>
+      <div class="task-info">
+        <div><b>Mode</b>${esc(modeText(t))}</div>
+        <div><b>Model</b>${esc(t.model ? (MODELS.find(m => m.id === t.model) || {label: t.model}).label : 'Default')}</div>
+        <div><b>Effort</b>${esc(t.effort || 'Default')}</div>
+      </div>
     </div>
   </div>`
 }
@@ -811,6 +809,10 @@ window.relay.onUpdateReady(() => {
   pill.hidden = false
   pill.disabled = false
 })
-document.getElementById('updatePill').addEventListener('click', () => window.relay.installUpdate())
+document.getElementById('updatePill').addEventListener('click', () => {
+  const running = TASKS.filter(t => t.status === 'running')
+  if (running.length && !confirm(`${running.length} task(s) still running — installing now will kill them and they will need to be re-armed. Install anyway?`)) return
+  window.relay.installUpdate()
+})
 refresh().then(() => { if (!SETTINGS.hasSeenWelcome) openWelcome() })
 setInterval(refreshUsage, 5000) // keep the gauges + reset countdowns live
