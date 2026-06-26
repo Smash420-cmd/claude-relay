@@ -53,23 +53,22 @@ Slashes are invalid in Windows file/shortcut names, so the productName is `Relay
 1. **Bump version** in `package.json` (e.g. `"version": "0.4.9"`)
 2. **Commit it** — `git add package.json && git commit -m "chore: bump version to X.Y.Z"`
    - electron-updater compares installed version against the GitHub Release tag; if `package.json` isn't bumped and committed the update will never be detected
-3. **Build** (handles the EPERM rename issue in two steps):
+3. **Build** (electron-builder 26.x always re-extracts — keep retrying until Defender clears):
    ```powershell
-   # Step A — let it fail at the rename, then fix it manually
+   # Clean slate
    Remove-Item -Recurse -Force dist\win-unpacked -ErrorAction SilentlyContinue
    Remove-Item -Recurse -Force dist\win-unpacked.tmp -ErrorAction SilentlyContinue
    Remove-Item -Force "dist\Relay Setup X.Y.Z.exe" -ErrorAction SilentlyContinue
-   $env:GH_TOKEN = "ghp_..."
-   npm run publish   # will EPERM on rename — that's expected
-   
-   # Step B — rename .tmp now that Defender has released the lock
-   # IMPORTANT: do NOT delete win-unpacked first — electron-builder skips
-   # extraction only if win-unpacked already exists when it starts
-   Rename-Item dist\win-unpacked.tmp win-unpacked
-   
-   # Step C — retry WITHOUT deleting win-unpacked; extraction is skipped, NSIS builds installer
+   $env:GH_TOKEN = [System.Environment]::GetEnvironmentVariable('GH_TOKEN','User')
+
+   # Run repeatedly until the rename succeeds and NSIS fires.
+   # First run always EPERM (Defender scans new Electron binary ~30s).
+   # Second run usually succeeds — Defender scans the same files faster.
+   # Third run always succeeds if second didn't.
+   # DO NOT use --prepackaged — it bypasses app.asar packing and ships bare Electron.
+   npm run publish   # run this 2-3 times, removing the .exe between attempts:
    Remove-Item -Force "dist\Relay Setup X.Y.Z.exe" -ErrorAction SilentlyContinue
-   npm run publish   # builds installer but creates GitHub release as DRAFT — expected
+   npm run publish   # usually succeeds here — creates a DRAFT release (expected)
    ```
 4. **Publish via GitHub API** — `npm run publish` consistently creates draft releases in this environment; publish the real release manually:
 
@@ -102,7 +101,7 @@ $up = "https://uploads.github.com/repos/Smash420-cmd/claude-relay/releases/$($re
 
 | Error | Cause | Fix |
 |-------|-------|-----|
-| `EPERM: rename dist\win-unpacked.tmp -> dist\win-unpacked` | Windows Defender scans the extracted Electron binary and holds a lock briefly | Let it fail, then `Rename-Item dist\win-unpacked.tmp win-unpacked` and retry (see step 3 above) |
+| `EPERM: rename dist\win-unpacked.tmp -> dist\win-unpacked` | Windows Defender scans the extracted Electron binary and holds a lock briefly | Just re-run `npm run publish` (remove the .exe first). Second/third run succeeds when Defender finishes. **Never use `--prepackaged`** — it ships bare Electron with no app code. |
 | `GitHub Personal Access Token is not set` | `GH_TOKEN` not inherited by the npm cmd.exe subprocess | Set `$env:GH_TOKEN` explicitly before running |
 | `Can't open output file` (NSIS) | Previous `Relay Setup X.Y.Z.exe` still in dist | `Remove-Item -Force "dist\Relay Setup X.Y.Z.exe"` and retry |
 | Release created as draft, update not detected | `npm run publish` always creates drafts in this environment | Use the GitHub API publish script above (step 4) |
