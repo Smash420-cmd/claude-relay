@@ -1,6 +1,10 @@
 # /relay
 
-A lightweight Windows tray app that schedules prompts into local Claude Code sessions and auto-resumes work when usage limits reset.
+Claude Code's usage limits reset every 5 hours. /relay turns that constraint into a workflow: queue the work, walk away, and come back to it done — even if it takes multiple sessions to finish.
+
+It runs as a Windows tray app. You write a prompt, point it at a project folder, and set a time. /relay spawns a headless Claude Code session at that moment, streams the output to a log, and if the session hits a limit mid-task it automatically re-arms the resume for the exact moment that limit clears. No babysitting, no lost work.
+
+Claude Code sessions can also schedule their own follow-up tasks via the `/relay` skill — so a session that runs out of context or hits a limit can hand off to a future session without you doing anything.
 
 ---
 
@@ -16,12 +20,12 @@ A lightweight Windows tray app that schedules prompts into local Claude Code ses
 
 ## What it does
 
-- **Schedule tasks** — write a prompt, pick a project folder, choose when to run (`now` / `at next reset` / a specific time)
-- **Auto-resume on limit** — when a running task is stopped by a session or weekly usage limit, /relay automatically re-schedules it to resume at the exact moment that limit resets
-- **Live usage bars** — session (5h) and weekly (7d) usage pulled directly from Claude.ai, with reset countdowns
-- **Per-task model + effort** — choose the Claude model and effort level per task, or set a default in Settings
-- **Stays alive in the tray** — close the window and the scheduler keeps running
-- **View logs** — every run saves a full output log, viewable in one click
+- **Schedule tasks** — write a prompt, pick a project folder, set a time (`now` / `at next reset` / specific time). /relay fires a headless Claude Code session and streams output to a log
+- **Auto-resume on limit** — if a session hits the 5h or 7d usage limit mid-task, /relay fetches the exact reset time from Claude.ai and re-schedules the resume automatically
+- **Self-scheduling sessions** — via the `/relay` Claude Code skill, a running session can queue its own follow-up before it exits, passing the session UUID so the next run resumes exactly where it left off
+- **Live usage bars** — session and weekly usage pulled from Claude.ai in real time, with reset countdowns
+- **Per-task model + effort** — Opus, Sonnet, or Haiku; low through max effort — set per task or as a default
+- **Stays alive in the tray** — close the window, the scheduler keeps running
 
 ---
 
