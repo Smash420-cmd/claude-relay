@@ -603,6 +603,10 @@ async function openWelcome() {
       <div id="welcome-skill-status" style="margin-top:6px;font-size:12px"></div>
     </div>
 
+    <div class="note" style="border-left-color:var(--red);margin-top:4px">
+      <b style="color:var(--text)">Before you queue tasks:</b> /relay runs Claude Code unattended with <code>--dangerously-skip-permissions</code> — this is required for headless sessions to edit files, run commands, and commit code without stopping to ask. Only queue prompts you trust, and make sure any sensitive or unbacked work in your project folders is backed up before running tasks.
+    </div>
+
     <div class="modal-actions">
       <button class="btn ghost" id="welcome-skip-btn">Skip for now</button>
       <button class="btn primary" id="welcome-done-btn">All done</button>
