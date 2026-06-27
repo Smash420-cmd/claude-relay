@@ -55,11 +55,19 @@ After running Setup, type `/relay` inside any Claude Code session to schedule ta
 /relay continue this at next reset
 ```
 
+The skill works across all Claude Code clients — CLI, browser (claude.ai/code), Windows desktop app, and IDE extensions (VS Code, JetBrains). They all share the same `~/.claude/commands/` directory.
+
 To schedule a follow-up that resumes the current session:
 
 ```bash
 relay schedule --prompt "continue" --resume current --at next-reset --cwd "C:\my\project"
 ```
+
+### /relay-autoresume
+
+Type `/relay-autoresume` at the start of any session to arm it for automatic relay when a usage limit is hit. If the session hits the 5h or 7d limit, Claude will automatically schedule a resume at next reset — no manual action needed.
+
+Requires **"/relay-autoresume — self-schedule on session limit"** to be enabled in Settings.
 
 ---
 
