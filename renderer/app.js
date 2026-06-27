@@ -727,6 +727,10 @@ async function openSettings() {
       <button class="btn" id="s-setup-skill">Set up /relay skill</button>
       <div id="s-skill-status" style="margin-top:6px;font-size:12px"></div>
     </div>
+    <div class="field">
+      <label class="toggle"><input type="checkbox" id="s-autoresume-skill" ${s.skillAutoResumeOnLimit ? 'checked' : ''}/> /relay-autoresume — self-schedule on session limit</label>
+      <div class="note">When enabled and a Claude Code session has loaded the <code>/relay-autoresume</code> skill, hitting a usage limit will automatically schedule a resume at next reset — no manual action needed. Type <code>/relay-autoresume</code> at the start of any session you want this behaviour in. Off by default.</div>
+    </div>
     <details style="margin-top:18px;border:1px solid var(--border);border-radius:8px;padding:10px 13px">
       <summary style="cursor:pointer;font-weight:650;font-size:13px;color:var(--subtle)">Security &amp; privacy</summary>
       <div style="margin-top:12px;display:flex;flex-direction:column;gap:10px;font-size:12.5px;color:var(--subtle)">
@@ -779,6 +783,7 @@ async function openSettings() {
       allowExtendedUsage: modalEl.querySelector('#s-ext').checked,
       pauseAtPct: Math.min(100, Math.max(1, num('#s-pause', 100))),
       skipPermissions: modalEl.querySelector('#s-skip').checked,
+      skillAutoResumeOnLimit: modalEl.querySelector('#s-autoresume-skill').checked,
     })
     closeModal()
     await refresh()

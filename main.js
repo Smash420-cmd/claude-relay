@@ -295,11 +295,54 @@ Confirm with one line after scheduling: \`✓ "TITLE" → HUMAN_READABLE_TIME\`
   }
 }
 
+function writeRelayConfig() {
+  try {
+    const dir = path.join(os.homedir(), '.relay')
+    fs.mkdirSync(dir, { recursive: true })
+    const settings = store.getSettings()
+    fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+      skillAutoResumeOnLimit: !!settings.skillAutoResumeOnLimit,
+    }, null, 2))
+  } catch (e) {
+    console.warn('[config] could not write ~/.relay/config.json:', e.message)
+  }
+}
+
+function writeAutoResumeSkill() {
+  try {
+    const skillDir = path.join(os.homedir(), '.claude', 'commands')
+    fs.mkdirSync(skillDir, { recursive: true })
+    fs.writeFileSync(path.join(skillDir, 'relay-autoresume.md'), `This session is now armed for automatic relay on usage limit.
+
+From this point on: if you receive a usage limit message at any point during this session, immediately do the following:
+
+1. Run:
+\`\`\`bash
+cat ~/.relay/config.json
+\`\`\`
+
+2. If \`skillAutoResumeOnLimit\` is \`true\`:
+   - Write a one-sentence summary of what work still remains
+   - Run:
+\`\`\`bash
+relay schedule --prompt "SUMMARY" --resume current --at next-reset --cwd "CURRENT_PROJECT_PATH"
+\`\`\`
+   - Confirm to the user: \`✓ Session limit hit — resume scheduled at next reset\`
+
+3. If \`skillAutoResumeOnLimit\` is \`false\`, do nothing — the session ends normally and no task is scheduled.
+
+The \`skillAutoResumeOnLimit\` setting is controlled in the /relay app under Settings.
+`)
+  } catch (e) {
+    console.warn('[skill] could not write relay-autoresume.md:', e.message)
+  }
+}
+
 function registerIpc() {
   ipcMain.handle('relay:list', () => store.getTasks())
   ipcMain.handle('relay:usage', () => { try { return tracker.snapshot(store.getSettings()) } catch (e) { return { error: String(e && e.message) } } })
   ipcMain.handle('relay:settings:get', () => store.getSettings())
-  ipcMain.handle('relay:settings:set', (_e, patch) => store.setSettings(patch))
+  ipcMain.handle('relay:settings:set', (_e, patch) => { const s = store.setSettings(patch); writeRelayConfig(); return s })
   ipcMain.handle('relay:sessions:list', () => sessions.listSessions())
 
   ipcMain.handle('relay:create', (_e, input) => {
@@ -482,6 +525,8 @@ function main() {
     rotateLogs()
     cleanupOrphanedTasks()
     writeRelaySkill()
+    writeAutoResumeSkill()
+    writeRelayConfig()
     registerIpc()
     if (app.isPackaged) {
       autoUpdater.on('error', (err) => console.error('[updater] error:', err.message))

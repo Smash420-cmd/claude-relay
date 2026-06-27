@@ -22,6 +22,7 @@ const DEFAULT_SETTINGS = {
   skipPermissions: true,        // --dangerously-skip-permissions: unattended tasks edit/run/commit with no gate
   defaultModel: '',             // empty = no --model flag (Claude Code default, currently Sonnet 4.6)
   defaultEffort: '',            // empty = no --effort flag (model default, currently high)
+  skillAutoResumeOnLimit: false, // OFF: /relay-autoresume skill self-schedules a resume when a session hits its limit
   // tracker window/limit knobs intentionally omitted — no UI, hardcoded in tracker.js
 }
 
