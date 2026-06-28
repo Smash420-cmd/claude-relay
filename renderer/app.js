@@ -371,7 +371,7 @@ async function openNewTask() {
     <div class="field">
       <label>When</label>
       <div class="radio-row" id="f-sched">
-        <div class="radio-chip on" data-v="at-next-reset">At next reset (${USAGE_API && USAGE_API.sessionResetsAt && USAGE_API.sessionResetsAt > Date.now() ? new Date(USAGE_API.sessionResetsAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : esc(SETTINGS.dailyResetTime || '02:20')})</div>
+        <div class="radio-chip on" data-v="at-next-reset">At next reset (${USAGE_API && USAGE_API.sessionResetsAt && USAGE_API.sessionResetsAt > Date.now() ? new Date(USAGE_API.sessionResetsAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : (() => { const [h,m]=(SETTINGS.sessionStartTime||'02:00').split(':').map(Number); return `${String((h+5)%24).padStart(2,'0')}:${String(m||0).padStart(2,'0')}` })()})</div>
         <div class="radio-chip" data-v="once">At a specific time</div>
       </div>
       <div id="f-once-wrap" hidden style="margin-top:10px">
@@ -495,7 +495,7 @@ async function openEditTask(task) {
     <div class="field">
       <label>When</label>
       <div class="radio-row" id="f-sched">
-        <div class="radio-chip${scheduleKind === 'at-next-reset' ? ' on' : ''}" data-v="at-next-reset">At next reset (${USAGE_API && USAGE_API.sessionResetsAt && USAGE_API.sessionResetsAt > Date.now() ? new Date(USAGE_API.sessionResetsAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : esc(SETTINGS.dailyResetTime || '02:20')})</div>
+        <div class="radio-chip${scheduleKind === 'at-next-reset' ? ' on' : ''}" data-v="at-next-reset">At next reset (${USAGE_API && USAGE_API.sessionResetsAt && USAGE_API.sessionResetsAt > Date.now() ? new Date(USAGE_API.sessionResetsAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : (() => { const [h,m]=(SETTINGS.sessionStartTime||'02:00').split(':').map(Number); return `${String((h+5)%24).padStart(2,'0')}:${String(m||0).padStart(2,'0')}` })()})</div>
         <div class="radio-chip${scheduleKind === 'once' ? ' on' : ''}" data-v="once">At a specific time</div>
       </div>
       <div id="f-once-wrap"${scheduleKind !== 'once' ? ' hidden' : ''} style="margin-top:10px">
@@ -698,12 +698,29 @@ async function openSettings() {
       <label>Default project path (cwd)</label>
       <input type="text" id="s-proj" value="${esc(s.defaultProjectPath || '')}" placeholder="optional" />
     </div>
-    <div class="row">
-      <div class="field">
-        <label>Daily reset time</label>
-        <input type="time" id="s-reset" value="${esc(s.dailyResetTime || '02:20')}" />
-        <div class="hint">Drives "at next reset".</div>
+    <div class="field">
+      <label>Fallback reset times <span style="color:var(--muted);font-weight:400">(used only when not logged in to Claude.ai)</span></label>
+      <div class="hint" style="margin-bottom:8px">When logged in, exact reset times come from the API and these are ignored. When not logged in, set these to match when you typically start your Claude sessions so Relay can estimate when limits will clear.</div>
+      <div class="row" style="margin-bottom:6px">
+        <div class="field" style="margin-bottom:0">
+          <label style="font-size:11.5px">Session start time (5h window)</label>
+          <input type="time" id="s-session-start" value="${esc(s.sessionStartTime || '02:00')}" />
+          <div class="hint">Reset fires at this time + 5h. E.g. start at 02:00 → reset at 07:00.</div>
+        </div>
       </div>
+      <div class="row">
+        <div class="field" style="margin-bottom:0;flex:1.4">
+          <label style="font-size:11.5px">Weekly start day (7d window)</label>
+          <select id="s-weekly-day">${['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(d=>`<option value="${d}"${(s.weeklyStartDay||'Monday')===d?' selected':''}>${d}</option>`).join('')}</select>
+        </div>
+        <div class="field" style="margin-bottom:0;flex:1">
+          <label style="font-size:11.5px">Weekly start time</label>
+          <input type="time" id="s-weekly-time" value="${esc(s.weeklyStartTime || '02:00')}" />
+        </div>
+      </div>
+      <div class="note" style="margin-top:8px;border-left-color:var(--amber)">⚠ Incorrect values cause resume retries to fire before the limit clears. After 3 failed retries (every 2 min), Relay waits 1 hour and holds all pending tasks until the job succeeds.</div>
+    </div>
+    <div class="row">
       <div class="field">
         <label>Scheduler interval (s)</label>
         <input type="number" id="s-interval" min="5" value="${esc(s.schedulerIntervalSec || 20)}" />
@@ -783,7 +800,9 @@ async function openSettings() {
       defaultEffort: modalEl.querySelector('#s-effort').value,
       claudeCommand: modalEl.querySelector('#s-cmd').value.trim() || 'claude',
       defaultProjectPath: modalEl.querySelector('#s-proj').value.trim(),
-      dailyResetTime: modalEl.querySelector('#s-reset').value || '02:20',
+      sessionStartTime: modalEl.querySelector('#s-session-start').value || '02:00',
+      weeklyStartDay: modalEl.querySelector('#s-weekly-day').value || 'Monday',
+      weeklyStartTime: modalEl.querySelector('#s-weekly-time').value || '02:00',
       schedulerIntervalSec: Math.max(5, num('#s-interval', 20)),
       autoResumeOnLimit: modalEl.querySelector('#s-auto').checked,
       allowExtendedUsage: modalEl.querySelector('#s-ext').checked,

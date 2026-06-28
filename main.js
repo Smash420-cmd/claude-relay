@@ -215,20 +215,30 @@ async function runDueTask(task, opts = {}) {
       }
     } catch {}
     queueResume(task, resetAt)
-    // Push every other pending scheduled task to just after the reset so they
-    // don't pile up firing at 100% — they'll queue behind the resumed task.
-    if (resetAt) store.rescheduleAllPending(resetAt)
   }
   notifyChange()
 }
 
 // resetAt: ISO string from the Claude API (exact moment the 5h or 7d window resets).
-// Falls back to the configured dailyResetTime estimate when the API is unavailable.
+// Without API: 3 quick retries every 2 min to catch the reset, then 1h hold with all pending paused.
 function queueResume(task, resetAt) {
   const settings = store.getSettings()
   const resumeCount = (task.resumeCount || 0) + 1
-  if (resumeCount > 8) return // bounded — never loop forever
-  const at = resetAt || scheduler.nextResetDate(settings.dailyResetTime).toISOString()
+  if (resumeCount > 10) return // bounded — never loop forever
+
+  let at
+  if (resetAt) {
+    at = resetAt
+    store.rescheduleAllPending(resetAt)
+  } else if (resumeCount <= 3) {
+    // Quick retries: 2 min apart — catches the reset the moment it clears
+    at = new Date(Date.now() + 2 * 60 * 1000).toISOString()
+  } else {
+    // 3 quick retries exhausted: wait 1h, hold all pending jobs until then
+    at = new Date(Date.now() + 60 * 60 * 1000).toISOString()
+    store.rescheduleAllPending(at)
+  }
+
   store.addTask({
     id: uid(),
     title: `Resume: ${task.title}`,
@@ -368,7 +378,7 @@ function registerIpc() {
           resetAt = new Date(usage.sessionResetsAt).toISOString()
         }
       } catch {}
-      schedule.at = resetAt || scheduler.nextResetDate(settings.dailyResetTime).toISOString()
+      schedule.at = resetAt || scheduler.nextSessionReset(settings.sessionStartTime).toISOString()
     }
     const task = {
       id: uid(),

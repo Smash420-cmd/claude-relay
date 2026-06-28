@@ -59,9 +59,9 @@ function findSessionCwd(id) {
   } catch {}
   return null
 }
-function nextDailyReset(hhmm) {
-  const [h, m] = String(hhmm || '02:20').split(':').map(n => parseInt(n, 10))
-  const d = new Date(); d.setHours(h || 0, m || 0, 0, 0); if (d <= new Date()) d.setDate(d.getDate() + 1); return d
+function nextSessionReset(sessionStartTime) {
+  const [h, m] = String(sessionStartTime || '02:00').split(':').map(n => parseInt(n, 10) || 0)
+  const d = new Date(); d.setHours(h + 5, m, 0, 0); if (d <= new Date()) d.setDate(d.getDate() + 1); return d
 }
 // resolve --at into an ISO string
 function resolveAt(at, settings) {
@@ -72,7 +72,7 @@ function resolveAt(at, settings) {
       const r = u.rate_limits && u.rate_limits.five_hour && u.rate_limits.five_hour.resets_at
       if (r && r * 1000 > Date.now()) return new Date(r * 1000).toISOString()
     } catch {}
-    return nextDailyReset(settings.dailyResetTime).toISOString()
+    return nextSessionReset(settings.sessionStartTime).toISOString()
   }
   const rel = String(at).match(/^\+(\d+)\s*(m|h|d)$/i)
   if (rel) {

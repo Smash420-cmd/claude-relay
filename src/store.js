@@ -8,13 +8,15 @@ const fs = require('fs')
 const path = require('path')
 const { tasksFile } = require('./paths')
 
-const SETTINGS_VERSION = 2 // bump when a default changes meaning so existing stores get migrated
+const SETTINGS_VERSION = 3 // bump when a default changes meaning so existing stores get migrated
 
 const DEFAULT_SETTINGS = {
   hasSeenWelcome: false,
   claudeCommand: 'claude',      // CLI binary; set to a full path if `claude` isn't on PATH
   defaultProjectPath: '',       // cwd used for tasks that don't set their own
-  dailyResetTime: '02:20',      // local HH:MM — fallback for "at next reset" when API is unavailable
+  sessionStartTime: '02:00',    // local HH:MM — when you typically START a Claude session; reset = this + 5h
+  weeklyStartDay: 'Monday',     // day of week your 7d window started
+  weeklyStartTime: '02:00',     // local HH:MM on that day; used as fallback weekly reset when API unavailable
   autoResumeOnLimit: true,      // ON: re-schedule stopped tasks at the exact moment the limit resets
   schedulerIntervalSec: 20,     // how often the due-task loop ticks
   allowExtendedUsage: false,    // OFF by default — don't auto-run past the free limit and spend credits
