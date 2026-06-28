@@ -7,6 +7,7 @@ const modalEl = document.getElementById('modal')
 
 let TASKS = []
 let SETTINGS = {}
+let USAGE_API = null
 
 // ── helpers ───────────────────────────────────────────────────────────────
 function esc(s) {
@@ -139,6 +140,7 @@ async function refreshUsage() {
   // Try the authoritative Claude API first (exact server-side numbers).
   // Fall back to the statusLine snapshot if not logged in or the call fails.
   const api = await window.relay.claudeUsage().catch(() => null)
+  if (api && !api.error) USAGE_API = api
 
   if (api && !api.error) {
     let html = `<div class="usage-grid">`
@@ -369,7 +371,7 @@ async function openNewTask() {
     <div class="field">
       <label>When</label>
       <div class="radio-row" id="f-sched">
-        <div class="radio-chip on" data-v="at-next-reset">At next reset (${esc(SETTINGS.dailyResetTime || '02:20')})</div>
+        <div class="radio-chip on" data-v="at-next-reset">At next reset (${USAGE_API && USAGE_API.sessionResetsAt && USAGE_API.sessionResetsAt > Date.now() ? new Date(USAGE_API.sessionResetsAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : esc(SETTINGS.dailyResetTime || '02:20')})</div>
         <div class="radio-chip" data-v="once">At a specific time</div>
       </div>
       <div id="f-once-wrap" hidden style="margin-top:10px">
@@ -493,7 +495,7 @@ async function openEditTask(task) {
     <div class="field">
       <label>When</label>
       <div class="radio-row" id="f-sched">
-        <div class="radio-chip${scheduleKind === 'at-next-reset' ? ' on' : ''}" data-v="at-next-reset">At next reset (${esc(SETTINGS.dailyResetTime || '02:20')})</div>
+        <div class="radio-chip${scheduleKind === 'at-next-reset' ? ' on' : ''}" data-v="at-next-reset">At next reset (${USAGE_API && USAGE_API.sessionResetsAt && USAGE_API.sessionResetsAt > Date.now() ? new Date(USAGE_API.sessionResetsAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : esc(SETTINGS.dailyResetTime || '02:20')})</div>
         <div class="radio-chip${scheduleKind === 'once' ? ' on' : ''}" data-v="once">At a specific time</div>
       </div>
       <div id="f-once-wrap"${scheduleKind !== 'once' ? ' hidden' : ''} style="margin-top:10px">

@@ -295,6 +295,18 @@ Confirm with one line after scheduling: \`✓ "TITLE" → HUMAN_READABLE_TIME\`
   }
 }
 
+function writeRelayCmdShim() {
+  try {
+    const scriptsDir = app.isPackaged
+      ? path.join(process.resourcesPath, 'app.asar.unpacked', 'scripts')
+      : path.join(app.getAppPath(), 'scripts')
+    const shim = path.join(scriptsDir, 'relay.cmd')
+    if (!fs.existsSync(shim)) fs.writeFileSync(shim, '@echo off\nnode "%~dp0relay.js" %*\n')
+  } catch (e) {
+    console.warn('[shim] could not write relay.cmd:', e.message)
+  }
+}
+
 function writeRelayConfig() {
   try {
     const dir = path.join(os.homedir(), '.relay')
@@ -345,11 +357,18 @@ function registerIpc() {
   ipcMain.handle('relay:settings:set', (_e, patch) => { const s = store.setSettings(patch); writeRelayConfig(); return s })
   ipcMain.handle('relay:sessions:list', () => sessions.listSessions())
 
-  ipcMain.handle('relay:create', (_e, input) => {
+  ipcMain.handle('relay:create', async (_e, input) => {
     const settings = store.getSettings()
     const schedule = { ...(input.schedule || {}) }
     if (schedule.kind === 'at-next-reset' && !schedule.at) {
-      schedule.at = scheduler.nextResetDate(settings.dailyResetTime).toISOString()
+      let resetAt = null
+      try {
+        const usage = await fetchClaudeUsage()
+        if (!usage.error && usage.sessionResetsAt && usage.sessionResetsAt > Date.now()) {
+          resetAt = new Date(usage.sessionResetsAt).toISOString()
+        }
+      } catch {}
+      schedule.at = resetAt || scheduler.nextResetDate(settings.dailyResetTime).toISOString()
     }
     const task = {
       id: uid(),
@@ -524,6 +543,7 @@ function main() {
   app.whenReady().then(() => {
     rotateLogs()
     cleanupOrphanedTasks()
+    writeRelayCmdShim()
     writeRelaySkill()
     writeAutoResumeSkill()
     writeRelayConfig()
