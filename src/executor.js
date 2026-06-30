@@ -1,13 +1,15 @@
 'use strict'
 // Runs a task by spawning the Claude Code CLI as a subprocess and capturing its output to a log.
 const { spawn } = require('child_process')
+const { randomUUID } = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const { logsDir } = require('./paths')
 
-// After a task exits, find the Claude session that was created/used by scanning
-// ~/.claude/projects/ for the most-recently-modified .jsonl newer than taskStartMs.
+// Fallback only: find the Claude session a task created by scanning ~/.claude/projects/ for the
+// most-recently-modified .jsonl newer than taskStartMs. Heuristic — can pick the WRONG conversation
+// if another session is active at the same time. Used only if an assigned --session-id wasn't honoured.
 function findResultSession(taskStartMs) {
   const root = path.join(os.homedir(), '.claude', 'projects')
   let best = null
@@ -35,6 +37,11 @@ function buildArgs(task, opts = {}) {
   const args = []
   if (task.mode === 'resume-full') {
     args.push('--resume', task.sessionId)
+  } else if (opts.assignSessionId) {
+    // Fresh run: pin the session UUID up front so we know EXACTLY which session this task created
+    // and can resume that one — no most-recent-file guessing (which grabs the wrong conversation
+    // when another session is active concurrently).
+    args.push('--session-id', opts.assignSessionId)
   }
   if (task.model) args.push('--model', task.model)
   if (task.effort) args.push('--effort', task.effort)
@@ -95,7 +102,10 @@ function runTask(task, opts = {}) {
     const logPath = path.join(dir, `${task.id}-${Date.now()}.log`)
     const logStream = fs.createWriteStream(logPath, { flags: 'a' })
     const promptText = task.prompt && task.prompt.trim() ? task.prompt : 'continue'
-    const args = buildArgs(task, opts)
+    // Fresh runs get a pinned session UUID so the resume chain always targets the same conversation.
+    // Resume runs continue task.sessionId (claude --resume keeps the id unless --fork-session).
+    const assignSessionId = task.mode === 'resume-full' ? null : randomUUID()
+    const args = buildArgs(task, { ...opts, assignSessionId })
     logStream.write(`# Relay run @ ${new Date().toISOString()}\n$ ${command} ${args.join(' ')}\n# cwd: ${opts.cwd || process.cwd()}\n# prompt (via stdin): ${promptText.slice(0, 300)}\n\n`)
 
     const taskStartMs = Date.now()
@@ -148,7 +158,9 @@ function runTask(task, opts = {}) {
       const limit = detectLimit(output)
       let status = code === 0 ? 'succeeded' : 'failed'
       if (limit.stopped) status = 'stopped'
-      const resultSessionId = findResultSession(taskStartMs)
+      // Deterministic: the session we pinned (fresh) or continued (resume). Heuristic only as a
+      // last resort if neither is known — so the resume chain stays on the originating session.
+      const resultSessionId = assignSessionId || task.sessionId || findResultSession(taskStartMs)
       if (!logStream.writableEnded) {
         logStream.write(`\n\n[exit ${code}] status=${status}${limit.resetHint ? ` resetHint=${limit.resetHint}` : ''}\n`)
         if (resultSessionId) logStream.write(`# session: ${resultSessionId}\n`)

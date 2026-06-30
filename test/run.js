@@ -160,6 +160,14 @@ check('buildArgs: resume-full targets the session', () => {
   const a = buildArgs({ mode: 'resume-full', sessionId: 'abc123' }, {})
   assert.strictEqual(a[a.indexOf('--resume') + 1], 'abc123')
 })
+check('buildArgs: fresh pins assigned --session-id (deterministic resume target)', () => {
+  const a = buildArgs({ mode: 'fresh' }, { assignSessionId: 'uuid-1' })
+  assert.strictEqual(a[a.indexOf('--session-id') + 1], 'uuid-1'); assert.ok(!a.includes('--resume'))
+})
+check('buildArgs: resume ignores assignSessionId (continues existing, no --session-id)', () => {
+  const a = buildArgs({ mode: 'resume-full', sessionId: 'abc123' }, { assignSessionId: 'uuid-1' })
+  assert.ok(!a.includes('--session-id')); assert.strictEqual(a[a.indexOf('--resume') + 1], 'abc123')
+})
 check('buildArgs: model + effort forwarded when set', () => {
   const a = buildArgs({ mode: 'fresh', model: 'claude-opus-4-8', effort: 'high' }, {})
   assert.strictEqual(a[a.indexOf('--model') + 1], 'claude-opus-4-8')

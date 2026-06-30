@@ -54,7 +54,7 @@ Not re-audited in code this pass (covered by the magazine review, no change made
 ## Coverage gaps still open (for discussion — none are security flaws)
 
 - **`store.js` migration + concurrent write** — not unit-tested (needs an Electron-path mock). The last-write-wins edge between app + CLI is real but tiny for a single user.
-- **`findResultSession` heuristic** (most-recent `.jsonl`) — can pick the wrong session if two are active at once. Affects "resume the right conversation," not security.
+- ~~**`findResultSession` heuristic** (most-recent `.jsonl`) — can pick the wrong session if two are active at once.~~ **RESOLVED (0.4.26):** fresh runs now pin a session UUID up front via `claude --session-id <uuid>`, so the resume chain always targets the originating conversation. The heuristic is kept only as a last-resort fallback if a run created no session.
 - **`tracker.snapshot` blend math** — the live%+token-delta estimate is untested (would need transcript fixtures).
 
 ---
