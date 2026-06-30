@@ -14,7 +14,7 @@ const executor = require('./src/executor')
 const scheduler = require('./src/scheduler')
 const tracker = require('./src/tracker')
 const { logsDir, dataDir } = require('./src/paths')
-const { normPct, pickResetAt } = require('./src/usage')
+const { normPct, pickResetAt, isLimitFalsePositive } = require('./src/usage')
 
 // Shared helper — called by the IPC renderer bridge AND by runDueTask after a limit-stopped run
 // to get the exact reset timestamps so auto-resume fires at precisely the right moment.
@@ -202,13 +202,23 @@ async function runDueTask(task, opts = {}) {
     resetHint: res.resetHint || null,
     resultSessionId: res.resultSessionId || null,
   })
-  // Core feature: when a run is stopped by the session/weekly limit and auto-resume is on,
-  // fetch the exact reset time from the Claude API and schedule a resume at that moment.
+  // Core feature: when a run stops on a session/weekly limit and auto-resume is on, schedule a
+  // resume at the exact reset moment. "stopped" comes from text-matching the CLI output, which can
+  // false-positive (a task that merely prints "resets at …"). When logged in, corroborate with the
+  // usage API as a VETO: if it's reachable AND both windows are clearly below a limit, it's a false
+  // positive — relabel the run by its exit code and don't resume. If the API is unavailable (logged
+  // out / blip), we're in manual mode and trust the text match (a phantom there is cancelable).
   if (res.status === 'stopped' && settings.autoResumeOnLimit) {
-    if (res.resultSessionId && !task.sessionId) task = { ...task, sessionId: res.resultSessionId, mode: 'resume-full' }
-    let resetAt = null
-    try { resetAt = pickResetAt(await fetchClaudeUsage()) } catch {}
-    queueResume(task, resetAt)
+    let usage = null
+    try { usage = await fetchClaudeUsage() } catch {}
+    if (isLimitFalsePositive(usage)) {
+      const realStatus = res.exitCode === 0 ? 'succeeded' : 'failed'
+      store.updateTask(task.id, { status: realStatus })
+      console.log(`[autoresume] limit text matched but usage is ${usage.sessionPct}%/${usage.weeklyPct}% — false positive, not resuming`)
+    } else {
+      if (res.resultSessionId && !task.sessionId) task = { ...task, sessionId: res.resultSessionId, mode: 'resume-full' }
+      queueResume(task, pickResetAt(usage))
+    }
   }
   notifyChange()
 }

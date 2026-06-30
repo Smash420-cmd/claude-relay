@@ -5,7 +5,7 @@
 // headless (--dangerously-skip-permissions) task can see. A silent bug in any of these = "I came
 // back to nothing done" or a leaked credential. Runs in `npm run check`.
 const assert = require('assert')
-const { normPct, pickResetAt } = require('../src/usage')
+const { normPct, pickResetAt, isLimitFalsePositive } = require('../src/usage')
 const scheduler = require('../src/scheduler')
 const { detectLimit, isSecretEnv, scrubSecrets, buildArgs } = require('../src/executor')
 
@@ -41,6 +41,24 @@ check('pickResetAt: weekly 100% but no weekly ts → falls back to session', () 
 check('pickResetAt: error usage → null', () => assert.strictEqual(pickResetAt({ error: 'x' }), null))
 check('pickResetAt: null → null', () => assert.strictEqual(pickResetAt(null), null))
 check('pickResetAt: no timestamps → null', () => assert.strictEqual(pickResetAt({ weeklyPct: 40 }), null))
+
+// ── isLimitFalsePositive — API veto for text-detected limit stops ─────────────
+check('falsePositive: both windows low (25/2) → veto (true)', () =>
+  assert.strictEqual(isLimitFalsePositive({ sessionPct: 25, weeklyPct: 2 }), true))
+check('falsePositive: session at limit (100/2) → real, no veto', () =>
+  assert.strictEqual(isLimitFalsePositive({ sessionPct: 100, weeklyPct: 2 }), false))
+check('falsePositive: weekly at limit (30/100) → real, no veto', () =>
+  assert.strictEqual(isLimitFalsePositive({ sessionPct: 30, weeklyPct: 100 }), false))
+check('falsePositive: 89/89 just under threshold → veto', () =>
+  assert.strictEqual(isLimitFalsePositive({ sessionPct: 89, weeklyPct: 89 }), true))
+check('falsePositive: 90/10 at threshold → real, no veto', () =>
+  assert.strictEqual(isLimitFalsePositive({ sessionPct: 90, weeklyPct: 10 }), false))
+check('falsePositive: API unavailable (null) → trust text, no veto', () =>
+  assert.strictEqual(isLimitFalsePositive(null), false))
+check('falsePositive: API error → trust text, no veto', () =>
+  assert.strictEqual(isLimitFalsePositive({ error: 'not_logged_in' }), false))
+check('falsePositive: incomplete pct (null) → do not veto (avoid false negative)', () =>
+  assert.strictEqual(isLimitFalsePositive({ sessionPct: null, weeklyPct: 2 }), false))
 
 // ── nextSessionReset — start + 5h, next future occurrence (local time) ────────
 check('nextSessionReset: 02:00 from local midnight → same-day 07:00', () => {

@@ -20,17 +20,17 @@ Locked in with 26 strip/keep assertions.
 
 ---
 
-## 🟠 Known issue — documented, needs your decision (not auto-fixed)
+## ✅ Resolved (0.4.25) — `detectLimit` false positive, via Option A (API veto)
 
-**`detectLimit` trips on a bare `"resets at"` anywhere in task output.**
-`src/executor.js:50` — `LIMIT_RE` includes `resets?\s+at`, so a task whose *own* output contains "the cache resets at 02:00" is marked `stopped` → fires a spurious auto-resume, even on a clean exit. This is the brittleness the magazine review flagged ("string-matching against another vendor's UI copy"), and it's the same false-positive *class* as the phantom Jul-6 task.
+**Was:** `detectLimit` (`src/executor.js`) trips on a bare `"resets at"` anywhere in task output, so a task that prints "the cache resets at 02:00" was marked `stopped` → spurious auto-resume even on a clean exit. Same false-positive class as the phantom Jul-6 task.
 
-I left this for us to discuss because the fix has a real trade-off:
-- **Option A — corroborate with the API:** only treat a stop as a limit if `fetchClaudeUsage()` also reports ≥100%. Strongest, kills false positives, but couples detection to a network call.
-- **Option B — tighten the regex:** require limit-context words near "resets at" (drop the bare alternative). Cheap, but may miss a reworded real limit.
-- **Option C — only check the *last* N lines** of output (limits appear at the end, not mid-run). Cheap, narrows the window.
+**Fix — API as a *veto*, not a gate** (`isLimitFalsePositive` in `src/usage.js`, applied in `runDueTask`):
+- **Logged in:** if the usage API is reachable AND **both** windows are clearly below a limit (< 90%), it's a false positive → relabel the run by its exit code, don't resume.
+- **Logged out / API blip / incomplete data:** trust the text match (manual mode). A phantom there is harmless and cancelable.
 
-My lean: **A**, because it's the authoritative signal and we already fetch it for the reset time anyway.
+Built as a veto (not "require ≥100% to resume") on purpose: a missed *real* limit means "came back to nothing," which is worse than a cancelable phantom — so the asymmetry always errs toward resuming. Threshold 90, not 100, to tolerate API rounding/lag. 8 assertions covering both-low, either-at-limit, threshold edges, and API-unavailable.
+
+`detectLimit`'s text behavior is unchanged (still the manual-mode signal); the veto sits above it.
 
 ---
 
