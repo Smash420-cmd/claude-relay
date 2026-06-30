@@ -15,6 +15,17 @@ const scheduler = require('./src/scheduler')
 const tracker = require('./src/tracker')
 const { logsDir, dataDir } = require('./src/paths')
 
+// Normalise a usage window to a 0–100 integer percent, whatever scale the API uses.
+// The /usage endpoint returns `utilization` as a percentage (e.g. 25), but some responses carry
+// `used_percentage` or a 0–1 fraction — handle all three so the gauges + watchdog stay correct.
+function normPct(w) {
+  if (!w) return null
+  let v = w.used_percentage != null ? w.used_percentage : w.utilization
+  if (v == null) return null
+  if (v > 0 && v <= 1) v *= 100 // fraction → percent
+  return Math.min(100, Math.max(0, Math.round(v)))
+}
+
 // Shared helper — called by the IPC renderer bridge AND by runDueTask after a limit-stopped run
 // to get the exact reset timestamps so auto-resume fires at precisely the right moment.
 async function fetchClaudeUsage({ retries = 2, retryDelayMs = 3000 } = {}) {
@@ -31,8 +42,8 @@ async function fetchClaudeUsage({ retries = 2, retryDelayMs = 3000 } = {}) {
       if (!orgId) return { error: 'no_org' }
       const data = await fetch(`https://claude.ai/api/organizations/${orgId}/usage`, { headers, cache: 'no-store' }).then(r => r.json())
       return {
-        sessionPct: data.five_hour ? Math.min(100, Math.round((data.five_hour.used_percentage ?? data.five_hour.utilization * 100) || 0)) : null,
-        weeklyPct: data.seven_day ? Math.min(100, Math.round((data.seven_day.used_percentage ?? data.seven_day.utilization * 100) || 0)) : null,
+        sessionPct: normPct(data.five_hour),
+        weeklyPct: normPct(data.seven_day),
         sessionResetsAt: data.five_hour && data.five_hour.resets_at ? new Date(data.five_hour.resets_at).getTime() : null,
         weeklyResetsAt: data.seven_day && data.seven_day.resets_at ? new Date(data.seven_day.resets_at).getTime() : null,
       }
