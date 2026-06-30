@@ -56,6 +56,35 @@ function detectLimit(text) {
   return { stopped: true, resetHint: m ? m[1].trim() : null }
 }
 
+// Secret env-var scrubbing (security). A headless task runs with --dangerously-skip-permissions, so
+// any secret left in its env could be exfiltrated by the model via tool use. Name-pattern blacklist
+// (not a whitelist — a whitelist would break PATH, npm config, proxies). Covers name-shaped secrets
+// (*_KEY/_TOKEN/_PASS…) and value-shaped ones (DATABASE_URL, *_DSN, connection strings).
+// ponytail: blacklist ceiling — add a pattern here if a new secret shape shows up.
+// Strong suffixes: no common env var / English word ends in these, so match as a plain suffix —
+// catches concatenated forms like PGPASSWORD that have no underscore separator.
+const SECRET_STRONG_RE = /(PASSWORD|PASSWD|SECRET|CREDENTIALS?|TOKEN)$/i
+// Weak suffixes: real words/vars end in these (monKEY, comPASS, forMAT), so require a boundary
+// (start-of-name or underscore) to avoid false strips.
+const SECRET_WEAK_RE = /(^|_)(KEY|PASS|PAT|DSN|AUTH)$/i
+// PWD bare is the Unix working directory (keep it); only a secret after an underscore (MYSQL_PWD).
+const SECRET_PWD_RE = /_PWD$/i
+// Value-shaped secrets: connection strings carry an embedded password.
+const SECRET_CONN_RE = /(DATABASE_URL|CONNECTION_?STRING)$/i
+function isSecretEnv(name) {
+  return SECRET_STRONG_RE.test(name) || SECRET_WEAK_RE.test(name) || SECRET_PWD_RE.test(name) || SECRET_CONN_RE.test(name)
+}
+
+// Return a copy of `env` with the Anthropic API key and all matched secrets removed.
+// ANTHROPIC_API_KEY is always dropped (security invariant — tasks must use the claude.ai
+// subscription, never a billable API key), independent of the pattern match.
+function scrubSecrets(env) {
+  const out = { ...env }
+  delete out.ANTHROPIC_API_KEY
+  for (const k of Object.keys(out)) if (isSecretEnv(k)) delete out[k]
+  return out
+}
+
 // Runs the task. Resolves { exitCode, status, logPath, resetHint }.
 // opts: { command, cwd, onStart(child) }
 function runTask(task, opts = {}) {
@@ -73,19 +102,10 @@ function runTask(task, opts = {}) {
     let output = ''
     let child
     try {
-      const spawnEnv = { ...process.env }
+      const spawnEnv = scrubSecrets(process.env)
       if (process.platform === 'win32') {
         spawnEnv.SystemRoot = spawnEnv.SystemRoot || 'C:\\Windows'
         spawnEnv.ComSpec    = spawnEnv.ComSpec    || 'C:\\Windows\\System32\\cmd.exe'
-      }
-      // Strip the Anthropic API key so relay tasks use the claude.ai subscription, never a
-      // (possibly billed) API key. Also strip other common secrets so a headless task — which runs
-      // with --dangerously-skip-permissions — can't exfiltrate them via the model's tool use.
-      // ponytail: name-pattern blacklist, not a whitelist — a whitelist would break tools that read
-      // legit env vars (PATH, npm config, proxies). Add patterns here if a new secret type shows up.
-      delete spawnEnv.ANTHROPIC_API_KEY
-      for (const k of Object.keys(spawnEnv)) {
-        if (/(^|_)(KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_KEY|ACCESS_KEY)$/i.test(k)) delete spawnEnv[k]
       }
       child = spawn(command, args, {
         cwd: opts.cwd || undefined,
@@ -139,4 +159,4 @@ function runTask(task, opts = {}) {
   })
 }
 
-module.exports = { runTask, buildArgs, detectLimit }
+module.exports = { runTask, buildArgs, detectLimit, isSecretEnv, scrubSecrets }

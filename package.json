@@ -1,6 +1,6 @@
 {
   "name": "claude-relay",
-  "version": "0.4.23",
+  "version": "0.4.24",
   "description": "Schedule prompts into local Claude Code sessions and auto-resume work across session limits.",
   "main": "main.js",
   "author": "Patrick",
@@ -13,7 +13,8 @@
     "build": "set ELECTRON_BUILDER_CACHE=.cache && electron-builder --win",
     "publish": "set ELECTRON_BUILDER_CACHE=.cache && electron-builder --win --publish always",
     "publish-retry": "node scripts/build-publish.js",
-    "check": "node --check main.js && node --check preload.js && node --check src/paths.js && node --check src/store.js && node --check src/sessions.js && node --check src/executor.js && node --check src/scheduler.js && node --check src/tracker.js && node --check scripts/relay.js && node --check scripts/relay-statusline.js && node --check renderer/app.js"
+    "check": "node --check main.js && node --check preload.js && node --check src/paths.js && node --check src/store.js && node --check src/sessions.js && node --check src/usage.js && node --check src/executor.js && node --check src/scheduler.js && node --check src/tracker.js && node --check scripts/relay.js && node --check scripts/relay-statusline.js && node --check renderer/app.js && node test/run.js",
+    "test": "node test/run.js"
   },
   "build": {
     "appId": "au.sojournly.relay",
