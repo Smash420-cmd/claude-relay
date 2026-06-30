@@ -41,6 +41,7 @@ function start({ intervalMs, getState, runDueTask }) {
   const tick = async () => {
     if (ticking) return
     ticking = true
+    const startedAt = Date.now()
     try {
       const { tasks, settings } = getState()
       const now = Date.now()
@@ -54,6 +55,8 @@ function start({ intervalMs, getState, runDueTask }) {
       console.error('[scheduler] tick error:', e && e.message)
     } finally {
       ticking = false
+      const elapsed = Date.now() - startedAt
+      if (elapsed > intervalMs) console.warn(`[scheduler] slow tick: ${elapsed}ms > ${intervalMs}ms — ticks may be dropping`)
     }
   }
   const handle = setInterval(tick, intervalMs)

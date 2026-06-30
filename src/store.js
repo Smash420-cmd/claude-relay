@@ -38,6 +38,7 @@ function load() {
     // so users with existing settings pick up new defaults automatically.
     if ((db.settingsVersion || 0) < SETTINGS_VERSION) {
       db.settings = { ...DEFAULT_SETTINGS, ...(db.settings || {}) }
+      delete db.settings.dailyResetTime // removed in v3 — replaced by sessionStartTime + weekly* keys
       db.settingsVersion = SETTINGS_VERSION
       save(db)
     } else {

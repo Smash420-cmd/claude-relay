@@ -33,7 +33,7 @@ function findResultSession(taskStartMs) {
 // silently truncates it. stdin sidesteps that entirely.
 function buildArgs(task, opts = {}) {
   const args = []
-  if (task.mode === 'resume-full' || task.mode === 'resume-compact') {
+  if (task.mode === 'resume-full') {
     args.push('--resume', task.sessionId)
   }
   if (task.model) args.push('--model', task.model)
@@ -68,9 +68,6 @@ function runTask(task, opts = {}) {
     const promptText = task.prompt && task.prompt.trim() ? task.prompt : 'continue'
     const args = buildArgs(task, opts)
     logStream.write(`# Relay run @ ${new Date().toISOString()}\n$ ${command} ${args.join(' ')}\n# cwd: ${opts.cwd || process.cwd()}\n# prompt (via stdin): ${promptText.slice(0, 300)}\n\n`)
-    if (task.mode === 'resume-compact') {
-      logStream.write('[note] resume-compact not yet wired — running as resume-full (no /compact).\n\n')
-    }
 
     const taskStartMs = Date.now()
     let output = ''
@@ -81,8 +78,15 @@ function runTask(task, opts = {}) {
         spawnEnv.SystemRoot = spawnEnv.SystemRoot || 'C:\\Windows'
         spawnEnv.ComSpec    = spawnEnv.ComSpec    || 'C:\\Windows\\System32\\cmd.exe'
       }
-      // Strip API key so relay tasks use the claude.ai subscription, not a (possibly depleted) API key
+      // Strip the Anthropic API key so relay tasks use the claude.ai subscription, never a
+      // (possibly billed) API key. Also strip other common secrets so a headless task — which runs
+      // with --dangerously-skip-permissions — can't exfiltrate them via the model's tool use.
+      // ponytail: name-pattern blacklist, not a whitelist — a whitelist would break tools that read
+      // legit env vars (PATH, npm config, proxies). Add patterns here if a new secret type shows up.
       delete spawnEnv.ANTHROPIC_API_KEY
+      for (const k of Object.keys(spawnEnv)) {
+        if (/(^|_)(KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_KEY|ACCESS_KEY)$/i.test(k)) delete spawnEnv[k]
+      }
       child = spawn(command, args, {
         cwd: opts.cwd || undefined,
         shell: process.platform === 'win32' ? (spawnEnv.ComSpec) : false,

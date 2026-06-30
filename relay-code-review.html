@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>/relay — Ponytail Code Review</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --border: #30363d;
+    --text: #e6edf3; --muted: #7d8590; --subtle: #484f58;
+    --red: #f85149; --orange: #d29922; --green: #3fb950; --blue: #58a6ff; --purple: #bc8cff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.6 -apple-system, "Segoe UI", sans-serif; padding: 32px 24px; }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .meta { color: var(--muted); font-size: 13px; margin-bottom: 32px; }
+  .summary { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin-bottom: 32px; display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+  .stat { text-align: center; }
+  .stat-n { font-size: 28px; font-weight: 700; }
+  .stat-l { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .stat-n.high { color: var(--red); }
+  .stat-n.med  { color: var(--orange); }
+  .stat-n.low  { color: var(--blue); }
+  section { margin-bottom: 28px; }
+  .section-head { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .finding { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; border-left: 3px solid var(--subtle); }
+  .finding.high { border-left-color: var(--red); }
+  .finding.medium { border-left-color: var(--orange); }
+  .finding.low { border-left-color: var(--blue); }
+  .finding-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+  .badge { font-size: 10px; font-weight: 700; letter-spacing: .06em; padding: 2px 7px; border-radius: 4px; text-transform: uppercase; }
+  .badge.high   { background: rgba(248,81,73,.15);  color: var(--red); }
+  .badge.medium { background: rgba(210,153,34,.15); color: var(--orange); }
+  .badge.low    { background: rgba(88,166,255,.15); color: var(--blue); }
+  .finding-title { font-weight: 600; font-size: 13.5px; }
+  .loc { font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; color: var(--purple); }
+  .finding-what { font-size: 13px; color: var(--muted); margin-bottom: 5px; }
+  .finding-fix  { font-size: 13px; color: var(--green); }
+  .finding-fix::before { content: '→ '; opacity: .6; }
+  .tag { display: inline-block; font-size: 10.5px; background: rgba(255,255,255,.06); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; color: var(--muted); margin-right: 4px; }
+  .critical-note { background: rgba(248,81,73,.08); border: 1px solid rgba(248,81,73,.3); border-radius: 8px; padding: 14px 16px; margin-bottom: 28px; font-size: 13px; }
+  .critical-note strong { color: var(--red); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>/relay — Ponytail Code Review</h1>
+  <div class="meta">Generated 2026-06-30 &nbsp;·&nbsp; Reviewed: main.js, preload.js, src/*, renderer/app.js, scripts/relay.js &nbsp;·&nbsp; v0.4.20</div>
+
+  <div class="critical-note">
+    <strong>🔴 Critical bug fixed during this review:</strong> <code>fetchClaudeUsage()</code> returned <code>utilization</code> (0–1 float) but all comparisons used <code>&gt;= 100</code>. The watchdog and weekly-pct checks could <em>never</em> fire. Fixed in same session by switching to <code>used_percentage ?? utilization * 100</code>.
+  </div>
+
+  <div class="summary">
+    <div class="stat"><div class="stat-n high">5</div><div class="stat-l">High severity</div></div>
+    <div class="stat"><div class="stat-n med">8</div><div class="stat-l">Medium severity</div></div>
+    <div class="stat"><div class="stat-n low">7</div><div class="stat-l">Low / nitpick</div></div>
+  </div>
+
+  <!-- HIGH -->
+  <section>
+    <div class="section-head">High severity</div>
+
+    <div class="finding high">
+      <div class="finding-head">
+        <span class="badge high">high</span>
+        <span class="finding-title">fetchClaudeUsage pct scale wrong — watchdog never fires</span>
+        <span class="loc">main.js:34–35</span>
+        <span class="tag">✅ fixed</span>
+      </div>
+      <div class="finding-what">Returns <code>utilization</code> (0–1 float) but every caller compares <code>&gt;= 100</code>. Watchdog and weekly auto-resume checks are permanently dead code.</div>
+      <div class="finding-fix">Use <code>used_percentage ?? utilization * 100</code> normalised to 0–100 int. Already applied.</div>
+    </div>
+
+    <div class="finding high">
+      <div class="finding-head">
+        <span class="badge high">high</span>
+        <span class="finding-title">Store re-parses JSON from disk on every operation</span>
+        <span class="loc">src/store.js:60–73</span>
+        <span class="tag">perf</span>
+      </div>
+      <div class="finding-what">Every <code>getTasks()</code>, <code>addTask()</code>, <code>updateTask()</code> calls <code>load()</code> which reads + parses <code>relay-data.json</code> from disk. Under scheduler tick pressure this is dozens of file reads per minute.</div>
+      <div class="finding-fix">Cache the parsed db in a module-level variable; invalidate only on the <code>fs.watch</code> callback or after each write.</div>
+    </div>
+
+    <div class="finding high">
+      <div class="finding-head">
+        <span class="badge high">high</span>
+        <span class="finding-title">Spawn env leaks all secret env vars except ANTHROPIC_API_KEY</span>
+        <span class="loc">src/executor.js:85</span>
+        <span class="tag">security</span>
+      </div>
+      <div class="finding-what">Only <code>ANTHROPIC_API_KEY</code> is stripped before spawning Claude. <code>AWS_SECRET_ACCESS_KEY</code>, <code>GH_TOKEN</code>, <code>DATABASE_URL</code> and any other secrets in the shell env are passed to child processes.</div>
+      <div class="finding-fix">Use a whitelist of safe env vars (PATH, APPDATA, HOME, TEMP, etc.) instead of a blacklist, or strip all known secret patterns.</div>
+    </div>
+
+    <div class="finding high">
+      <div class="finding-head">
+        <span class="badge high">high</span>
+        <span class="finding-title">Task action handler copy-pasted — two sources of truth diverging</span>
+        <span class="loc">renderer/app.js:270–309</span>
+        <span class="tag">bug risk</span>
+      </div>
+      <div class="finding-what">Identical action dispatch exists in the delegated click handler AND <code>onCtxAction</code>. The Browse button and auto-fill were added to one but not the other — any future change risks only landing in one place.</div>
+      <div class="finding-fix">Extract <code>async function handleTaskAction(id, action)</code> and call it from both handlers.</div>
+    </div>
+
+    <div class="finding high">
+      <div class="finding-head">
+        <span class="badge high">high</span>
+        <span class="finding-title">fs.watch failures swallowed silently — store/relay-dir watchers go dark</span>
+        <span class="loc">main.js:82–83, 102–103</span>
+        <span class="tag">reliability</span>
+      </div>
+      <div class="finding-what">Empty catch blocks in <code>watchStore()</code> and <code>watchRelayDir()</code>. If the watcher fails (network drive, permission change, handle limit), the UI stops updating and nobody knows.</div>
+      <div class="finding-fix"><code>catch (e) { console.error('[watch]', e.message) }</code> — one line each.</div>
+    </div>
+  </section>
+
+  <!-- MEDIUM -->
+  <section>
+    <div class="section-head">Medium severity</div>
+
+    <div class="finding medium">
+      <div class="finding-head">
+        <span class="badge medium">medium</span>
+        <span class="finding-title">nextSessionReset duplicated across 3 files</span>
+        <span class="loc">src/scheduler.js:8, scripts/relay.js:62</span>
+        <span class="tag">duplication</span>
+      </div>
+      <div class="finding-what">Identical function in scheduler.js and relay.js. If the 5h logic changes, one copy will be missed.</div>
+      <div class="finding-fix">Move to <code>src/utils.js</code>, export, and require from both.</div>
+    </div>
+
+    <div class="finding medium">
+      <div class="finding-head">
+        <span class="badge medium">medium</span>
+        <span class="finding-title">currentSessionId / findSessionCwd duplicated across 3+ files</span>
+        <span class="loc">src/sessions.js:119, scripts/relay.js:38–48, main.js:~395</span>
+        <span class="tag">duplication</span>
+      </div>
+      <div class="finding-what">Three independent implementations of the same session-scanning logic. Already out of sync (sessions.js has cwd extraction, relay.js does not).</div>
+      <div class="finding-fix">Single export from <code>src/sessions.js</code>, imported everywhere.</div>
+    </div>
+
+    <div class="finding medium">
+      <div class="finding-head">
+        <span class="badge medium">medium</span>
+        <span class="finding-title">uid() duplicated in main.js and relay.js</span>
+        <span class="loc">main.js:64, scripts/relay.js:36</span>
+        <span class="tag">duplication</span>
+      </div>
+      <div class="finding-what">Same one-liner in two files. Minor but part of a broader duplication pattern.</div>
+      <div class="finding-fix">Move to <code>src/utils.js</code> with the session helpers.</div>
+    </div>
+
+    <div class="finding medium">
+      <div class="finding-head">
+        <span class="badge medium">medium</span>
+        <span class="finding-title">writeRelaySkill / writeAutoResumeSkill / writeRelayListenSkill — identical boilerplate</span>
+        <span class="loc">main.js:259–425</span>
+        <span class="tag">over-engineering</span>
+      </div>
+      <div class="finding-what">Three functions that all do <code>mkdirSync + writeFileSync + catch(warn)</code> with different filenames and content strings.</div>
+      <div class="finding-fix"><code>function writeSkill(filename, content)</code> — three calls instead of three copies.</div>
+    </div>
+
+    <div class="finding medium">
+      <div class="finding-head">
+        <span class="badge medium">medium</span>
+        <span class="finding-title">openNewTask and openEditTask are ~245 lines of copy-paste</span>
+        <span class="loc">renderer/app.js:335–580</span>
+        <span class="tag">duplication</span>
+      </div>
+      <div class="finding-what">Modal HTML, state vars, and all event listeners duplicated. The session-picker UI update earlier had to be applied in two places and will keep needing to.</div>
+      <div class="finding-fix"><code>openTaskModal(task = null)</code> that branches on create vs edit — halves this file section.</div>
+    </div>
+
+    <div class="finding medium">
+      <div class="finding-head">
+        <span class="badge medium">medium</span>
+        <span class="finding-title">Reset-time resolution logic duplicated in 3 places</span>
+        <span class="loc">main.js:212–214, 392–393, 518–519</span>
+        <span class="tag">duplication</span>
+      </div>
+      <div class="finding-what"><code>weeklyPct >= 100 ? weeklyResetsAt : sessionResetsAt</code> appears three times verbatim in runDueTask, checkAutoResumeArm, and resumeAtReset.</div>
+      <div class="finding-fix"><code>function pickResetAt(usage, settings)</code> — one place to update when the logic changes.</div>
+    </div>
+
+    <div class="finding medium">
+      <div class="finding-head">
+        <span class="badge medium">medium</span>
+        <span class="finding-title">writeRelayConfig only syncs one setting field</span>
+        <span class="loc">main.js:320–331</span>
+        <span class="tag">data loss risk</span>
+      </div>
+      <div class="finding-what">Writes only <code>skillAutoResumeOnLimit</code> to <code>~/.relay/config.json</code>. Any new settings read by skills won't appear until manually added.</div>
+      <div class="finding-fix">Write all settings: <code>fs.writeFileSync(..., JSON.stringify(store.getSettings(), null, 2))</code>.</div>
+    </div>
+
+    <div class="finding medium">
+      <div class="finding-head">
+        <span class="badge medium">medium</span>
+        <span class="finding-title">userDataDir() duplicated between main.js (via Electron) and scripts/relay.js</span>
+        <span class="loc">scripts/relay.js:15–19</span>
+        <span class="tag">duplication</span>
+      </div>
+      <div class="finding-what">relay.js re-implements the APPDATA path logic because it can't import from Electron. Already in <code>src/paths.js</code> — relay.js just doesn't use it.</div>
+      <div class="finding-fix">Require <code>src/paths.js</code> from relay.js (it's pure Node, no Electron dependency).</div>
+    </div>
+  </section>
+
+  <!-- LOW -->
+  <section>
+    <div class="section-head">Low / nitpick</div>
+
+    <div class="finding low">
+      <div class="finding-head">
+        <span class="badge low">low</span>
+        <span class="finding-title">resume-compact mode is a dead code path</span>
+        <span class="loc">src/executor.js:71–73</span>
+      </div>
+      <div class="finding-what">Logged as "not yet wired" and falls through to resume-full. It's still in the UI dropdown.</div>
+      <div class="finding-fix">Remove the option from the dropdown until implemented, or delete the branch entirely.</div>
+    </div>
+
+    <div class="finding low">
+      <div class="finding-head">
+        <span class="badge low">low</span>
+        <span class="finding-title">RESET_AT_RE regex too narrow for Claude's actual output variation</span>
+        <span class="loc">src/executor.js:52</span>
+      </div>
+      <div class="finding-what">Only matches "resets at HH:MM". Claude has been observed outputting "try again in 2h", "resets tomorrow at", etc.</div>
+      <div class="finding-fix">Broaden to capture time patterns or drop the regex and rely solely on the API-fetched reset time.</div>
+    </div>
+
+    <div class="finding low">
+      <div class="finding-head">
+        <span class="badge low">low</span>
+        <span class="finding-title">tracker.collectTurns loads entire session history with no cap</span>
+        <span class="loc">src/tracker.js:48–80</span>
+      </div>
+      <div class="finding-what">Reads all .jsonl files line-by-line. Users with years of sessions will see this slow down noticeably.</div>
+      <div class="finding-fix">Limit to sessions modified in the last 7 days, or add a max-turns ceiling.</div>
+    </div>
+
+    <div class="finding low">
+      <div class="finding-head">
+        <span class="badge low">low</span>
+        <span class="finding-title">Settings version migration leaves obsolete keys in the store</span>
+        <span class="loc">src/store.js — SETTINGS_VERSION handling</span>
+      </div>
+      <div class="finding-what">Migration merges new defaults on top of old settings but never removes keys that were deleted in newer versions.</div>
+      <div class="finding-fix">On version bump, explicitly delete known-obsolete keys (e.g. <code>delete db.settings.dailyResetTime</code>).</div>
+    </div>
+
+    <div class="finding low">
+      <div class="finding-head">
+        <span class="badge low">low</span>
+        <span class="finding-title">Scheduler tick gives no warning when falling behind</span>
+        <span class="loc">src/scheduler.js:40–62</span>
+      </div>
+      <div class="finding-what">The <code>ticking</code> flag prevents overlap but silently drops ticks if a run takes longer than <code>intervalMs</code>. No diagnostic.</div>
+      <div class="finding-fix">Add <code>if (elapsed > intervalMs) console.warn('[scheduler] slow tick:', elapsed + 'ms')</code>.</div>
+    </div>
+
+    <div class="finding low">
+      <div class="finding-head">
+        <span class="badge low">low</span>
+        <span class="finding-title">readMeta reads entire .jsonl even when slug+cwd found in first 10 lines</span>
+        <span class="loc">src/sessions.js:74–96</span>
+      </div>
+      <div class="finding-what">Has a <code>break</code> when all three fields found, but only after parsing the full JSON of each line up to that point. Fine for small files; degrades on large transcripts.</div>
+      <div class="finding-fix">Already acceptable — the <code>break</code> handles the common case. No action needed unless profiling shows it.</div>
+    </div>
+
+    <div class="finding low">
+      <div class="finding-head">
+        <span class="badge low">low</span>
+        <span class="finding-title">Unsafe optional-chaining on schedule/usage objects in several IPC handlers</span>
+        <span class="loc">main.js:174, 449, 530</span>
+      </div>
+      <div class="finding-what">Accesses <code>task.schedule.at</code> without null-guard in a few paths; a manually-edited store entry could crash a handler.</div>
+      <div class="finding-fix"><code>task.schedule?.at</code> or validate on store read.</div>
+    </div>
+  </section>
+
+  <div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--subtle)">
+    Reviewed by ponytail/full · /relay v0.4.20 · 2026-06-30
+  </div>
+</div>
+</body>
+</html>

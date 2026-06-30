@@ -31,8 +31,8 @@ async function fetchClaudeUsage({ retries = 2, retryDelayMs = 3000 } = {}) {
       if (!orgId) return { error: 'no_org' }
       const data = await fetch(`https://claude.ai/api/organizations/${orgId}/usage`, { headers, cache: 'no-store' }).then(r => r.json())
       return {
-        sessionPct: data.five_hour ? data.five_hour.utilization : null,
-        weeklyPct: data.seven_day ? data.seven_day.utilization : null,
+        sessionPct: data.five_hour ? Math.min(100, Math.round((data.five_hour.used_percentage ?? data.five_hour.utilization * 100) || 0)) : null,
+        weeklyPct: data.seven_day ? Math.min(100, Math.round((data.seven_day.used_percentage ?? data.seven_day.utilization * 100) || 0)) : null,
         sessionResetsAt: data.five_hour && data.five_hour.resets_at ? new Date(data.five_hour.resets_at).getTime() : null,
         weeklyResetsAt: data.seven_day && data.seven_day.resets_at ? new Date(data.seven_day.resets_at).getTime() : null,
       }
@@ -41,6 +41,15 @@ async function fetchClaudeUsage({ retries = 2, retryDelayMs = 3000 } = {}) {
       throw e
     }
   }
+}
+
+// Pick the binding reset timestamp (ISO) from a usage reading: weekly if it's at 100% (the binding
+// constraint), else the 5h session reset. Returns null if usage is missing/errored.
+function pickResetAt(usage) {
+  if (!usage || usage.error) return null
+  if (usage.weeklyPct >= 100 && usage.weeklyResetsAt) return new Date(usage.weeklyResetsAt).toISOString()
+  if (usage.sessionResetsAt) return new Date(usage.sessionResetsAt).toISOString()
+  return null
 }
 
 let win = null
@@ -79,7 +88,7 @@ function watchStore() {
         timer = setTimeout(notifyChange, 300)
       }
     })
-  } catch {}
+  } catch (e) { console.error('[watchStore]', e.message) }
 }
 
 // Watch ~/.relay/ for restart signals and usage.json updates.
@@ -99,7 +108,7 @@ function watchRelayDir() {
       }
       if (filename === 'usage.json') notifyChange()
     })
-  } catch {}
+  } catch (e) { console.error('[watchRelayDir]', e.message) }
 }
 
 function createWindow() {
@@ -184,7 +193,7 @@ async function runDueTask(task, opts = {}) {
   // Resume tasks MUST run in the session's own project dir (sessions are cwd-scoped), or
   // `claude --resume` reports "no conversation found". Fall back to that if no cwd was set.
   let cwd = task.projectPath || settings.defaultProjectPath || undefined
-  if ((task.mode === 'resume-full' || task.mode === 'resume-compact') && task.sessionId && !task.projectPath) {
+  if (task.mode === 'resume-full' && task.sessionId && !task.projectPath) {
     cwd = sessions.findSessionCwd(task.sessionId) || cwd
   }
   const res = await executor.runTask(task, {
@@ -206,14 +215,7 @@ async function runDueTask(task, opts = {}) {
   if (res.status === 'stopped' && settings.autoResumeOnLimit) {
     if (res.resultSessionId && !task.sessionId) task = { ...task, sessionId: res.resultSessionId, mode: 'resume-full' }
     let resetAt = null
-    try {
-      const usage = await fetchClaudeUsage()
-      if (!usage.error) {
-        // Weekly at 100%? wait for the weekly reset — it's the binding constraint.
-        if (usage.weeklyPct >= 100 && usage.weeklyResetsAt) resetAt = new Date(usage.weeklyResetsAt).toISOString()
-        else if (usage.sessionResetsAt) resetAt = new Date(usage.sessionResetsAt).toISOString()
-      }
-    } catch {}
+    try { resetAt = pickResetAt(await fetchClaudeUsage()) } catch {}
     queueResume(task, resetAt)
   }
   notifyChange()
@@ -256,11 +258,20 @@ function queueResume(task, resetAt) {
   })
 }
 
-function writeRelaySkill() {
+// Write a Claude Code skill file (~/.claude/commands/<filename>). Called at startup so skills
+// self-update silently when the app ships a new version.
+function writeSkill(filename, content) {
   try {
     const skillDir = path.join(os.homedir(), '.claude', 'commands')
     fs.mkdirSync(skillDir, { recursive: true })
-    fs.writeFileSync(path.join(skillDir, 'relay.md'), `Schedule the described work into the Relay queue for later autonomous Claude Code execution.
+    fs.writeFileSync(path.join(skillDir, filename), content)
+  } catch (e) {
+    console.warn(`[skill] could not write ${filename}:`, e.message)
+  }
+}
+
+function writeRelaySkill() {
+  writeSkill('relay.md', `Schedule the described work into the Relay queue for later autonomous Claude Code execution.
 
 Parse the user's message and extract:
 - **title**: short label ≤60 chars
@@ -300,9 +311,6 @@ relay schedule --title "TITLE" --prompt "PROMPT" --at "ISO_DATETIME" \\
 
 Confirm with one line after scheduling: \`✓ "TITLE" → HUMAN_READABLE_TIME\`
 `)
-  } catch (e) {
-    console.warn('[skill] could not write relay.md:', e.message)
-  }
 }
 
 function writeRelayCmdShim() {
@@ -331,10 +339,7 @@ function writeRelayConfig() {
 }
 
 function writeAutoResumeSkill() {
-  try {
-    const skillDir = path.join(os.homedir(), '.claude', 'commands')
-    fs.mkdirSync(skillDir, { recursive: true })
-    fs.writeFileSync(path.join(skillDir, 'relay-autoresume.md'), `Arm this session for automatic resume via /relay if the usage limit is hit.
+  writeSkill('relay-autoresume.md', `Arm this session for automatic resume via /relay if the usage limit is hit.
 
 ## Steps — run these NOW, immediately when /relay-autoresume is invoked
 
@@ -368,9 +373,6 @@ console.log('Armed — session:',sessionId||'(not found)');
 
 The arm file (\`~/.relay/autoresume.json\`) is watched by the /relay app. When /relay detects usage has hit 100% it reads the file, schedules a resume task at the exact reset time, and removes the file. If the session ends normally without hitting a limit, the file expires automatically after 8 hours.
 `)
-  } catch (e) {
-    console.warn('[skill] could not write relay-autoresume.md:', e.message)
-  }
 }
 
 // Watch ~/.relay/autoresume.json — written by /relay-autoresume skill.
@@ -388,11 +390,8 @@ async function checkAutoResumeArm() {
     const usage = await fetchClaudeUsage()
     if (usage.error) return
     if (usage.sessionPct < 100 && usage.weeklyPct < 100) return
-    let resetAt = null
-    if (usage.weeklyPct >= 100 && usage.weeklyResetsAt) resetAt = new Date(usage.weeklyResetsAt).toISOString()
-    else if (usage.sessionResetsAt) resetAt = new Date(usage.sessionResetsAt).toISOString()
     const settings = store.getSettings()
-    const at = resetAt || scheduler.nextSessionReset(settings.sessionStartTime).toISOString()
+    const at = pickResetAt(usage) || scheduler.nextSessionReset(settings.sessionStartTime).toISOString()
     store.addTask({
       id: uid(), title: `Auto-resume: ${String(arm.prompt).slice(0, 50)}`,
       prompt: arm.prompt, mode: arm.sessionId ? 'resume-full' : 'fresh', sessionId: arm.sessionId || null,
@@ -409,10 +408,7 @@ async function checkAutoResumeArm() {
 }
 
 function writeRelayListenSkill() {
-  try {
-    const skillDir = path.join(os.homedir(), '.claude', 'commands')
-    fs.mkdirSync(skillDir, { recursive: true })
-    fs.writeFileSync(path.join(skillDir, 'relay-listen.md'), `Hibernate this session until relay tasks complete, then act on or report the findings.
+  writeSkill('relay-listen.md', `Hibernate this session until relay tasks complete, then act on or report the findings.
 
 ## Steps
 
@@ -427,9 +423,6 @@ function writeRelayListenSkill() {
    - If outputs contain actionable findings (code to integrate, errors to fix, a plan to execute) → do the work now
    - If outputs are informational → write a concise report the user can read on return, saved to \`relay-listen-report.md\` in the current directory
 `)
-  } catch (e) {
-    console.warn('[skill] could not write relay-listen.md:', e.message)
-  }
 }
 
 function registerIpc() {
@@ -512,23 +505,18 @@ function registerIpc() {
     // Fetch the live reset time so queueResume schedules at the real moment
     // and rescheduleAllPending pushes all stale tasks to align with it too.
     let resetAt = null
-    try {
-      const usage = await fetchClaudeUsage()
-      if (!usage.error) {
-        if (usage.weeklyPct >= 100 && usage.weeklyResetsAt) resetAt = new Date(usage.weeklyResetsAt).toISOString()
-        else if (usage.sessionResetsAt) resetAt = new Date(usage.sessionResetsAt).toISOString()
-      }
-    } catch {}
+    try { resetAt = pickResetAt(await fetchClaudeUsage()) } catch {}
     queueResume(t, resetAt)
     notifyChange()
   })
 
   // Capture a (possibly limited-out) session to pick back up at the reset moment.
-  ipcMain.handle('relay:capture-session', (_e, input) => {
-    const settings = store.getSettings()
-    const at = input && input.resetsAt ? new Date(input.resetsAt).toISOString()
-      : scheduler.nextResetDate(settings.dailyResetTime).toISOString()
+  ipcMain.handle('relay:capture-session', async (_e, input) => {
     if (!input || !input.sessionId) return
+    const settings = store.getSettings()
+    const at = input.resetsAt ? new Date(input.resetsAt).toISOString()
+      : (pickResetAt(await fetchClaudeUsage().catch(() => null))
+         || scheduler.nextSessionReset(settings.sessionStartTime).toISOString())
     store.addTask({
       id: uid(),
       title: input.title || `Resume session ${String(input.sessionId).slice(0, 8)}`,

@@ -3,7 +3,7 @@
 // relay CLI — enqueue/list/cancel tasks from anywhere (Claude, scripts, the bench loop).
 // Self-contained: writes the same store the app reads, so the app's watcher shows changes live.
 //
-//   node scripts/relay.js schedule --prompt "..." [--mode fresh|resume-full|resume-compact]
+//   node scripts/relay.js schedule --prompt "..." [--mode fresh|resume-full]
 //        [--resume <id|current>] [--at next-reset|+30m|+2h|<ISO>] [--cwd <path>] [--title "..."]
 //   node scripts/relay.js list
 //   node scripts/relay.js cancel <id>
@@ -171,7 +171,7 @@ try {
   else if (cmd === 'log') cmdLog(pos[1])
   else {
     console.log('relay — usage:')
-    console.log('  schedule --prompt "..." [--mode fresh|resume-full|resume-compact] [--resume <id|current>] [--at next-reset|+30m|<ISO>] [--cwd <path>] [--title "..."]')
+    console.log('  schedule --prompt "..." [--mode fresh|resume-full] [--resume <id|current>] [--at next-reset|+30m|<ISO>] [--cwd <path>] [--title "..."]')
     console.log('  list')
     console.log('  cancel <id>')
     console.log('  log <task-id>        — print the task log (last line: # session: <uuid> for --resume)')

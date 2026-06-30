@@ -32,7 +32,6 @@ function scheduleText(t) {
 function modeText(t) {
   if (t.mode === 'fresh') return 'fresh session'
   if (t.mode === 'resume-full') return 'resume (full)'
-  if (t.mode === 'resume-compact') return 'resume (compact)'
   return t.mode || '—'
 }
 
@@ -266,7 +265,21 @@ function taskRow(t) {
   </div>`
 }
 
-// ── list actions (delegated) ────────────────────────────────────────────────
+// ── task actions (shared by list buttons + right-click context menu) ─────────
+async function handleTaskAction(id, action) {
+  const t = TASKS.find(x => x.id === id)
+  if (action === 'edit') { if (t) openTaskModal(t); return }
+  if (action === 'retry')       await window.relay.retry(id)
+  else if (action === 'run')    await window.relay.runNow(id)
+  else if (action === 'cancel') await window.relay.cancel(id)
+  else if (action === 'resume') await window.relay.resumeAtReset(id)
+  else if (action === 'delete') await window.relay.remove(id)
+  else if (action === 'log') {
+    if (t) { const text = await window.relay.getLog(t.lastLogPath); openLog(t.title, text) }
+  }
+  await refresh()
+}
+
 listEl.addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-action]')
   if (!btn) {
@@ -274,39 +287,14 @@ listEl.addEventListener('click', async (e) => {
     if (card && e.target.closest('.task-main')) card.classList.toggle('expanded')
     return
   }
-  const id = btn.closest('.task').dataset.id
-  const action = btn.dataset.action
-  const t = TASKS.find(x => x.id === id)
-  if (action === 'edit') { if (t) openEditTask(t); return }
-  if (action === 'retry')       await window.relay.retry(id)
-  else if (action === 'run')    await window.relay.runNow(id)
-  else if (action === 'cancel') await window.relay.cancel(id)
-  else if (action === 'resume') await window.relay.resumeAtReset(id)
-  else if (action === 'delete') await window.relay.remove(id)
-  else if (action === 'log') {
-    if (t) { const text = await window.relay.getLog(t.lastLogPath); openLog(t.title, text) }
-  }
-  await refresh()
+  await handleTaskAction(btn.closest('.task').dataset.id, btn.dataset.action)
 })
 
 document.addEventListener('contextmenu', (e) => {
   window.__ctxTaskId = e.target.closest('[data-id]')?.dataset.id ?? null
 })
 
-window.relay.onCtxAction(async (id, action) => {
-  const t = TASKS.find(x => x.id === id)
-  if (action === 'edit') { if (t) openEditTask(t); return }
-  if (action === 'retry')       await window.relay.retry(id)
-  else if (action === 'run')    await window.relay.runNow(id)
-  else if (action === 'cancel') await window.relay.cancel(id)
-  else if (action === 'resume') await window.relay.resumeAtReset(id)
-  else if (action === 'delete') await window.relay.remove(id)
-  else if (action === 'log') {
-    if (t) { const text = await window.relay.getLog(t.lastLogPath); openLog(t.title, text) }
-    return
-  }
-  await refresh()
-})
+window.relay.onCtxAction(handleTaskAction)
 
 // ── modal plumbing ──────────────────────────────────────────────────────────
 function openModal(html) { modalEl.innerHTML = html; modalHost.hidden = false }
@@ -329,43 +317,52 @@ function sessionListHtml(sessions, pickedId) {
   }).join('')
 }
 
-// ── new task ────────────────────────────────────────────────────────────────
-document.getElementById('newBtn').addEventListener('click', openNewTask)
+// ── new / edit task (one modal; pass a task to edit, omit to create) ─────────
+document.getElementById('newBtn').addEventListener('click', () => openTaskModal())
 
-async function openNewTask() {
+async function openTaskModal(task = null) {
+  const editing = !!task
   const sessions = await window.relay.listSessions()
-  let mode = 'fresh'
-  let scheduleKind = 'at-next-reset'
-  let pickedSession = null
-  let taskModel = SETTINGS.defaultModel || ''
-  let taskEffort = SETTINGS.defaultEffort || ''
+  let mode = (task && task.mode) || 'fresh'
+  let scheduleKind = (task && task.schedule?.kind) || 'at-next-reset'
+  let pickedSession = (task && task.sessionId) || null
+  let taskModel = editing ? (task.model || '') : (SETTINGS.defaultModel || '')
+  let taskEffort = editing ? (task.effort || '') : (SETTINGS.defaultEffort || '')
+
+  const localAt = (scheduleKind === 'once' && task && task.schedule?.at)
+    ? new Date(new Date(task.schedule.at).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+    : ''
+
+  const resetLabel = (USAGE_API && USAGE_API.sessionResetsAt && USAGE_API.sessionResetsAt > Date.now())
+    ? new Date(USAGE_API.sessionResetsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : (() => { const [h, m] = (SETTINGS.sessionStartTime || '02:00').split(':').map(Number); return `${String((h + 5) % 24).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}` })()
 
   openModal(`
-    <h2>New task</h2>
+    <h2>${editing ? 'Edit task' : 'New task'}</h2>
     <div class="field">
       <label>Title <span style="color:var(--muted);font-weight:400">(optional)</span></label>
-      <input type="text" id="f-title" placeholder="e.g. Continue the bench run" />
+      <input type="text" id="f-title" value="${esc((task && task.title) || '')}" placeholder="e.g. Continue the bench run" />
     </div>
     <div class="field">
       <label>Prompt</label>
-      <textarea id="f-prompt" placeholder="What should Claude Code do when this fires? (e.g. resume bench run X from bench/state/X.json)"></textarea>
+      <textarea id="f-prompt" placeholder="What should Claude Code do when this fires? (e.g. resume bench run X from bench/state/X.json)">${esc((task && task.prompt) || '')}</textarea>
     </div>
     <div class="field">
       <label>Mode</label>
       <div class="radio-row" id="f-mode">
-        <div class="radio-chip on" data-v="fresh">Fresh session</div>
-        <div class="radio-chip" data-v="resume-full">Resume (full)</div>
+        <div class="radio-chip${mode === 'fresh' ? ' on' : ''}" data-v="fresh">Fresh session</div>
+        <div class="radio-chip${mode === 'resume-full' ? ' on' : ''}" data-v="resume-full">Resume (full)</div>
       </div>
       <div class="hint">Fresh = any session, reads state from disk (cheapest). Resume = a specific conversation.</div>
     </div>
-    <div class="field" id="f-session-wrap" hidden>
+    <div class="field" id="f-session-wrap"${mode === 'fresh' ? ' hidden' : ''}>
       <label>Session to resume</label>
-      <div class="session-list" id="f-sessions">${sessionListHtml(sessions, null)}</div>
+      <div class="session-list" id="f-sessions">${sessionListHtml(sessions, pickedSession)}</div>
     </div>
     <div class="field">
       <label>Project path <span style="color:var(--muted);font-weight:400">(cwd — optional)</span></label>
       <div style="display:flex;gap:6px">
-        <input type="text" id="f-project" style="flex:1" placeholder="${esc(SETTINGS.defaultProjectPath || 'e.g. C:\\\\Users\\\\you\\\\project')}" />
+        <input type="text" id="f-project" style="flex:1" value="${esc((task && task.projectPath) || '')}" placeholder="${esc(SETTINGS.defaultProjectPath || 'e.g. C:\\\\Users\\\\you\\\\project')}" />
         <button class="btn tiny" id="f-browse">Browse…</button>
       </div>
     </div>
@@ -382,16 +379,16 @@ async function openNewTask() {
     <div class="field">
       <label>When</label>
       <div class="radio-row" id="f-sched">
-        <div class="radio-chip on" data-v="at-next-reset">At next reset (${USAGE_API && USAGE_API.sessionResetsAt && USAGE_API.sessionResetsAt > Date.now() ? new Date(USAGE_API.sessionResetsAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : (() => { const [h,m]=(SETTINGS.sessionStartTime||'02:00').split(':').map(Number); return `${String((h+5)%24).padStart(2,'0')}:${String(m||0).padStart(2,'0')}` })()})</div>
-        <div class="radio-chip" data-v="once">At a specific time</div>
+        <div class="radio-chip${scheduleKind === 'at-next-reset' ? ' on' : ''}" data-v="at-next-reset">At next reset (${resetLabel})</div>
+        <div class="radio-chip${scheduleKind === 'once' ? ' on' : ''}" data-v="once">At a specific time</div>
       </div>
-      <div id="f-once-wrap" hidden style="margin-top:10px">
-        <input type="datetime-local" id="f-once" />
+      <div id="f-once-wrap"${scheduleKind !== 'once' ? ' hidden' : ''} style="margin-top:10px">
+        <input type="datetime-local" id="f-once" value="${esc(localAt)}" />
       </div>
     </div>
     <div class="modal-actions">
       <button class="btn ghost" data-close>Cancel</button>
-      <button class="btn primary" id="f-create">Queue task</button>
+      <button class="btn primary" id="f-submit">${editing ? 'Save changes' : 'Queue task'}</button>
     </div>
   `)
 
@@ -427,7 +424,7 @@ async function openNewTask() {
     onceWrap.hidden = (scheduleKind !== 'once')
   })
 
-  modalEl.querySelector('#f-create').addEventListener('click', async () => {
+  modalEl.querySelector('#f-submit').addEventListener('click', async () => {
     const prompt = modalEl.querySelector('#f-prompt').value.trim()
     if (!prompt) { modalEl.querySelector('#f-prompt').focus(); return }
     if (mode !== 'fresh' && !pickedSession) { alert('Pick a session to resume, or choose Fresh mode.'); return }
@@ -439,7 +436,7 @@ async function openNewTask() {
     } else {
       schedule = { kind: 'at-next-reset' }
     }
-    await window.relay.create({
+    const payload = {
       title: modalEl.querySelector('#f-title').value.trim(),
       prompt,
       mode,
@@ -448,132 +445,9 @@ async function openNewTask() {
       model: taskModel || null,
       effort: modalEl.querySelector('#f-effort').value || null,
       schedule,
-    })
-    closeModal()
-    await refresh()
-  })
-}
-
-// ── edit task ───────────────────────────────────────────────────────────────
-async function openEditTask(task) {
-  const sessions = await window.relay.listSessions()
-  let mode = task.mode || 'fresh'
-  let scheduleKind = task.schedule?.kind || 'at-next-reset'
-  let pickedSession = task.sessionId || null
-  let taskModel = task.model || ''
-  let taskEffort = task.effort || ''
-
-  const localAt = (scheduleKind === 'once' && task.schedule?.at)
-    ? new Date(new Date(task.schedule.at).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
-    : ''
-
-  openModal(`
-    <h2>Edit task</h2>
-    <div class="field">
-      <label>Title <span style="color:var(--muted);font-weight:400">(optional)</span></label>
-      <input type="text" id="f-title" value="${esc(task.title || '')}" />
-    </div>
-    <div class="field">
-      <label>Prompt</label>
-      <textarea id="f-prompt">${esc(task.prompt || '')}</textarea>
-    </div>
-    <div class="field">
-      <label>Mode</label>
-      <div class="radio-row" id="f-mode">
-        <div class="radio-chip${mode === 'fresh' ? ' on' : ''}" data-v="fresh">Fresh session</div>
-        <div class="radio-chip${mode === 'resume-full' ? ' on' : ''}" data-v="resume-full">Resume (full)</div>
-      </div>
-    </div>
-    <div class="field" id="f-session-wrap"${mode === 'fresh' ? ' hidden' : ''}>
-      <label>Session to resume</label>
-      <div class="session-list" id="f-sessions">${sessionListHtml(sessions, pickedSession)}</div>
-    </div>
-    <div class="field">
-      <label>Project path <span style="color:var(--muted);font-weight:400">(optional)</span></label>
-      <div style="display:flex;gap:6px">
-        <input type="text" id="f-project" style="flex:1" value="${esc(task.projectPath || '')}" placeholder="${esc(SETTINGS.defaultProjectPath || '')}" />
-        <button class="btn tiny" id="f-browse">Browse…</button>
-      </div>
-    </div>
-    <div class="row">
-      <div class="field">
-        <label>Model</label>
-        <select id="f-model">${modelOptsHtml(taskModel)}</select>
-      </div>
-      <div class="field">
-        <label>Effort</label>
-        <select id="f-effort" ${!(MODELS.find(m=>m.id===taskModel)||MODELS[0]).effort ? 'disabled' : ''}>${effortOptsHtml(taskModel, taskEffort)}</select>
-      </div>
-    </div>
-    <div class="field">
-      <label>When</label>
-      <div class="radio-row" id="f-sched">
-        <div class="radio-chip${scheduleKind === 'at-next-reset' ? ' on' : ''}" data-v="at-next-reset">At next reset (${USAGE_API && USAGE_API.sessionResetsAt && USAGE_API.sessionResetsAt > Date.now() ? new Date(USAGE_API.sessionResetsAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : (() => { const [h,m]=(SETTINGS.sessionStartTime||'02:00').split(':').map(Number); return `${String((h+5)%24).padStart(2,'0')}:${String(m||0).padStart(2,'0')}` })()})</div>
-        <div class="radio-chip${scheduleKind === 'once' ? ' on' : ''}" data-v="once">At a specific time</div>
-      </div>
-      <div id="f-once-wrap"${scheduleKind !== 'once' ? ' hidden' : ''} style="margin-top:10px">
-        <input type="datetime-local" id="f-once" value="${esc(localAt)}" />
-      </div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn ghost" data-close>Cancel</button>
-      <button class="btn primary" id="f-save">Save changes</button>
-    </div>
-  `)
-
-  const sessionWrap = modalEl.querySelector('#f-session-wrap')
-  const onceWrap = modalEl.querySelector('#f-once-wrap')
-
-  modalEl.querySelector('#f-mode').addEventListener('click', (e) => {
-    const chip = e.target.closest('.radio-chip'); if (!chip) return
-    mode = chip.dataset.v
-    modalEl.querySelectorAll('#f-mode .radio-chip').forEach(c => c.classList.toggle('on', c === chip))
-    sessionWrap.hidden = (mode === 'fresh')
-  })
-  modalEl.querySelector('#f-sessions')?.addEventListener('click', (e) => {
-    const item = e.target.closest('.session-item[data-sid]'); if (!item) return
-    pickedSession = item.dataset.sid
-    modalEl.querySelectorAll('.session-item').forEach(s => s.classList.toggle('on', s === item))
-    const projInput = modalEl.querySelector('#f-project')
-    if (projInput && !projInput.value && item.dataset.cwd) projInput.value = item.dataset.cwd
-  })
-  modalEl.querySelector('#f-browse')?.addEventListener('click', async () => {
-    const folder = await window.relay.browseFolder()
-    if (folder) modalEl.querySelector('#f-project').value = folder
-  })
-  modalEl.querySelector('#f-model').addEventListener('change', (e) => {
-    taskModel = e.target.value
-    syncEffortSelect(modalEl.querySelector('#f-effort'), taskModel)
-  })
-  modalEl.querySelector('#f-effort').addEventListener('change', (e) => { taskEffort = e.target.value })
-  modalEl.querySelector('#f-sched').addEventListener('click', (e) => {
-    const chip = e.target.closest('.radio-chip'); if (!chip) return
-    scheduleKind = chip.dataset.v
-    modalEl.querySelectorAll('#f-sched .radio-chip').forEach(c => c.classList.toggle('on', c === chip))
-    onceWrap.hidden = (scheduleKind !== 'once')
-  })
-  modalEl.querySelector('#f-save').addEventListener('click', async () => {
-    const prompt = modalEl.querySelector('#f-prompt').value.trim()
-    if (!prompt) { modalEl.querySelector('#f-prompt').focus(); return }
-    let schedule
-    if (scheduleKind === 'once') {
-      const v = modalEl.querySelector('#f-once').value
-      if (!v) { alert('Pick a date/time.'); return }
-      schedule = { kind: 'once', at: new Date(v).toISOString() }
-    } else {
-      schedule = { kind: 'at-next-reset' }
     }
-    await window.relay.update(task.id, {
-      title: modalEl.querySelector('#f-title').value.trim(),
-      prompt,
-      mode,
-      sessionId: mode === 'fresh' ? null : pickedSession,
-      projectPath: modalEl.querySelector('#f-project').value.trim(),
-      model: taskModel || null,
-      effort: modalEl.querySelector('#f-effort').value || null,
-      schedule,
-      status: 'scheduled',
-    })
+    if (editing) await window.relay.update(task.id, { ...payload, status: 'scheduled' })
+    else await window.relay.create(payload)
     closeModal()
     await refresh()
   })
