@@ -30,5 +30,6 @@ contextBridge.exposeInMainWorld('relay', {
   getLoginItem:  () => ipcRenderer.invoke('relay:login-item:get'),
   setLoginItem:  (val) => ipcRenderer.invoke('relay:login-item:set', val),
   version:       () => ipcRenderer.invoke('relay:version'),
-  installUpdate: () => ipcRenderer.invoke('relay:install-update'),
+  installUpdate:  () => ipcRenderer.invoke('relay:install-update'),
+  browseFolder:  () => ipcRenderer.invoke('relay:browse-folder'),
 })

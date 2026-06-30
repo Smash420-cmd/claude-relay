@@ -314,6 +314,21 @@ function closeModal() { modalHost.hidden = true; modalEl.innerHTML = '' }
 modalHost.addEventListener('click', (e) => { if (e.target.dataset.close !== undefined) closeModal() })
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modalHost.hidden) closeModal() })
 
+// ── session list HTML (shared by new + edit modals) ─────────────────────────
+function sessionListHtml(sessions, pickedId) {
+  if (!sessions.length) return `<div class="session-item">No Claude Code sessions found in ~/.claude/projects</div>`
+  return sessions.map(s => {
+    const proj = s.cwd || s.project || s.sessionId.slice(0, 8)
+    const branchBadge = s.branch ? `<span class="si-branch">${esc(s.branch)}</span>` : ''
+    const liveBadge = s.active ? `<span class="si-live">● live</span>` : ''
+    return `<div class="session-item${s.active ? ' active' : ''}${s.sessionId === pickedId ? ' on' : ''}" data-sid="${esc(s.sessionId)}" data-cwd="${esc(s.cwd || '')}">
+      <div class="si-top">${liveBadge}<span class="si-slug">${esc(s.slug || s.sessionId.slice(0, 8))}</span>${branchBadge}<span class="si-age">${esc(fmtWhen(new Date(s.modified).toISOString()))}</span></div>
+      <div class="si-path">${esc(proj)}</div>
+      <div class="si-preview">${esc(s.preview || '(no messages found)')}</div>
+    </div>`
+  }).join('')
+}
+
 // ── new task ────────────────────────────────────────────────────────────────
 document.getElementById('newBtn').addEventListener('click', openNewTask)
 
@@ -345,18 +360,14 @@ async function openNewTask() {
     </div>
     <div class="field" id="f-session-wrap" hidden>
       <label>Session to resume</label>
-      <div class="session-list" id="f-sessions">
-        ${sessions.length ? sessions.map(s => `
-          <div class="session-item${s.active ? ' active' : ''}" data-sid="${esc(s.sessionId)}">
-            <div class="si-title">${s.active ? '<span class="si-live">● live</span>' : ''}${esc(s.preview || '(no preview)')}</div>
-            <div class="sid">${esc(s.slug || s.sessionId.slice(0, 8))} · ${esc(s.project)} · ${esc(fmtWhen(new Date(s.modified).toISOString()))}</div>
-          </div>`).join('')
-          : `<div class="session-item">No Claude Code sessions found in ~/.claude/projects</div>`}
-      </div>
+      <div class="session-list" id="f-sessions">${sessionListHtml(sessions, null)}</div>
     </div>
     <div class="field">
       <label>Project path <span style="color:var(--muted);font-weight:400">(cwd — optional)</span></label>
-      <input type="text" id="f-project" placeholder="${esc(SETTINGS.defaultProjectPath || 'e.g. C:\\\\Users\\\\you\\\\project')}" />
+      <div style="display:flex;gap:6px">
+        <input type="text" id="f-project" style="flex:1" placeholder="${esc(SETTINGS.defaultProjectPath || 'e.g. C:\\\\Users\\\\you\\\\project')}" />
+        <button class="btn tiny" id="f-browse">Browse…</button>
+      </div>
     </div>
     <div class="row">
       <div class="field">
@@ -397,6 +408,12 @@ async function openNewTask() {
     const item = e.target.closest('.session-item[data-sid]'); if (!item) return
     pickedSession = item.dataset.sid
     modalEl.querySelectorAll('.session-item').forEach(s => s.classList.toggle('on', s === item))
+    const projInput = modalEl.querySelector('#f-project')
+    if (projInput && !projInput.value && item.dataset.cwd) projInput.value = item.dataset.cwd
+  })
+  modalEl.querySelector('#f-browse')?.addEventListener('click', async () => {
+    const folder = await window.relay.browseFolder()
+    if (folder) modalEl.querySelector('#f-project').value = folder
   })
   modalEl.querySelector('#f-model').addEventListener('change', (e) => {
     taskModel = e.target.value
@@ -469,18 +486,14 @@ async function openEditTask(task) {
     </div>
     <div class="field" id="f-session-wrap"${mode === 'fresh' ? ' hidden' : ''}>
       <label>Session to resume</label>
-      <div class="session-list" id="f-sessions">
-        ${sessions.length ? sessions.map(s => `
-          <div class="session-item${s.active ? ' active' : ''}${s.sessionId === pickedSession ? ' on' : ''}" data-sid="${esc(s.sessionId)}">
-            <div class="si-title">${s.active ? '<span class="si-live">● live</span>' : ''}${esc(s.preview || '(no preview)')}</div>
-            <div class="sid">${esc(s.slug || s.sessionId.slice(0, 8))} · ${esc(s.project)} · ${esc(fmtWhen(new Date(s.modified).toISOString()))}</div>
-          </div>`).join('')
-          : `<div class="session-item">No sessions found</div>`}
-      </div>
+      <div class="session-list" id="f-sessions">${sessionListHtml(sessions, pickedSession)}</div>
     </div>
     <div class="field">
       <label>Project path <span style="color:var(--muted);font-weight:400">(optional)</span></label>
-      <input type="text" id="f-project" value="${esc(task.projectPath || '')}" placeholder="${esc(SETTINGS.defaultProjectPath || '')}" />
+      <div style="display:flex;gap:6px">
+        <input type="text" id="f-project" style="flex:1" value="${esc(task.projectPath || '')}" placeholder="${esc(SETTINGS.defaultProjectPath || '')}" />
+        <button class="btn tiny" id="f-browse">Browse…</button>
+      </div>
     </div>
     <div class="row">
       <div class="field">
@@ -521,6 +534,12 @@ async function openEditTask(task) {
     const item = e.target.closest('.session-item[data-sid]'); if (!item) return
     pickedSession = item.dataset.sid
     modalEl.querySelectorAll('.session-item').forEach(s => s.classList.toggle('on', s === item))
+    const projInput = modalEl.querySelector('#f-project')
+    if (projInput && !projInput.value && item.dataset.cwd) projInput.value = item.dataset.cwd
+  })
+  modalEl.querySelector('#f-browse')?.addEventListener('click', async () => {
+    const folder = await window.relay.browseFolder()
+    if (folder) modalEl.querySelector('#f-project').value = folder
   })
   modalEl.querySelector('#f-model').addEventListener('change', (e) => {
     taskModel = e.target.value

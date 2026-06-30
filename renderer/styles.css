@@ -149,13 +149,17 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 .note { font-size: 12px; color: var(--muted); background: var(--panel-2); border: 1px solid var(--border); border-left: 3px solid var(--orange); border-radius: 6px; padding: 8px 11px; margin-top: 4px; }
 .toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-.session-list { max-height: 180px; overflow-y: auto; border: 1px solid var(--border-2); border-radius: 8px; }
-.session-item { padding: 8px 10px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 12.5px; }
+.session-list { max-height: 220px; overflow-y: auto; border: 1px solid var(--border-2); border-radius: 8px; }
+.session-item { padding: 8px 10px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 12px; }
 .session-item:last-child { border-bottom: none; }
 .session-item:hover { background: var(--panel-2); }
 .session-item.on { background: var(--accent-soft); }
-.session-item.active { border-left: 2px solid var(--green); }
-.si-title { font-weight: 500; }
-.si-live { color: var(--green); font-weight: 700; font-size: 11px; margin-right: 6px; }
-.session-item .sid { color: var(--muted); font-size: 11px; margin-top: 2px; }
+.session-item.active { border-left: 2px solid var(--green); padding-left: 8px; }
+.si-top { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+.si-slug { font-weight: 600; color: var(--text); font-size: 11.5px; }
+.si-branch { background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; font-size: 10.5px; color: var(--orange); font-family: ui-monospace, Consolas, monospace; }
+.si-age { margin-left: auto; color: var(--muted); font-size: 11px; }
+.si-live { color: var(--green); font-weight: 700; font-size: 10.5px; }
+.si-path { color: var(--subtle); font-size: 11px; font-family: ui-monospace, Consolas, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+.si-preview { color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .log-view { white-space: pre-wrap; word-break: break-word; font: 12px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace; background: #0a0d12; border: 1px solid var(--border); border-radius: 8px; padding: 12px; max-height: 60vh; overflow: auto; color: var(--subtle); }

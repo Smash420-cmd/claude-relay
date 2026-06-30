@@ -1,7 +1,7 @@
 'use strict'
 // Relay — Electron main process. Owns the window, the tray (so the scheduler stays alive when the
 // window is closed), the due-task scheduler, the executor, and all IPC.
-const { app, BrowserWindow, Tray, Menu, MenuItem, ipcMain, nativeImage, shell, session } = require('electron')
+const { app, BrowserWindow, Tray, Menu, MenuItem, ipcMain, nativeImage, shell, session, dialog } = require('electron')
 const { execFileSync } = require('child_process')
 const path = require('path')
 const fs = require('fs')
@@ -334,29 +334,101 @@ function writeAutoResumeSkill() {
   try {
     const skillDir = path.join(os.homedir(), '.claude', 'commands')
     fs.mkdirSync(skillDir, { recursive: true })
-    fs.writeFileSync(path.join(skillDir, 'relay-autoresume.md'), `This session is now armed for automatic relay on usage limit.
+    fs.writeFileSync(path.join(skillDir, 'relay-autoresume.md'), `Arm this session for automatic resume via /relay if the usage limit is hit.
 
-From this point on: if you receive a usage limit message at any point during this session, immediately do the following:
+## Steps — run these NOW, immediately when /relay-autoresume is invoked
 
-1. Run:
+1. Check the setting:
 \`\`\`bash
 cat ~/.relay/config.json
 \`\`\`
 
-2. If \`skillAutoResumeOnLimit\` is \`true\`:
-   - Write a one-sentence summary of what work still remains
-   - Run:
+2. If \`skillAutoResumeOnLimit\` is \`false\`: tell the user "Auto-resume is off — enable it in /relay Settings." and stop.
+
+3. If \`skillAutoResumeOnLimit\` is \`true\`:
+
+   a. Write a one-sentence summary of what this session is working on.
+
+   b. Write the arm file — /relay monitors this and will schedule a resume automatically when usage hits 100%:
 \`\`\`bash
-relay schedule --prompt "SUMMARY" --resume current --at next-reset --cwd "CURRENT_PROJECT_PATH"
+node -e "
+const os=require('os'),fs=require('fs'),path=require('path');
+// capture current session ID from the most recently modified session file
+let sessionId=null;
+try{const d=path.join(os.homedir(),'.claude','sessions');const f=fs.readdirSync(d).filter(x=>x.endsWith('.json')).map(x=>({x,m:fs.statSync(path.join(d,x)).mtimeMs})).sort((a,b)=>b.m-a.m)[0];if(f){const o=JSON.parse(fs.readFileSync(path.join(d,f.x),'utf8'));sessionId=o.sessionId||null;}}catch{}
+fs.mkdirSync(path.join(os.homedir(),'.relay'),{recursive:true});
+fs.writeFileSync(path.join(os.homedir(),'.relay','autoresume.json'),JSON.stringify({prompt:'RESUME_PROMPT',cwd:process.cwd(),sessionId,armedAt:new Date().toISOString()},null,2));
+console.log('Armed — session:',sessionId||'(not found)');
+"
 \`\`\`
-   - Confirm to the user: \`✓ Session limit hit — resume scheduled at next reset\`
 
-3. If \`skillAutoResumeOnLimit\` is \`false\`, do nothing — the session ends normally and no task is scheduled.
+   c. Tell the user: "✓ Armed — /relay will auto-schedule a resume if your usage limit is hit. No action needed."
 
-The \`skillAutoResumeOnLimit\` setting is controlled in the /relay app under Settings.
+## How it works
+
+The arm file (\`~/.relay/autoresume.json\`) is watched by the /relay app. When /relay detects usage has hit 100% it reads the file, schedules a resume task at the exact reset time, and removes the file. If the session ends normally without hitting a limit, the file expires automatically after 8 hours.
 `)
   } catch (e) {
     console.warn('[skill] could not write relay-autoresume.md:', e.message)
+  }
+}
+
+// Watch ~/.relay/autoresume.json — written by /relay-autoresume skill.
+// When usage hits 100%, schedule a resume and remove the file.
+async function checkAutoResumeArm() {
+  const armFile = path.join(os.homedir(), '.relay', 'autoresume.json')
+  let arm
+  try {
+    const stat = fs.statSync(armFile)
+    if (Date.now() - stat.mtimeMs > 8 * 60 * 60 * 1000) { fs.unlinkSync(armFile); return } // expired
+    arm = JSON.parse(fs.readFileSync(armFile, 'utf8'))
+  } catch { return }
+  if (!arm || !arm.prompt) return
+  try {
+    const usage = await fetchClaudeUsage()
+    if (usage.error) return
+    if (usage.sessionPct < 100 && usage.weeklyPct < 100) return
+    let resetAt = null
+    if (usage.weeklyPct >= 100 && usage.weeklyResetsAt) resetAt = new Date(usage.weeklyResetsAt).toISOString()
+    else if (usage.sessionResetsAt) resetAt = new Date(usage.sessionResetsAt).toISOString()
+    const settings = store.getSettings()
+    const at = resetAt || scheduler.nextSessionReset(settings.sessionStartTime).toISOString()
+    store.addTask({
+      id: uid(), title: `Auto-resume: ${String(arm.prompt).slice(0, 50)}`,
+      prompt: arm.prompt, mode: arm.sessionId ? 'resume-full' : 'fresh', sessionId: arm.sessionId || null,
+      projectPath: arm.cwd || '', model: null, effort: null,
+      schedule: { kind: 'once', at }, status: 'scheduled',
+      createdAt: new Date().toISOString(),
+    })
+    fs.unlinkSync(armFile)
+    notifyChange()
+    console.log('[autoresume] usage at 100% — resume scheduled at', at)
+  } catch (e) {
+    console.warn('[autoresume] check failed:', e.message)
+  }
+}
+
+function writeRelayListenSkill() {
+  try {
+    const skillDir = path.join(os.homedir(), '.claude', 'commands')
+    fs.mkdirSync(skillDir, { recursive: true })
+    fs.writeFileSync(path.join(skillDir, 'relay-listen.md'), `Hibernate this session until relay tasks complete, then act on or report the findings.
+
+## Steps
+
+1. Run \`relay list\` — note every task ID currently in \`scheduled\` or \`running\` status
+2. If none, tell the user the relay queue is empty and stop
+3. Otherwise enter a 2-minute polling loop using \`/loop 120\`:
+   - Each wake: run \`relay list\`
+   - If all watched tasks are now \`done\`, \`failed\`, or \`cancelled\` → exit the loop, go to step 4
+   - Otherwise: show how many tasks remain and wait for the next tick
+4. For each finished task run \`relay log <id>\` to read its output
+5. Act on the results:
+   - If outputs contain actionable findings (code to integrate, errors to fix, a plan to execute) → do the work now
+   - If outputs are informational → write a concise report the user can read on return, saved to \`relay-listen-report.md\` in the current directory
+`)
+  } catch (e) {
+    console.warn('[skill] could not write relay-listen.md:', e.message)
   }
 }
 
@@ -366,6 +438,10 @@ function registerIpc() {
   ipcMain.handle('relay:settings:get', () => store.getSettings())
   ipcMain.handle('relay:settings:set', (_e, patch) => { const s = store.setSettings(patch); writeRelayConfig(); return s })
   ipcMain.handle('relay:sessions:list', () => sessions.listSessions())
+  ipcMain.handle('relay:browse-folder', async () => {
+    const result = await dialog.showOpenDialog(win, { properties: ['openDirectory'] })
+    return result.canceled ? null : result.filePaths[0]
+  })
 
   ipcMain.handle('relay:create', async (_e, input) => {
     const settings = store.getSettings()
@@ -410,7 +486,14 @@ function registerIpc() {
     notifyChange()
   })
 
-  ipcMain.handle('relay:retry',  (_e, id) => { store.updateTask(id, { status: 'scheduled' }); notifyChange() })
+  ipcMain.handle('relay:retry', (_e, id) => {
+    // Cancel any auto-created resume tasks for this task before re-arming the original
+    for (const t of store.getTasks()) {
+      if (t.resumeOf === id && t.status === 'scheduled') store.updateTask(t.id, { status: 'cancelled' })
+    }
+    store.updateTask(id, { status: 'scheduled' })
+    notifyChange()
+  })
   ipcMain.handle('relay:update', (_e, id, patch) => { store.updateTask(id, patch); notifyChange() })
 
   ipcMain.handle('relay:run-now', async (_e, id) => {
@@ -420,9 +503,24 @@ function registerIpc() {
     }
   })
 
-  ipcMain.handle('relay:resume-at-reset', (_e, id) => {
+  ipcMain.handle('relay:resume-at-reset', async (_e, id) => {
     const t = store.getTask(id)
-    if (t) { queueResume(t); notifyChange() }
+    if (!t) return
+    // Don't stack a second resume if one is already scheduled
+    const already = store.getTasks().find(x => x.resumeOf === id && x.status === 'scheduled')
+    if (already) { notifyChange(); return }
+    // Fetch the live reset time so queueResume schedules at the real moment
+    // and rescheduleAllPending pushes all stale tasks to align with it too.
+    let resetAt = null
+    try {
+      const usage = await fetchClaudeUsage()
+      if (!usage.error) {
+        if (usage.weeklyPct >= 100 && usage.weeklyResetsAt) resetAt = new Date(usage.weeklyResetsAt).toISOString()
+        else if (usage.sessionResetsAt) resetAt = new Date(usage.sessionResetsAt).toISOString()
+      }
+    } catch {}
+    queueResume(t, resetAt)
+    notifyChange()
   })
 
   // Capture a (possibly limited-out) session to pick back up at the reset moment.
@@ -556,6 +654,7 @@ function main() {
     writeRelayCmdShim()
     writeRelaySkill()
     writeAutoResumeSkill()
+    writeRelayListenSkill()
     writeRelayConfig()
     registerIpc()
     if (app.isPackaged) {
@@ -580,6 +679,7 @@ function main() {
       runDueTask,
     })
     watchRelayDir()
+    setInterval(checkAutoResumeArm, 30 * 1000)
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
   })
 

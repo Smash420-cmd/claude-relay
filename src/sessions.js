@@ -46,13 +46,16 @@ function listSessions(limit = 60) {
       let stat
       try { stat = fs.statSync(full) } catch { continue }
       const sessionId = f.replace(/\.jsonl$/, '')
-      const meta = readMeta(full) // { preview, slug }
+      const meta = readMeta(full) // { preview, slug, cwd }
+      const cwd = meta.cwd || ''
       out.push({
         sessionId,
         slug: meta.slug || '',
-        project: decodeProject(proj.name),
+        project: cwd || decodeProject(proj.name),
         modified: stat.mtimeMs,
         preview: meta.preview,
+        cwd,
+        branch: gitBranch(cwd),
         active: active.has(sessionId),
         status: active.get(sessionId) || null,
       })
@@ -67,10 +70,9 @@ function decodeProject(encoded) {
   return encoded.replace(/^-/, '').split('-').filter(Boolean).slice(-2).join('/') || encoded
 }
 
-// One pass over the transcript: grab the slug (on every turn) and the first real user message.
+// One pass over the transcript: grab slug, first user message, and cwd.
 function readMeta(file) {
-  let preview = ''
-  let slug = ''
+  let preview = '', slug = '', cwd = ''
   try {
     const lines = fs.readFileSync(file, 'utf8').split('\n')
     for (const line of lines) {
@@ -78,19 +80,28 @@ function readMeta(file) {
       let o
       try { o = JSON.parse(line) } catch { continue }
       if (!slug && o.slug) slug = o.slug
+      if (!cwd && o.cwd) cwd = o.cwd
       if (!preview) {
         const content = o.message && o.message.content
-        if (typeof content === 'string' && content.trim() && o.type === 'user') {
-          preview = clean(content)
-        } else if (Array.isArray(content)) {
+        if (typeof content === 'string' && content.trim() && o.type === 'user') preview = clean(content)
+        else if (Array.isArray(content)) {
           const t = content.find(c => c && c.type === 'text' && c.text)
           if (t && o.type === 'user') preview = clean(t.text)
         }
       }
-      if (slug && preview) break
+      if (slug && preview && cwd) break
     }
   } catch {}
-  return { preview, slug }
+  return { preview, slug, cwd }
+}
+
+function gitBranch(cwd) {
+  if (!cwd) return ''
+  try {
+    const head = fs.readFileSync(path.join(cwd, '.git', 'HEAD'), 'utf8').trim()
+    if (head.startsWith('ref: refs/heads/')) return head.slice('ref: refs/heads/'.length)
+    return head.slice(0, 7) // detached HEAD — show short hash
+  } catch { return '' }
 }
 
 // Strip injected system-reminder / boilerplate so the preview reads like the user's actual ask.
