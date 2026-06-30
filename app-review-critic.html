@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>/relay — Review</title>
+<style>
+  :root{
+    --bg:#07070b; --panel:#0e0e16; --panel-2:#14141f; --border:#22223a;
+    --text:#e8edf4; --subtle:#aab2c0; --muted:#717a8c;
+    --cyan:#00FFD1; --purple:#7B2FFF; --blue:#4A6CF7; --green:#3fb950;
+    --amber:#d29922; --red:#f0556a;
+    --serif:"Iowan Old Style","Palatino Linotype",Georgia,serif;
+    --sans:-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  body{
+    background:var(--bg); color:var(--text); font:17px/1.7 var(--sans);
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:rgba(0,255,209,.25);}
+  .wrap{max-width:820px; margin:0 auto; padding:0 24px 100px;}
+
+  /* ── Hero ── */
+  .hero{
+    position:relative; overflow:hidden;
+    border-bottom:1px solid var(--border);
+    background:
+      radial-gradient(1200px 400px at 80% -120px, rgba(123,47,255,.28), transparent 60%),
+      radial-gradient(900px 360px at 0% -80px, rgba(0,255,209,.14), transparent 55%),
+      var(--panel);
+  }
+  .hero-inner{max-width:820px; margin:0 auto; padding:54px 24px 46px; position:relative;}
+  .kicker{
+    font:600 12.5px/1 var(--sans); letter-spacing:.16em; text-transform:uppercase;
+    color:var(--cyan); margin-bottom:20px;
+  }
+  .hero h1{
+    font:700 60px/1.02 var(--sans); margin:0 0 6px; letter-spacing:-.02em;
+    background:linear-gradient(90deg,#fff 30%, #b9c2d6); -webkit-background-clip:text;
+    background-clip:text; color:transparent;
+  }
+  .hero .tag{font:400 21px/1.4 var(--serif); color:var(--subtle); max-width:560px; margin:14px 0 0;}
+  .byline{margin-top:26px; font-size:13.5px; color:var(--muted); letter-spacing:.02em;}
+  .byline b{color:var(--subtle); font-weight:600;}
+
+  /* ── Score badge ── */
+  .score{
+    position:absolute; top:48px; right:24px; width:148px; height:148px;
+    border-radius:50%; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:conic-gradient(var(--cyan) 0 75%, rgba(255,255,255,.08) 75% 100%);
+    box-shadow:0 0 0 1px rgba(0,255,209,.3), 0 18px 50px rgba(0,255,209,.12);
+  }
+  .score-inner{
+    width:128px; height:128px; border-radius:50%; background:#0a0a12;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+  }
+  .score-num{font:800 46px/1 var(--sans); letter-spacing:-.02em;}
+  .score-num span{font-size:20px; color:var(--muted); font-weight:600;}
+  .score-label{font:600 10.5px/1 var(--sans); letter-spacing:.14em; text-transform:uppercase; color:var(--cyan); margin-top:7px;}
+
+  @media(max-width:680px){
+    .hero h1{font-size:42px;}
+    .score{position:static; margin:28px 0 0;}
+  }
+
+  /* ── Body ── */
+  article{padding-top:46px;}
+  h2{
+    font:700 27px/1.2 var(--sans); letter-spacing:-.01em; margin:52px 0 4px;
+    padding-top:18px;
+  }
+  h2 .n{color:var(--purple); font-size:15px; font-weight:700; vertical-align:middle; margin-right:11px; letter-spacing:.05em;}
+  h3{font:600 18px/1.3 var(--sans); margin:30px 0 2px; color:#fff;}
+  p{margin:14px 0; color:#d3dae5;}
+  p.dek{font:400 20px/1.55 var(--serif); color:var(--subtle); margin-top:8px;}
+  a{color:var(--cyan); text-decoration:none; border-bottom:1px solid rgba(0,255,209,.3);}
+  strong{color:#fff;}
+  code{
+    font:13.5px/1 "SF Mono",ui-monospace,"Cascadia Code",Consolas,monospace;
+    background:var(--panel-2); border:1px solid var(--border); border-radius:5px;
+    padding:2px 6px; color:var(--cyan);
+  }
+  hr{border:none; border-top:1px solid var(--border); margin:46px 0;}
+
+  /* ── Pull quote ── */
+  .pull{
+    margin:46px 0; padding:30px 34px; border-left:3px solid var(--cyan);
+    background:linear-gradient(90deg, rgba(0,255,209,.06), transparent);
+    border-radius:0 12px 12px 0;
+  }
+  .pull p{
+    font:500 26px/1.4 var(--serif); color:#fff; margin:0; letter-spacing:-.01em;
+  }
+  .pull .who{margin-top:14px; font:600 12px/1 var(--sans); letter-spacing:.12em; text-transform:uppercase; color:var(--muted);}
+
+  /* ── Pros/Cons ── */
+  .pc{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:34px 0;}
+  @media(max-width:680px){.pc{grid-template-columns:1fr;}}
+  .pc div{border:1px solid var(--border); border-radius:14px; padding:22px 24px; background:var(--panel);}
+  .pc h4{margin:0 0 14px; font:700 13px/1 var(--sans); letter-spacing:.12em; text-transform:uppercase;}
+  .pros h4{color:var(--green);} .cons h4{color:var(--red);}
+  .pc ul{margin:0; padding:0; list-style:none;}
+  .pc li{position:relative; padding:7px 0 7px 26px; font-size:15px; color:#cfd6e2; border-top:1px solid rgba(255,255,255,.04);}
+  .pc li:first-child{border-top:none;}
+  .pros li::before{content:"+"; position:absolute; left:4px; color:var(--green); font-weight:700;}
+  .cons li::before{content:"−"; position:absolute; left:4px; color:var(--red); font-weight:700;}
+
+  /* ── Spec strip ── */
+  .specs{display:flex; flex-wrap:wrap; gap:0; border:1px solid var(--border); border-radius:14px; overflow:hidden; margin:34px 0; background:var(--panel);}
+  .specs div{flex:1 1 25%; min-width:150px; padding:16px 20px; border-right:1px solid var(--border); border-top:1px solid var(--border);}
+  .specs div:nth-child(-n+4){border-top:none;}
+  .specs dt{font:600 10.5px/1 var(--sans); letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-bottom:6px;}
+  .specs dd{margin:0; font-size:14.5px; color:#e8edf4;}
+
+  /* ── Verdict ── */
+  .verdict{
+    margin:50px 0 0; padding:32px 34px; border:1px solid var(--border); border-radius:16px;
+    background:radial-gradient(700px 200px at 90% 0%, rgba(123,47,255,.12), transparent 70%), var(--panel);
+  }
+  .verdict h2{margin-top:0; padding-top:0;}
+  .verdict .final{display:flex; align-items:baseline; gap:14px; margin-top:18px;}
+  .verdict .final b{font:800 40px/1 var(--sans); color:var(--cyan);}
+  .verdict .final span{color:var(--muted); font-size:14px;}
+  .rec{font:600 12px/1 var(--sans); letter-spacing:.12em; text-transform:uppercase; color:var(--green); margin-top:20px;}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <div class="kicker">Software Review · Developer Tools</div>
+    <h1>/relay</h1>
+    <p class="tag">The tray app that turns Claude Code's usage limits from a wall into a workflow — by waiting for the wall to come down and walking through it for you.</p>
+    <div class="byline"><b>Tested:</b> v0.4.22 · Windows 11 · <b>Price:</b> Free / MIT · <b>Maker:</b> Patrick (Sojournly)</div>
+
+    <div class="score" aria-label="Score 7.5 out of 10">
+      <div class="score-inner">
+        <div class="score-num">7.5<span>/10</span></div>
+        <div class="score-label">Verge Score</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+<article>
+
+<p class="dek">There is a particular flavour of modern frustration reserved for people who pay for an AI coding assistant and then watch it stop mid-sentence because they've "hit their 5-hour limit." /relay is a 700-line Electron app built by one developer to make that frustration somebody else's problem — specifically, the scheduler's.</p>
+
+<p>Anthropic's Claude Code enforces rolling usage caps: a 5-hour session window and a 7-day weekly window. When you hit one, the agent halts, and your half-finished refactor sits there until the clock resets — often at 2 a.m., when you are asleep and certainly not watching a terminal. The conventional answer is to babysit: keep a tab open, notice the reset, paste "continue," repeat. /relay's pitch is that a computer should do that, because a computer is exactly the kind of thing that is awake at 2 a.m.</p>
+
+<p>It is a Windows system-tray app that schedules prompts into local Claude Code sessions, streams their output to logs, and — the headline trick — detects when a session dies on a limit and automatically re-arms itself to resume at the precise moment capacity returns. Close the window; the tray process keeps the scheduler alive. It is a narrow tool with an opinionated thesis, and for the most part it delivers on it.</p>
+
+<h2><span class="n">01</span>The problem, and who's actually buying</h2>
+
+<p>Let's be clear about the audience, because it is small and specific. /relay is not for someone who asks Claude to rename a variable twice a day. It is for the power user running <em>long, autonomous, unattended</em> Claude Code workloads — overnight test-bench runs, multi-session build-outs, anything whose natural length exceeds a single 5-hour budget. The design documents are refreshingly honest about this: the "killer feature," repeated almost as a mantra, is carrying a long run <strong>across reset boundaries the session itself cannot cross</strong>. A Claude Code session is ephemeral and cannot schedule its own future. /relay is the always-on daemon it hands work to.</p>
+
+<p>That framing — Claude as the ephemeral worker, /relay as the persistence layer — is the most intellectually satisfying thing about the product, and it's what separates it from "a nicer cron job." A running session can enqueue its own continuation via a CLI call <em>before</em> it gets cut off, so the handoff is staged, not scrambled. When the limit lands, a fresh session is relaunched at reset to read a checkpoint file and carry on. It's a genuinely clever inversion, and it's the reason this tool exists.</p>
+
+<div class="pull">
+  <p>/relay solves a problem Anthropic created and apparently forgot to fix — elegantly, and just a little dangerously.</p>
+  <div class="who">The Verdict, in one line</div>
+</div>
+
+<h2><span class="n">02</span>The features that earn their keep</h2>
+
+<h3>The scheduler</h3>
+<p>Refreshingly unglamorous. There's no OS cron, no quartz engine, no dependency sprawl — just an internal timer that ticks every 20 seconds and fires anything due (<code>once</code>, <code>at-next-reset</code>, or a specific time). Because the app is always-on via autostart, that's genuinely all it needs, and the restraint is the right call. A pleasant side effect: if your PC was asleep through a scheduled time, the task fires on the next tick after wake rather than being silently lost. Tasks persist to a plain JSON file with atomic <code>tmp</code>+<code>rename</code> writes. No SQLite, no native modules, no build risk. For this data volume that's the correct lazy choice, and the author says as much in a comment.</p>
+
+<h3>Auto-resume on limit reset</h3>
+<p>The marquee feature, and it works through two cooperating mechanisms. First, the executor watches a stopped session's CLI output for limit-reached language. Second — and this is the smarter half — /relay reaches into Claude.ai's own usage API to read the <em>exact</em> reset timestamp, then schedules the resume for that precise moment rather than guessing. There's even a small piece of correct reasoning baked in: if the weekly window is the one pinned at 100%, it waits for the <em>weekly</em> reset, not the sooner 5-hour one. Details like that are the difference between a demo and a tool.</p>
+
+<h3>Live usage gauges</h3>
+<p>Two bars — 5-hour session and 7-day weekly — with reset countdowns, pulled live from Claude.ai. The implementation is quietly the most ambitious code in the project: it prefers an "authoritative" reading captured by a Claude Code status-line bridge, then <em>blends in</em> a token-delta estimate computed from local transcript files for the minutes since that last capture. It's the same technique community tools like ccusage use, executed with care (cache-read tokens deliberately excluded so they don't swamp the gauge). When the live data goes stale it falls back to a pure transcript estimate. It is more engineering than a usage bar strictly needs — but it's the good kind of over-delivery, and it makes the "prime, don't scramble" philosophy real.</p>
+
+<h3>The three Claude Code skills</h3>
+<p>This is where /relay stops being an app you look at and becomes infrastructure you talk to. <code>/relay</code> lets you type <em>"build the payment flow at 9am tomorrow"</em> inside any Claude session and have it parsed into a scheduled task. <code>/relay-autoresume</code> arms the current session so that if <em>it</em> hits a limit, a resume is auto-scheduled — implemented as a watched arm-file plus a watchdog that fires when usage crosses 100%. <code>/relay-listen</code> hibernates a session in a polling loop until queued tasks finish, then reads their logs and acts. The skills are written to <code>~/.claude/commands/</code> on every app launch from a single source in <code>main.js</code>, so they self-update silently. Smart, low-ceremony distribution.</p>
+
+<h3>Per-task model + effort, and the resume picker</h3>
+<p>Every task can carry its own model (seven options across current and legacy Opus/Sonnet/Haiku) and effort level, with the UI correctly gating invalid combinations — <code>xhigh</code> only appears for Opus 4.8/4.7, and effort is disabled entirely for Haiku, which doesn't support it. The session resume picker is similarly thoughtful: it scans local Claude transcripts and surfaces each conversation with its first message as a de-facto title, a friendly slug, the working directory, the live <strong>git branch</strong> (read straight from <code>.git/HEAD</code>), and an "active" flag — plus folder browsing for fresh tasks. These are the touches of someone scratching their own itch and noticing where it still itches.</p>
+
+<div class="specs">
+  <div><dt>Platform</dt><dd>Windows 10/11 only</dd></div>
+  <div><dt>Stack</dt><dd>Electron + vanilla JS</dd></div>
+  <div><dt>Dependencies</dt><dd>One (electron-updater)</dd></div>
+  <div><dt>Store</dt><dd>Local JSON</dd></div>
+  <div><dt>Models</dt><dd>7, per-task</dd></div>
+  <div><dt>Auto-update</dt><dd>GitHub Releases</dd></div>
+  <div><dt>Source</dt><dd>MIT, open</dd></div>
+  <div><dt>Requires</dt><dd>Claude Code, logged in</dd></div>
+</div>
+
+<h2><span class="n">03</span>Design &amp; UX</h2>
+
+<p class="dek">A dark, near-black interface with cyan-and-purple accents that wants very badly to be Linear — and mostly pulls it off.</p>
+
+<p>The renderer is hand-written vanilla JS against a tight CSS design system; no React, no bundler, no build step for the UI at all. That's a defensible decision for a single-window app, and the result loads instantly and looks the part: a 56-px draggable topbar, blurred translucent panels, restrained accent colours, a sensible type scale. It reads as a product, not a script with a window.</p>
+
+<p>Where the polish thins out is depth. This is fundamentally a one-window, one-list app — schedule a task, watch the queue, read a log. There's no command palette, no keyboard-first navigation, none of the things that make Linear actually <em>feel</em> like Linear beyond the colour palette; the design outline itself listed those as "Phase 4 — Polish," and Phase 4 is visibly unfinished. For the target user — who lives in a terminal anyway — that's a venial sin. But "Linear-style" is doing some aspirational work in the marketing.</p>
+
+<h2><span class="n">04</span>Reliability</h2>
+
+<p>For a personal tool at v0.4, /relay shows more operational paranoia than most shipping software. A single-instance lock prevents a second copy from double-firing every task. A 45-minute hard timeout kills hung child processes so a stuck session can't block the scheduler forever. The tick loop guards against re-entrancy and warns in the log when a tick runs slow. The usage fetch retries with backoff. External writes to the task file — the whole point of letting Claude enqueue its own work — are picked up via a debounced filesystem watcher. This is someone who has been paged at 3 a.m. and built accordingly.</p>
+
+<p>The cracks are where the app meets things it doesn't control. Limit detection leans on a <strong>regex against Claude's CLI output</strong> — <code>/limit reached|you've hit your|resets? at/</code> and friends. The day Anthropic rephrases that message, the primary detector goes blind. (The Claude.ai usage API is a sturdier backstop, which softens the blow, but the first line of defence is brittle string-matching against another vendor's UI copy.) "Which session did this task create?" is answered by a heuristic — the most-recently-modified <code>.jsonl</code> — that can pick the wrong conversation if two sessions are active at once. And the JSON store does an unlocked read-modify-write from both the app <em>and</em> the external CLI; the atomic rename prevents a torn file, but two near-simultaneous writers can still clobber each other's task with last-write-wins. Rare in single-user reality, but it's a real edge the SQLite the design called for would have closed.</p>
+
+<p>Testing is the thinnest part of the engineering. There's a syntax check across every file and a smoke test that exercises all 33 model×effort combinations — both good — but no behavioural tests for the scheduler, the executor, the limit parser, or the reset-time math, which is exactly the logic whose silent failure would cost you an overnight run.</p>
+
+<h2><span class="n">05</span>Security posture</h2>
+
+<p class="dek">Thoughtful where it matters most, and honest about the one place it deliberately leaves the door open.</p>
+
+<p>The standout is cost-safety: before spawning any session, the executor <strong>deletes <code>ANTHROPIC_API_KEY</code></strong> from the child environment, by design, so tasks always run on your claude.ai subscription and can never quietly rack up metered API charges. It goes further and scrubs any env var whose name matches <code>KEY/TOKEN/SECRET/PASSWORD/CREDENTIAL</code> — a sensible blast-radius reduction given that headless tasks run with full tool access and could otherwise hand a secret to the model. It's a name-pattern blacklist, not a whitelist, and the code comments say so plainly along with why (a whitelist would break <code>PATH</code>, npm config, proxies). Reasonable trade-off, honestly documented.</p>
+
+<p>Auth is handled the right way: you log in through an embedded claude.ai window, and the <code>sessionKey</code> cookie lives in Electron's own Chromium cookie store — which on Windows is encrypted at rest with DPAPI, scoped to your user account — rather than in some plaintext config the app rolled itself. The cookie is read via the session API and sent only to <code>claude.ai</code>. No token ever touches the task store or the logs.</p>
+
+<p>And then there is the elephant: <code>skipPermissions</code> defaults to <strong>on</strong>, which means tasks spawn with <code>--dangerously-skip-permissions</code>. An unattended agent runs <em>anything</em> — edit, execute, commit — in the task's working directory with no gate, including prompts that Claude queued for itself. The maker is not hiding this; the flag's name, the code comment, and the docs all spell out the bargain (it's the only way unattended runs complete without stalling on a permission prompt). But "the autonomous overnight agent has root over your repo by default" is a posture, and a more cautious product would ship it <em>off</em> and make the user opt in with eyes open. The secret-scrubbing exists precisely because this door is open — it's mitigation, not a substitute for the door being shut.</p>
+
+<p>One more, more mundane: the installer isn't code-signed (no signing config anywhere in the build), so every user meets a Windows SmartScreen warning on first launch and a "do you trust this" moment from auto-updates. Fine for a tool you built for yourself; a friction wall the moment you hand it to anyone else.</p>
+
+<h2><span class="n">06</span>Weaknesses &amp; what's missing</h2>
+
+<div class="pc">
+  <div class="pros">
+    <h4>Pros</h4>
+    <ul>
+      <li>Solves a real, specific, daily pain — losing work at a usage limit</li>
+      <li>Auto-resume reads the <em>exact</em> reset time from Claude's API, not a guess</li>
+      <li>The skills turn it into infrastructure Claude can drive itself</li>
+      <li>Genuinely clever live-usage gauge (authoritative + token-delta blend)</li>
+      <li>Lean: one runtime dependency, vanilla UI, JSON store, no bloat</li>
+      <li>API-key stripping and secret scrub are deliberate and well-reasoned</li>
+      <li>Cookie stored in DPAPI-encrypted Chromium store, not plaintext</li>
+      <li>Operationally paranoid: single-instance lock, hung-task timeout, retries</li>
+    </ul>
+  </div>
+  <div class="cons">
+    <h4>Cons</h4>
+    <ul>
+      <li>Windows-only — no macOS or Linux, no plan for it</li>
+      <li><code>--dangerously-skip-permissions</code> on by default; full unattended autonomy</li>
+      <li>Limit detection is brittle regex against another vendor's CLI wording</li>
+      <li>Unlocked JSON store can lose a task under concurrent app + CLI writes</li>
+      <li>"Which session?" resolved by a most-recent-file heuristic that can miss</li>
+      <li>No behavioural tests on the scheduler, executor, or reset math</li>
+      <li>Unsigned installer → SmartScreen warnings for anyone you share it with</li>
+      <li>UI is shallow vs the "Linear-style" promise; no palette, no shortcuts</li>
+      <li>Relies on undocumented Claude.ai endpoints that can change without notice</li>
+    </ul>
+  </div>
+</div>
+
+<p>The deeper structural risk isn't in any one line: /relay is a tool built entirely on top of surfaces Anthropic doesn't promise to keep stable — CLI message strings, transcript file formats, an internal usage endpoint, session-registry JSON. It works beautifully against today's Claude Code. It is one upstream refactor away from needing a patch, and that fragility is inherent to the category, not a knock on the craft. The maker clearly knows this; the code is layered with fallbacks for exactly that reason.</p>
+
+<h2><span class="n">07</span>The verdict</h2>
+
+<div class="verdict">
+  <h2 style="border:none;">A sharp tool for a narrow job, built by someone who needed it</h2>
+  <p>/relay is what happens when a capable developer is annoyed by a specific limitation every single day and decides to fix it properly. It does one thing — carry autonomous Claude Code work across usage-limit resets without you in the loop — and it does that thing with real cleverness: exact reset times pulled from the API, a self-scheduling skill loop, a live-usage gauge that punches above its weight, and a security posture that's careful in the places that matter. The restraint is admirable too; almost nothing here is over-built.</p>
+  <p>It's held back from a higher score by the things that separate a great personal tool from a great product: a default that hands an unattended agent the keys to your repo, a reliance on brittle string-matching and undocumented endpoints, a thin test net under load-bearing logic, no code signing, and a Windows-only horizon. None are fatal for the power user it's aimed at — and that user will find it close to indispensable — but they're the reasons you'd hesitate before recommending it to someone who isn't already comfortable letting an AI run unsupervised in their working directory.</p>
+
+  <div class="final"><b>7.5</b><span>/ 10 — Very good. A precise fix for a real pain, with sharp edges the target user will happily live with.</span></div>
+  <div class="rec">Recommended for power users · Approach unattended autonomy with eyes open</div>
+</div>
+
+<hr>
+<p style="color:var(--muted); font-size:13px; text-align:center;">Reviewed against /relay v0.4.22 from source — README, DESIGN.md, package.json, main.js, the renderer, and src/*.js. Not affiliated with Anthropic or the maker.</p>
+
+</article>
+</div>
+</body>
+</html>

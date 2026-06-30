@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>/relay — Ponytail Code Review (Sweep 2)</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel-2: #1c2330; --border: #30363d;
+    --text: #e6edf3; --muted: #7d8590; --subtle: #6e7681;
+    --red: #f85149; --orange: #d29922; --green: #3fb950; --blue: #58a6ff; --purple: #bc8cff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.6 -apple-system, "Segoe UI", sans-serif; padding: 32px 24px; }
+  .wrap { max-width: 880px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .meta { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+  .lede { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--purple); border-radius: 8px; padding: 14px 18px; margin-bottom: 26px; font-size: 13px; color: var(--text); }
+  .lede b { color: var(--purple); }
+  .summary { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin-bottom: 30px; display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
+  .stat { text-align: center; }
+  .stat-n { font-size: 28px; font-weight: 700; }
+  .stat-l { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .stat-n.high { color: var(--red); }
+  .stat-n.med  { color: var(--orange); }
+  .stat-n.low  { color: var(--blue); }
+  .stat-n.fix  { color: var(--green); }
+  section { margin-bottom: 30px; }
+  .section-head { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .finding { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; border-left: 3px solid var(--subtle); }
+  .finding.high { border-left-color: var(--red); }
+  .finding.medium { border-left-color: var(--orange); }
+  .finding.low { border-left-color: var(--blue); }
+  .finding-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  .badge { font-size: 10px; font-weight: 700; letter-spacing: .06em; padding: 2px 7px; border-radius: 4px; text-transform: uppercase; }
+  .badge.high   { background: rgba(248,81,73,.15);  color: var(--red); }
+  .badge.medium { background: rgba(210,153,34,.15); color: var(--orange); }
+  .badge.low    { background: rgba(88,166,255,.15); color: var(--blue); }
+  .finding-title { font-weight: 600; font-size: 13.5px; flex: 1; min-width: 220px; }
+  .loc { font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; color: var(--purple); white-space: nowrap; }
+  .lbl { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--subtle); display: block; margin: 8px 0 2px; }
+  .finding-what { font-size: 13px; color: #c9d1d9; }
+  .finding-fix  { font-size: 13px; color: var(--green); }
+  .tag { display: inline-block; font-size: 10.5px; background: rgba(255,255,255,.06); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; color: var(--muted); }
+  code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; color: #e6edf3; }
+  .finding-fix code { background: rgba(63,185,80,.08); border-color: rgba(63,185,80,.25); color: #7ee787; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+  td.s-fixed   { color: var(--green); font-weight: 600; white-space: nowrap; }
+  td.s-open    { color: var(--orange); font-weight: 600; white-space: nowrap; }
+  td.s-wrong   { color: var(--blue); font-weight: 600; white-space: nowrap; }
+  td .loc { color: var(--purple); }
+  .foot { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--subtle); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>/relay — Ponytail Code Review · Sweep 2</h1>
+  <div class="meta">Generated 2026-06-30 &nbsp;·&nbsp; Follow-up after the 0.4.22 fixes &nbsp;·&nbsp; v0.4.22 &nbsp;·&nbsp; Reviewed: main.js, preload.js, src/*.js, renderer/app.js, scripts/relay.js</div>
+
+  <div class="lede">
+    <b>Headline:</b> the 0.4.22 <code>normPct</code> fix over-corrected. The previous review claimed the API
+    returned a 0–1 float; in fact <code>utilization</code> and <code>used_percentage</code> are <em>already</em> 0–100
+    percentages (tracker.js reads them that way). The new fraction heuristic now mis-scales every genuine
+    reading in the 0–1% range — a real <b>1% reading becomes 100%</b>, which both lies on the gauge and trips the
+    auto-resume watchdog. One bug fixed, a narrower one introduced. Most other prior findings are genuinely
+    resolved; two of the prior "HIGH"s were overstated and need no change.
+  </div>
+
+  <div class="summary">
+    <div class="stat"><div class="stat-n high">1</div><div class="stat-l">High</div></div>
+    <div class="stat"><div class="stat-n med">2</div><div class="stat-l">Medium</div></div>
+    <div class="stat"><div class="stat-n low">4</div><div class="stat-l">Low / ceiling</div></div>
+    <div class="stat"><div class="stat-n fix">10</div><div class="stat-l">Prior findings resolved</div></div>
+  </div>
+
+  <!-- HIGH -->
+  <section>
+    <div class="section-head">High severity — new</div>
+
+    <div class="finding high">
+      <div class="finding-head">
+        <span class="badge high">high</span>
+        <span class="finding-title">normPct fraction heuristic corrupts the 0–1% range — 1% reads as 100%</span>
+        <span class="loc">main.js:25</span>
+      </div>
+      <div class="finding-what">
+        <code>if (v &gt; 0 &amp;&amp; v &lt;= 1) v *= 100</code> assumes a value ≤ 1 is a fraction. But both source fields
+        are already percentages: the comment itself says <code>utilization</code> is "e.g. 25", and
+        <code>tracker.js:124/138</code> rounds <code>used_percentage</code> straight to a percent with no scaling.
+        So a user genuinely at 1% usage (<code>utilization === 1</code>) is scaled to <b>100</b>. Consequences cascade:
+        <span class="lbl">1 · gauge</span><code>refreshUsage</code> paints the Session/Weekly bar at 100% the moment real usage is 1%.
+        <span class="lbl">2 · watchdog false-positive</span><code>checkAutoResumeArm</code> (main.js:403) sees <code>sessionPct &gt;= 100</code>,
+        schedules a spurious resume, and deletes the arm file.
+        <span class="lbl">3 · 7-day mis-schedule</span><code>pickResetAt</code> (main.js:61) takes <code>weeklyPct &gt;= 100</code> as
+        the binding constraint and schedules the resume at the <em>weekly</em> reset — up to 7 days out — when the run was
+        only stopped by the 5h session limit.
+      </div>
+      <div class="lbl">Fix</div>
+      <div class="finding-fix">
+        Delete the heuristic. The fields are percentages; there is no fraction case to disambiguate, and
+        <code>1.0</code> ("100%") is indistinguishable from <code>1</code> ("1%") anyway — so the branch is unwinnable.
+        <code>normPct</code> reduces to <code>Math.min(100, Math.max(0, Math.round(used_percentage ?? utilization)))</code>.
+      </div>
+    </div>
+  </section>
+
+  <!-- MEDIUM -->
+  <section>
+    <div class="section-head">Medium severity</div>
+
+    <div class="finding medium">
+      <div class="finding-head">
+        <span class="badge medium">medium</span>
+        <span class="finding-title">Autoresume watchdog acts on a single unconfirmed reading and burns the arm file</span>
+        <span class="loc">main.js:401–413</span>
+        <span class="tag">false-positive</span>
+      </div>
+      <div class="finding-what">
+        <code>checkAutoResumeArm</code> fires every 30s. On the <em>first</em> reading where <code>sessionPct &gt;= 100</code> (or
+        weekly), it schedules a resume and immediately <code>fs.unlinkSync(armFile)</code>. There is no second-reading
+        confirmation, so any transient 100% — a real API blip, or the normPct bug above — permanently consumes the arm.
+        If a genuine limit is hit later in the session, the arm is already gone and nothing auto-resumes. The arm is the
+        whole point of the skill, and it is single-use against an unverified signal.
+      </div>
+      <div class="lbl">Fix</div>
+      <div class="finding-fix">
+        Require the reading to also carry a real reset timestamp before consuming the arm:
+        gate on <code>pickResetAt(usage)</code> being non-null (a true maxed window always returns one), or require two
+        consecutive ticks at ≥100 before deleting. One extra <code>&amp;&amp;</code>, no new state.
+      </div>
+    </div>
+
+    <div class="finding medium">
+      <div class="finding-head">
+        <span class="badge medium">medium</span>
+        <span class="finding-title">Helper duplication survives in the standalone files the dedup pass didn't touch</span>
+        <span class="loc">scripts/relay.js:36,38,48,62 · src/tracker.js:17</span>
+        <span class="tag">duplication</span>
+      </div>
+      <div class="finding-what">
+        The 0.4.2x cleanup centralised the renderer modal, the skill writers, and reset-time resolution — good. But
+        <code>uid()</code>, <code>currentSessionId()</code>, <code>findSessionCwd()</code> and <code>nextSessionReset()</code> still
+        live as independent copies in <code>scripts/relay.js</code>, and <code>currentSessionId()</code> has a fourth copy in
+        <code>tracker.js</code>. These are pure-Node (no Electron), so they don't need the duplication —
+        <code>scheduler.js</code> and <code>sessions.js</code> already export the canonical versions.
+        <span class="lbl">Note</span><code>userDataDir()</code> in relay.js is <em>justified</em> duplication and should stay:
+        <code>src/paths.js</code> does <code>require('electron')</code> at module top, so the CLI cannot import it. The prior
+        review's "just require paths.js" fix would crash the CLI.
+      </div>
+      <div class="lbl">Fix</div>
+      <div class="finding-fix">
+        Move <code>uid</code> + the three session/reset helpers into one Electron-free <code>src/util.js</code>; require it from
+        relay.js, tracker.js, scheduler.js, sessions.js. Leave <code>userDataDir</code> where it is.
+      </div>
+    </div>
+  </section>
+
+  <!-- LOW -->
+  <section>
+    <div class="section-head">Low / acknowledged ceilings</div>
+
+    <div class="finding low">
+      <div class="finding-head">
+        <span class="badge low">low</span>
+        <span class="finding-title">Secret scrub blacklist misses value-shaped secrets (DATABASE_URL, *_DSN, *_PAT, *_PASS)</span>
+        <span class="loc">src/executor.js:88</span>
+        <span class="tag">security · ceiling</span>
+      </div>
+      <div class="finding-what">
+        The regex strips names ending in KEY/TOKEN/SECRET/PASSWORD/CREDENTIAL/ACCESS_KEY — so <code>GH_TOKEN</code>,
+        <code>AWS_SECRET_ACCESS_KEY</code>, <code>PGPASSWORD</code> are caught. But a connection string in
+        <code>DATABASE_URL</code> (password embedded), <code>*_DSN</code>, a <code>*_PAT</code>, or <code>MYSQL_PASS</code> slip through
+        to a child running with <code>--dangerously-skip-permissions</code>. The <code>ponytail:</code> comment already names this
+        as a known blacklist ceiling, so this is a "raise the wall a little" note, not a defect.
+      </div>
+      <div class="lbl">Fix</div>
+      <div class="finding-fix">Add <code>URL|DSN|PASS|PAT|CONN(ECTION)?(_STRING)?</code> to the pattern, or move to a PATH/SystemRoot/APPDATA whitelist when you next touch this path.</div>
+    </div>
+
+    <div class="finding low">
+      <div class="finding-head">
+        <span class="badge low">low</span>
+        <span class="finding-title">Skill-armed resume drops the session's model and effort</span>
+        <span class="loc">main.js:408–409</span>
+      </div>
+      <div class="finding-what">
+        <code>checkAutoResumeArm</code> hardcodes <code>model: null, effort: null</code>. An Opus-4.8 / xhigh session that hits a
+        limit is auto-resumed as default Sonnet. The arm file (written by the skill) doesn't capture model/effort, so there's
+        nothing to forward — minor, and arguably acceptable for a "keep going" resume.
+      </div>
+      <div class="lbl">Fix</div>
+      <div class="finding-fix">Have <code>relay-autoresume.md</code> record the active model/effort into <code>autoresume.json</code>, then pass them through. Or leave it — YAGNI until someone complains.</div>
+    </div>
+
+    <div class="finding low">
+      <div class="finding-head">
+        <span class="badge low">low</span>
+        <span class="finding-title">RESET_AT_RE only matches "resets at HH:MM"</span>
+        <span class="loc">src/executor.js:51</span>
+      </div>
+      <div class="finding-what">
+        Still narrow (misses "try again in 2h", "resets tomorrow"). Lower impact than the prior review implied: the
+        API-fetched reset time is now the authoritative source via <code>pickResetAt</code>, and <code>resetHint</code> is only a
+        cosmetic string in the task meta line. Not worth broadening.
+      </div>
+      <div class="lbl">Fix</div>
+      <div class="finding-fix">Leave it. The regex is a display nicety; correctness rides on the API path now.</div>
+    </div>
+
+    <div class="finding low">
+      <div class="finding-head">
+        <span class="badge low">low</span>
+        <span class="finding-title">Store re-reads + re-parses JSON on every op — prior HIGH was overstated</span>
+        <span class="loc">src/store.js:33–74</span>
+        <span class="tag">contradicts prior review</span>
+      </div>
+      <div class="finding-what">
+        Every <code>getTasks/addTask/updateTask</code> does a full <code>load()</code>. Re-verified against actual call pressure:
+        the scheduler reads once per 20s tick over a handful of tasks; the file is a few KB. This is microseconds and
+        crash-safe. The proposed module-level cache adds an invalidation surface (the external <code>fs.watch</code> writes
+        from the CLI are exactly why load-on-read is correct here). <b>Ponytail verdict: don't add the cache.</b>
+      </div>
+      <div class="lbl">Fix</div>
+      <div class="finding-fix">No change. Reconsider only if a profiler ever shows store I/O on a hot path.</div>
+    </div>
+  </section>
+
+  <!-- VERIFICATION OF PRIOR FINDINGS -->
+  <section>
+    <div class="section-head">Prior review (v0.4.20) — verified current status</div>
+    <table>
+      <thead><tr><th>Prior finding</th><th>Location</th><th>Status now</th></tr></thead>
+      <tbody>
+        <tr><td>fetchClaudeUsage pct scale wrong</td><td><span class="loc">main.js:21</span></td><td class="s-open">Fixed, but regressed — see HIGH above</td></tr>
+        <tr><td>Task action handler copy-pasted</td><td><span class="loc">app.js:269</span></td><td class="s-fixed">Fixed — single <code>handleTaskAction</code></td></tr>
+        <tr><td>fs.watch failures swallowed silently</td><td><span class="loc">main.js:102,122</span></td><td class="s-fixed">Fixed — both <code>catch</code> log</td></tr>
+        <tr><td>Spawn env leaks all secrets but the API key</td><td><span class="loc">executor.js:87</span></td><td class="s-fixed">Fixed (blacklist) — residual ceiling = LOW</td></tr>
+        <tr><td>Reset-time resolution duplicated ×3</td><td><span class="loc">main.js:59</span></td><td class="s-fixed">Fixed — centralised in <code>pickResetAt</code></td></tr>
+        <tr><td>Skill writers — identical boilerplate ×3</td><td><span class="loc">main.js:274</span></td><td class="s-fixed">Fixed — <code>writeSkill(filename, content)</code></td></tr>
+        <tr><td>openNewTask / openEditTask ~245 lines dup</td><td><span class="loc">app.js:323</span></td><td class="s-fixed">Fixed — merged <code>openTaskModal(task=null)</code></td></tr>
+        <tr><td>Scheduler drops ticks with no warning</td><td><span class="loc">scheduler.js:59</span></td><td class="s-fixed">Fixed — slow-tick <code>console.warn</code></td></tr>
+        <tr><td>Migration leaves obsolete keys</td><td><span class="loc">store.js:41</span></td><td class="s-fixed">Fixed — <code>delete dailyResetTime</code></td></tr>
+        <tr><td>resume-compact dead code path</td><td><span class="loc">executor.js:34</span></td><td class="s-fixed">Fixed — branch &amp; UI option gone</td></tr>
+        <tr><td>nextSessionReset / uid / session helpers dup</td><td><span class="loc">relay.js, tracker.js</span></td><td class="s-open">Still open — see MEDIUM above</td></tr>
+        <tr><td>Store re-parses JSON every op (rated HIGH)</td><td><span class="loc">store.js:33</span></td><td class="s-wrong">Overstated — leave as-is (LOW)</td></tr>
+        <tr><td>writeRelayConfig only syncs one field</td><td><span class="loc">main.js:339</span></td><td class="s-wrong">Not a bug — only that field is consumed; writing all settings leaks more. YAGNI.</td></tr>
+        <tr><td>userDataDir duplicated in relay.js</td><td><span class="loc">relay.js:15</span></td><td class="s-wrong">Justified — paths.js requires Electron; CLI can't import it</td></tr>
+        <tr><td>RESET_AT_RE too narrow</td><td><span class="loc">executor.js:51</span></td><td class="s-open">True but low — API path is authoritative now</td></tr>
+        <tr><td>collectTurns no cap / readMeta full read</td><td><span class="loc">tracker.js, sessions.js</span></td><td class="s-fixed">Acceptable — both bounded by mtime/break; no action</td></tr>
+        <tr><td>Unsafe optional-chaining in IPC handlers</td><td><span class="loc">main.js</span></td><td class="s-fixed">Guarded now (<code>schedule &amp;&amp; schedule.at</code>)</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <div class="foot">
+    Reviewed by ponytail/full · /relay v0.4.22 · 2026-06-30 · Deletion &gt; addition: the headline fix is removing one line, not adding a guard.
+  </div>
+</div>
+</body>
+</html>

@@ -15,14 +15,13 @@ const scheduler = require('./src/scheduler')
 const tracker = require('./src/tracker')
 const { logsDir, dataDir } = require('./src/paths')
 
-// Normalise a usage window to a 0–100 integer percent, whatever scale the API uses.
-// The /usage endpoint returns `utilization` as a percentage (e.g. 25), but some responses carry
-// `used_percentage` or a 0–1 fraction — handle all three so the gauges + watchdog stay correct.
+// Normalise a usage window to a 0–100 integer percent. Both API fields (used_percentage and
+// utilization) are already percentages (e.g. 25), confirmed by tracker.js reading them straight.
+// No fraction case: 1.0 ("100%") and 1 ("1%") are indistinguishable, so don't guess — take as-is.
 function normPct(w) {
   if (!w) return null
-  let v = w.used_percentage != null ? w.used_percentage : w.utilization
+  const v = w.used_percentage != null ? w.used_percentage : w.utilization
   if (v == null) return null
-  if (v > 0 && v <= 1) v *= 100 // fraction → percent
   return Math.min(100, Math.max(0, Math.round(v)))
 }
 
@@ -388,6 +387,7 @@ The arm file (\`~/.relay/autoresume.json\`) is watched by the /relay app. When /
 
 // Watch ~/.relay/autoresume.json — written by /relay-autoresume skill.
 // When usage hits 100%, schedule a resume and remove the file.
+let autoResumeHits = 0 // consecutive ticks observed at >=100% — confirm before acting
 async function checkAutoResumeArm() {
   const armFile = path.join(os.homedir(), '.relay', 'autoresume.json')
   let arm
@@ -395,12 +395,16 @@ async function checkAutoResumeArm() {
     const stat = fs.statSync(armFile)
     if (Date.now() - stat.mtimeMs > 8 * 60 * 60 * 1000) { fs.unlinkSync(armFile); return } // expired
     arm = JSON.parse(fs.readFileSync(armFile, 'utf8'))
-  } catch { return }
+  } catch { autoResumeHits = 0; return }
   if (!arm || !arm.prompt) return
   try {
     const usage = await fetchClaudeUsage()
     if (usage.error) return
-    if (usage.sessionPct < 100 && usage.weeklyPct < 100) return
+    if (usage.sessionPct < 100 && usage.weeklyPct < 100) { autoResumeHits = 0; return }
+    // Require two consecutive readings at >=100% before burning the (single-use) arm — guards
+    // against a transient API blip scheduling a spurious resume the user never hit a limit for.
+    if (++autoResumeHits < 2) { console.log('[autoresume] usage at 100% — confirming on next tick'); return }
+    autoResumeHits = 0
     const settings = store.getSettings()
     const at = pickResetAt(usage) || scheduler.nextSessionReset(settings.sessionStartTime).toISOString()
     store.addTask({
