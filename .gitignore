@@ -7,3 +7,6 @@ out/
 relay-data.json
 logs/
 ~/.relay/
+
+# brand asset bundles (binary)
+assets/*.zip
