@@ -18,19 +18,23 @@ const { normPct, pickResetAt, isLimitFalsePositive } = require('./src/usage')
 
 // Shared helper — called by the IPC renderer bridge AND by runDueTask after a limit-stopped run
 // to get the exact reset timestamps so auto-resume fires at precisely the right moment.
+let cachedOrgId = null // the org uuid is stable per login — don't re-fetch it on every poll
 async function fetchClaudeUsage({ retries = 2, retryDelayMs = 3000 } = {}) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const cookies = await session.defaultSession.cookies.get({ url: 'https://claude.ai', name: 'sessionKey' })
       if (!cookies.length) {
+        cachedOrgId = null
         if (attempt < retries) { await new Promise(r => setTimeout(r, retryDelayMs)); continue }
         return { error: 'not_logged_in' }
       }
       const headers = { 'Cookie': `sessionKey=${cookies[0].value}`, 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Cache-Control': 'no-store' }
-      const orgs = await fetch('https://claude.ai/api/organizations', { headers, cache: 'no-store' }).then(r => r.json())
-      const orgId = orgs[0] && orgs[0].uuid
-      if (!orgId) return { error: 'no_org' }
-      const data = await fetch(`https://claude.ai/api/organizations/${orgId}/usage`, { headers, cache: 'no-store' }).then(r => r.json())
+      if (!cachedOrgId) {
+        const orgs = await fetch('https://claude.ai/api/organizations', { headers, cache: 'no-store' }).then(r => r.json())
+        cachedOrgId = orgs[0] && orgs[0].uuid // ponytail: first org — multi-org accounts may need a picker
+        if (!cachedOrgId) return { error: 'no_org' }
+      }
+      const data = await fetch(`https://claude.ai/api/organizations/${cachedOrgId}/usage`, { headers, cache: 'no-store' }).then(r => r.json())
       return {
         sessionPct: normPct(data.five_hour),
         weeklyPct: normPct(data.seven_day),
@@ -38,6 +42,7 @@ async function fetchClaudeUsage({ retries = 2, retryDelayMs = 3000 } = {}) {
         weeklyResetsAt: data.seven_day && data.seven_day.resets_at ? new Date(data.seven_day.resets_at).getTime() : null,
       }
     } catch (e) {
+      cachedOrgId = null // could be a stale org (re-login, org change) — re-resolve next attempt
       if (attempt < retries) { await new Promise(r => setTimeout(r, retryDelayMs)); continue }
       throw e
     }
@@ -195,6 +200,12 @@ async function runDueTask(task, opts = {}) {
     onStart: (child) => running.set(task.id, child),
   })
   running.delete(task.id)
+  // Re-read before writing results: if the user cancelled (or deleted) the task while it ran,
+  // that decision is final — don't overwrite it with the killed child's exit status, don't
+  // queue a resume, and don't re-arm a repeat. (A manual "Run now" on a cancelled repeat task
+  // intentionally restarts its recurrence — the run sets status back to 'running' first.)
+  const stored = store.getTask(task.id)
+  if (!stored || stored.status === 'cancelled') { notifyChange(); return }
   store.updateTask(task.id, {
     status: res.status,
     lastLogPath: res.logPath,
@@ -222,7 +233,8 @@ async function runDueTask(task, opts = {}) {
   }
   // Repeat tasks re-arm for the next occurrence after every run (a limit-stop still gets its
   // separate one-shot resume above; the recurring slot keeps firing on schedule regardless).
-  const sched = task.schedule || {}
+  // Use the STORED schedule, not the closure copy — the user may have edited the interval mid-run.
+  const sched = stored.schedule || {}
   if (sched.kind === 'repeat') {
     store.updateTask(task.id, {
       status: 'scheduled',
@@ -367,7 +379,7 @@ cat ~/.relay/config.json
 
    a. Write a one-sentence summary of what this session is working on.
 
-   b. Write the arm file — /relay monitors this and will schedule a resume automatically when usage hits 100%:
+   b. Write the arm file — /relay monitors this and will schedule a resume automatically when usage hits 100%. **Replace RESUME_PROMPT in the command below with the summary from step (a)** — do not run it with the literal placeholder:
 \`\`\`bash
 node -e "
 const os=require('os'),fs=require('fs'),path=require('path');
@@ -474,6 +486,8 @@ function registerIpc() {
       mode: input.mode || 'fresh',
       sessionId: input.sessionId || null,
       projectPath: input.projectPath || '',
+      model: input.model || null,
+      effort: input.effort || null,
       schedule,
       status: 'scheduled',
       createdAt: new Date().toISOString(),
@@ -485,14 +499,14 @@ function registerIpc() {
 
   ipcMain.handle('relay:cancel', (_e, id) => {
     const child = running.get(id)
-    if (child) { try { child.kill() } catch {} running.delete(id) }
+    if (child) { executor.killTree(child); running.delete(id) }
     store.updateTask(id, { status: 'cancelled' })
     notifyChange()
   })
 
   ipcMain.handle('relay:delete', (_e, id) => {
     const child = running.get(id)
-    if (child) { try { child.kill() } catch {} running.delete(id) }
+    if (child) { executor.killTree(child); running.delete(id) }
     store.deleteTask(id)
     notifyChange()
   })
@@ -509,7 +523,8 @@ function registerIpc() {
 
   ipcMain.handle('relay:run-now', async (_e, id) => {
     const t = store.getTask(id)
-    if (t && (t.status === 'scheduled' || t.status === 'failed' || t.status === 'stopped' || t.status === 'cancelled')) {
+    // Anything not currently running can be run now — matches the UI/context-menu button rule.
+    if (t && t.status !== 'running') {
       await runDueTask(t, { manual: true }) // explicit run bypasses the extended-usage gate
     }
   })
@@ -575,11 +590,15 @@ function registerIpc() {
   })
 
   ipcMain.handle('relay:claude-logout', async () => {
+    cachedOrgId = null
     await session.defaultSession.cookies.remove('https://claude.ai', 'sessionKey')
   })
 
   ipcMain.handle('relay:logs:get', (_e, logPath) => {
-    try { return fs.readFileSync(logPath, 'utf8') } catch { return '(log not found)' }
+    // Defense in depth: only serve files from the logs dir, whatever path the renderer sends.
+    const resolved = path.resolve(String(logPath || ''))
+    if (!resolved.toLowerCase().startsWith(path.resolve(logsDir()).toLowerCase() + path.sep)) return '(log not found)'
+    try { return fs.readFileSync(resolved, 'utf8') } catch { return '(log not found)' }
   })
   ipcMain.handle('relay:logs:open', () => shell.openPath(logsDir()))
 
@@ -591,17 +610,20 @@ function registerIpc() {
     // Write relay.cmd so `relay` works as a bare command on Windows PATH
     fs.writeFileSync(path.join(scriptsDir, 'relay.cmd'), '@echo off\nnode "%~dp0relay.js" %*\n')
 
-    // Add scripts dir to user PATH (HKCU — no elevation needed)
+    // Add scripts dir to user PATH (HKCU — no elevation needed). The dir is passed via an env
+    // var, never interpolated into the command string — a PATH entry containing " $ or ` must not
+    // be parsed as PowerShell. The existing PATH is appended to untouched, not rewritten.
     try {
       const cur = execFileSync('powershell', ['-NoProfile', '-Command',
         '[Environment]::GetEnvironmentVariable("Path","User")'
       ], { encoding: 'utf8' }).trim()
       const parts = cur.split(';').map(p => p.trim()).filter(Boolean)
       if (!parts.some(p => p.toLowerCase() === scriptsDir.toLowerCase())) {
-        const next = [...parts, scriptsDir].join(';')
         execFileSync('powershell', ['-NoProfile', '-Command',
-          `[Environment]::SetEnvironmentVariable("Path","${next}","User")`
-        ])
+          '$cur = [Environment]::GetEnvironmentVariable("Path","User"); ' +
+          '$next = if ($cur -and -not $cur.EndsWith(";")) { $cur + ";" + $env:RELAY_ADD_PATH } else { $cur + $env:RELAY_ADD_PATH }; ' +
+          '[Environment]::SetEnvironmentVariable("Path",$next,"User")'
+        ], { env: { ...process.env, RELAY_ADD_PATH: scriptsDir } })
       }
     } catch (e) {
       return { ok: false, error: `PATH update failed: ${e.message}` }
@@ -649,7 +671,14 @@ function rotateLogs(maxAgeDays = 14) {
 
 function cleanupOrphanedTasks() {
   for (const t of store.getTasks()) {
-    if (t.status === 'running') store.updateTask(t.id, { status: 'interrupted' })
+    if (t.status !== 'running') continue
+    // A repeat task orphaned mid-run must keep its recurrence — re-arm at the next occurrence
+    // instead of stranding it as 'interrupted' (which would silently end the daily/weekly job).
+    if (t.schedule && t.schedule.kind === 'repeat') {
+      store.updateTask(t.id, { status: 'scheduled', schedule: { ...t.schedule, at: scheduler.nextRepeat(t.schedule).toISOString() } })
+    } else {
+      store.updateTask(t.id, { status: 'interrupted' })
+    }
   }
 }
 
@@ -692,8 +721,8 @@ function main() {
   app.on('before-quit', () => {
     app.isQuitting = true
     if (stopScheduler) stopScheduler()
-    // Kill every running child process so claude sessions don't outlive Relay
-    running.forEach((child) => { try { child.kill() } catch {} })
+    // Kill every running child process (whole tree) so claude sessions don't outlive Relay
+    running.forEach((child) => executor.killTree(child))
     running.clear()
   })
 

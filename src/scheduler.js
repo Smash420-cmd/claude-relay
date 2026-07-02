@@ -61,6 +61,8 @@ function start({ intervalMs, getState, runDueTask }) {
     try {
       const { tasks, settings } = getState()
       const now = Date.now()
+      // Due tasks run SEQUENTIALLY on purpose: parallel claude runs would race each other into the
+      // session limit. Consequence: one long run delays everything behind it (incl. repeat slots).
       for (const t of tasks) {
         if (t.status !== 'scheduled') continue
         if (dueTime(t, settings) <= now) {

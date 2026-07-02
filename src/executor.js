@@ -1,6 +1,6 @@
 'use strict'
 // Runs a task by spawning the Claude Code CLI as a subprocess and capturing its output to a log.
-const { spawn } = require('child_process')
+const { spawn, execFile } = require('child_process')
 const { randomUUID } = require('crypto')
 const fs = require('fs')
 const path = require('path')
@@ -92,6 +92,17 @@ function scrubSecrets(env) {
   return out
 }
 
+// Kill the whole process tree. On Windows we spawn via cmd.exe (shell:true), so child.kill()
+// only kills the shell and leaves the claude process running headless — taskkill /T gets the tree.
+function killTree(child) {
+  if (!child) return
+  if (process.platform === 'win32' && child.pid) {
+    try { execFile('taskkill', ['/pid', String(child.pid), '/T', '/F']) } catch {}
+  } else {
+    try { child.kill() } catch {}
+  }
+}
+
 // Runs the task. Resolves { exitCode, status, logPath, resetHint }.
 // opts: { command, cwd, onStart(child) }
 function runTask(task, opts = {}) {
@@ -134,12 +145,19 @@ function runTask(task, opts = {}) {
     // Feed the prompt via stdin (immune to shell arg-splitting), then close it.
     try { child.stdin.write(promptText); child.stdin.end() } catch {}
 
-    child.stdout && child.stdout.on('data', d => { const s = d.toString(); output += s; logStream.write(s) })
-    child.stderr && child.stderr.on('data', d => { const s = d.toString(); output += s; logStream.write(s) })
+    // Keep only the tail in memory — detectLimit needs the end of the output, and a chatty
+    // 45-min run can produce hundreds of MB (the full text still goes to the log file).
+    const OUTPUT_CAP = 65536
+    const append = (s) => { output = (output + s).slice(-OUTPUT_CAP) }
+    child.stdout && child.stdout.on('data', d => { const s = d.toString(); append(s); logStream.write(s) })
+    child.stderr && child.stderr.on('data', d => { const s = d.toString(); append(s); logStream.write(s) })
 
     child.on('error', err => {
-      logStream.write(`\n[error] ${err.message}\n`)
-      logStream.end()
+      clearTimeout(timeout)
+      if (!logStream.writableEnded) {
+        logStream.write(`\n[error] ${err.message}\n`)
+        logStream.end()
+      }
       resolve({ exitCode: -1, status: 'failed', logPath, resetHint: null })
     })
 
@@ -147,9 +165,11 @@ function runTask(task, opts = {}) {
     // Prevents the scheduler from blocking forever on a hung task (e.g. Claude Code
     // pausing for user input after hitting a session limit with stdin already closed).
     const timeout = setTimeout(() => {
-      try { child.kill() } catch {}
-      logStream.write('\n\n[timeout] process exceeded 45 min — killed\n')
-      logStream.end()
+      killTree(child)
+      if (!logStream.writableEnded) {
+        logStream.write('\n\n[timeout] process exceeded 45 min — killed\n')
+        logStream.end()
+      }
       resolve({ exitCode: -1, status: 'failed', logPath, resetHint: null })
     }, 45 * 60 * 1000)
 
@@ -171,4 +191,4 @@ function runTask(task, opts = {}) {
   })
 }
 
-module.exports = { runTask, buildArgs, detectLimit, isSecretEnv, scrubSecrets }
+module.exports = { runTask, buildArgs, detectLimit, isSecretEnv, scrubSecrets, killTree }

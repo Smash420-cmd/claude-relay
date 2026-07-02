@@ -757,4 +757,6 @@ document.getElementById('updatePill').addEventListener('click', () => {
   window.relay.installUpdate()
 })
 refresh().then(() => { if (!SETTINGS.hasSeenWelcome) openWelcome() })
-setInterval(refreshUsage, 5000) // keep the gauges + reset countdowns live
+// 30s polling — each refresh is a live claude.ai API call; 5s was ~35k requests/day from an idle
+// tray app. Countdowns show minutes, so 30s staleness is invisible; store changes push instantly.
+setInterval(refreshUsage, 30000)

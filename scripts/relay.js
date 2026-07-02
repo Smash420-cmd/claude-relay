@@ -31,6 +31,23 @@ function saveStore(db) {
   fs.mkdirSync(path.dirname(STORE), { recursive: true })
   const tmp = STORE + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(db, null, 2)); fs.renameSync(tmp, STORE)
 }
+// Mutation lock shared with the app (src/store.js withLock) — prevents a CLI load→save pair from
+// erasing a task the app wrote in between (and vice versa). Same lock path, same 5s stale-break.
+function withLock(fn) {
+  const lock = STORE + '.lock'
+  for (let i = 0; i < 50; i++) {
+    try {
+      fs.writeFileSync(lock, String(process.pid), { flag: 'wx' })
+      try { return fn() } finally { try { fs.unlinkSync(lock) } catch {} }
+    } catch (e) {
+      if (e.code !== 'EEXIST') throw e
+      try { if (Date.now() - fs.statSync(lock).mtimeMs > 5000) { fs.unlinkSync(lock); continue } } catch {}
+      const end = Date.now() + 20
+      while (Date.now() < end) { /* wait */ }
+    }
+  }
+  return fn()
+}
 
 // ── helpers ──
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8) }
@@ -136,8 +153,7 @@ function cmdSchedule(f) {
     status: 'scheduled',
     createdAt: new Date().toISOString(),
   }
-  db.tasks.unshift(task)
-  saveStore(db)
+  withLock(() => { const fresh = loadStore(); fresh.tasks.unshift(task); saveStore(fresh) })
   console.log(`✓ scheduled "${task.title}"`)
   console.log(`  ${task.mode}${sessionId ? ' · session ' + sessionId.slice(0, 8) : ''}${cwd ? ' · cwd ' + cwd : ''}`)
   console.log(`  ${repeat ? `repeats every ${repeat.n} ${repeat.unit} — first ` : 'fires '}${new Date(at).toLocaleString()}  (id ${task.id})`)
@@ -149,10 +165,14 @@ function cmdList() {
 }
 function cmdCancel(id) {
   if (!id) { console.error('error: cancel needs a task id'); process.exit(1) }
-  const db = loadStore()
-  const t = db.tasks.find(x => x.id === id)
-  if (!t) { console.error('no task ' + id); process.exit(1) }
-  t.status = 'cancelled'; saveStore(db); console.log('✓ cancelled ' + id)
+  const found = withLock(() => {
+    const db = loadStore()
+    const t = db.tasks.find(x => x.id === id)
+    if (!t) return false
+    t.status = 'cancelled'; saveStore(db); return true
+  })
+  if (!found) { console.error('no task ' + id); process.exit(1) }
+  console.log('✓ cancelled ' + id)
 }
 function cmdLog(taskId) {
   if (!taskId) { console.error('error: log needs a task id'); process.exit(1) }

@@ -58,37 +58,60 @@ function save(db) {
   fs.renameSync(tmp, file) // atomic-ish replace
 }
 
+// Cross-process mutation lock — the CLI (scripts/relay.js) writes the same file, and an unlocked
+// load→mutate→save pair loses whichever write lands first. `wx` create is atomic on NTFS; a lock
+// older than 5s is a crashed writer and gets broken. Mirrored in scripts/relay.js.
+function withLock(fn) {
+  const lock = tasksFile() + '.lock'
+  for (let i = 0; i < 50; i++) {
+    try {
+      fs.writeFileSync(lock, String(process.pid), { flag: 'wx' })
+      try { return fn() } finally { try { fs.unlinkSync(lock) } catch {} }
+    } catch (e) {
+      if (e.code !== 'EEXIST') throw e
+      try { if (Date.now() - fs.statSync(lock).mtimeMs > 5000) { fs.unlinkSync(lock); continue } } catch {}
+      const end = Date.now() + 20 // ponytail: sync spin-wait — mutations are millisecond-scale
+      while (Date.now() < end) { /* wait */ }
+    }
+  }
+  return fn() // lock never freed after ~1s of retries — proceed rather than drop the write
+}
+
 function getTasks() { return load().tasks }
 function getTask(id) { return load().tasks.find(t => t.id === id) || null }
-function addTask(task) { const db = load(); db.tasks.unshift(task); save(db); return task }
+function addTask(task) { return withLock(() => { const db = load(); db.tasks.unshift(task); save(db); return task }) }
 function updateTask(id, patch) {
-  const db = load()
-  const t = db.tasks.find(x => x.id === id)
-  if (!t) return null
-  Object.assign(t, patch)
-  save(db)
-  return t
+  return withLock(() => {
+    const db = load()
+    const t = db.tasks.find(x => x.id === id)
+    if (!t) return null
+    Object.assign(t, patch)
+    save(db)
+    return t
+  })
 }
-function deleteTask(id) { const db = load(); db.tasks = db.tasks.filter(t => t.id !== id); save(db) }
+function deleteTask(id) { withLock(() => { const db = load(); db.tasks = db.tasks.filter(t => t.id !== id); save(db) }) }
 function getSettings() { return load().settings }
-function setSettings(patch) { const db = load(); db.settings = { ...db.settings, ...patch }; save(db); return db.settings }
+function setSettings(patch) { return withLock(() => { const db = load(); db.settings = { ...db.settings, ...patch }; save(db); return db.settings }) }
 
 // When a task is stopped by the session limit, push all pending scheduled tasks to just after
 // the reset so they don't all pile up trying to fire while usage is still at 100%.
 // Stagger by 30s each so the scheduler can sequence them cleanly after the resume task fires first.
 function rescheduleAllPending(resetAt) {
-  const db = load()
-  const resetMs = new Date(resetAt).getTime()
-  let offset = 0
-  for (const t of db.tasks) {
-    if (t.status === 'scheduled' && new Date(t.schedule && t.schedule.at || 0).getTime() <= resetMs) {
-      offset++
-      const at = new Date(resetMs + offset * 30000).toISOString()
-      // Repeat tasks keep their kind/interval — only the next fire time is pushed past the reset.
-      t.schedule = t.schedule && t.schedule.kind === 'repeat' ? { ...t.schedule, at } : { kind: 'once', at }
+  withLock(() => {
+    const db = load()
+    const resetMs = new Date(resetAt).getTime()
+    let offset = 0
+    for (const t of db.tasks) {
+      if (t.status === 'scheduled' && new Date(t.schedule && t.schedule.at || 0).getTime() <= resetMs) {
+        offset++
+        const at = new Date(resetMs + offset * 30000).toISOString()
+        // Repeat tasks keep their kind/interval — only the next fire time is pushed past the reset.
+        t.schedule = t.schedule && t.schedule.kind === 'repeat' ? { ...t.schedule, at } : { kind: 'once', at }
+      }
     }
-  }
-  save(db)
+    save(db)
+  })
 }
 
 module.exports = {
