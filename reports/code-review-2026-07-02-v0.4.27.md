@@ -1,5 +1,10 @@
 # /relay full app & code review — v0.4.27 (2026-07-02)
 
+> **Status:** fixed in v0.4.28 (commit 68a8c22) — H1, H2, H3, M1–M5, L1, L3, L4, L7, L8.
+> Deliberately not fixed: L2 (multi-org picker — needs a product decision), L5 (store-level `at`
+> validation — renderer and CLI already validate; external writers are on their own),
+> L6 (kept as intended behavior, documented in code).
+
 Scope: main.js, preload.js, src/* (store, scheduler, executor, tracker, sessions, usage, paths),
 renderer/app.js, scripts/relay.js, scripts/relay-statusline.js. Ranked most-severe first.
 
