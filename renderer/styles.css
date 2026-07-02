@@ -144,6 +144,9 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .row { display: flex; gap: 10px; }
 .row > * { flex: 1; }
 .radio-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.repeat-row { display: flex; gap: 6px; align-items: center; }
+.repeat-row[hidden] { display: none; }
+.repeat-row input, .repeat-row select { width: auto; }
 .radio-chip { display: flex; align-items: center; gap: 6px; border: 1px solid var(--border-2); border-radius: 8px; padding: 7px 11px; cursor: pointer; font-size: 13px; }
 .radio-chip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }

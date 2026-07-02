@@ -83,7 +83,9 @@ function rescheduleAllPending(resetAt) {
   for (const t of db.tasks) {
     if (t.status === 'scheduled' && new Date(t.schedule && t.schedule.at || 0).getTime() <= resetMs) {
       offset++
-      t.schedule = { kind: 'once', at: new Date(resetMs + offset * 30000).toISOString() }
+      const at = new Date(resetMs + offset * 30000).toISOString()
+      // Repeat tasks keep their kind/interval — only the next fire time is pushed past the reset.
+      t.schedule = t.schedule && t.schedule.kind === 'repeat' ? { ...t.schedule, at } : { kind: 'once', at }
     }
   }
   save(db)

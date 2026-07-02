@@ -28,11 +28,27 @@ function nextWeeklyReset(weeklyStartDay, weeklyStartTime, from = new Date()) {
 // When is a task due? Returns epoch ms (Infinity = never / unsupported).
 function dueTime(task, settings) {
   const s = task.schedule || {}
-  if (s.kind === 'once') return new Date(s.at).getTime()
+  if (s.kind === 'once' || s.kind === 'repeat') return new Date(s.at).getTime()
   if (s.kind === 'at-next-reset') {
     return s.at ? new Date(s.at).getTime() : nextSessionReset(settings.sessionStartTime).getTime()
   }
   return Infinity
+}
+
+// Next occurrence of a repeat schedule strictly after `from`. Days/weeks step via setDate so the
+// wall-clock time survives DST; minutes/hours are fixed-duration ms.
+function nextRepeat(s, from = new Date()) {
+  const n = Math.max(1, parseInt(s.n, 10) || 1)
+  const d = new Date(s.at)
+  if (isNaN(d)) return new Date(from.getTime() + 60000)
+  if (s.unit === 'days' || s.unit === 'weeks') {
+    const step = s.unit === 'weeks' ? n * 7 : n
+    while (d <= from) d.setDate(d.getDate() + step) // few iterations even after long downtime
+  } else {
+    const step = (s.unit === 'hours' ? 3600e3 : 60e3) * n // minutes (default) or hours
+    if (d <= from) d.setTime(d.getTime() + step * (Math.floor((from - d) / step) + 1))
+  }
+  return d
 }
 
 // start({ intervalMs, getState, runDueTask }) -> stop()
@@ -64,4 +80,4 @@ function start({ intervalMs, getState, runDueTask }) {
   return () => clearInterval(handle)
 }
 
-module.exports = { start, nextSessionReset, nextWeeklyReset, dueTime }
+module.exports = { start, nextSessionReset, nextWeeklyReset, dueTime, nextRepeat }

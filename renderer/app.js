@@ -26,6 +26,7 @@ function fmtWhen(iso) {
 function scheduleText(t) {
   const s = t.schedule || {}
   if (s.kind === 'once') return `once · ${fmtWhen(s.at)}`
+  if (s.kind === 'repeat') return `every ${s.n > 1 ? s.n + ' ' + s.unit : s.unit.slice(0, -1)} · next ${fmtWhen(s.at)}`
   if (s.kind === 'at-next-reset') return `at next reset · ${fmtWhen(s.at)}`
   return s.kind || '—'
 }
@@ -329,9 +330,11 @@ async function openTaskModal(task = null) {
   let taskModel = editing ? (task.model || '') : (SETTINGS.defaultModel || '')
   let taskEffort = editing ? (task.effort || '') : (SETTINGS.defaultEffort || '')
 
-  const localAt = (scheduleKind === 'once' && task && task.schedule?.at)
+  const localAt = ((scheduleKind === 'once' || scheduleKind === 'repeat') && task && task.schedule?.at)
     ? new Date(new Date(task.schedule.at).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
     : ''
+  const repeatN = (task && task.schedule?.n) || 1
+  const repeatUnit = (task && task.schedule?.unit) || 'days'
 
   const resetLabel = (USAGE_API && USAGE_API.sessionResetsAt && USAGE_API.sessionResetsAt > Date.now())
     ? new Date(USAGE_API.sessionResetsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -381,8 +384,17 @@ async function openTaskModal(task = null) {
       <div class="radio-row" id="f-sched">
         <div class="radio-chip${scheduleKind === 'at-next-reset' ? ' on' : ''}" data-v="at-next-reset">At next reset (${resetLabel})</div>
         <div class="radio-chip${scheduleKind === 'once' ? ' on' : ''}" data-v="once">At a specific time</div>
+        <div class="radio-chip${scheduleKind === 'repeat' ? ' on' : ''}" data-v="repeat">Repeats</div>
       </div>
-      <div id="f-once-wrap"${scheduleKind !== 'once' ? ' hidden' : ''} style="margin-top:10px">
+      <div id="f-repeat-wrap"${scheduleKind !== 'repeat' ? ' hidden' : ''} class="repeat-row" style="margin-top:10px">
+        <span class="hint" style="margin:0">Every</span>
+        <input type="number" id="f-repeat-n" min="1" value="${esc(repeatN)}" style="width:70px" />
+        <select id="f-repeat-unit">
+          ${['minutes', 'hours', 'days', 'weeks'].map(u => `<option value="${u}"${u === repeatUnit ? ' selected' : ''}>${u}</option>`).join('')}
+        </select>
+        <span class="hint" style="margin:0">starting</span>
+      </div>
+      <div id="f-once-wrap"${scheduleKind === 'at-next-reset' ? ' hidden' : ''} style="margin-top:10px">
         <input type="datetime-local" id="f-once" value="${esc(localAt)}" />
       </div>
     </div>
@@ -421,7 +433,8 @@ async function openTaskModal(task = null) {
     const chip = e.target.closest('.radio-chip'); if (!chip) return
     scheduleKind = chip.dataset.v
     modalEl.querySelectorAll('#f-sched .radio-chip').forEach(c => c.classList.toggle('on', c === chip))
-    onceWrap.hidden = (scheduleKind !== 'once')
+    onceWrap.hidden = (scheduleKind === 'at-next-reset')
+    modalEl.querySelector('#f-repeat-wrap').hidden = (scheduleKind !== 'repeat')
   })
 
   modalEl.querySelector('#f-submit').addEventListener('click', async () => {
@@ -433,6 +446,12 @@ async function openTaskModal(task = null) {
       const v = modalEl.querySelector('#f-once').value
       if (!v) { alert('Pick a date/time.'); return }
       schedule = { kind: 'once', at: new Date(v).toISOString() }
+    } else if (scheduleKind === 'repeat') {
+      const n = Math.max(1, parseInt(modalEl.querySelector('#f-repeat-n').value, 10) || 1)
+      const unit = modalEl.querySelector('#f-repeat-unit').value
+      const v = modalEl.querySelector('#f-once').value
+      if (!v) { alert('Pick the first run date/time.'); return }
+      schedule = { kind: 'repeat', n, unit, at: new Date(v).toISOString() }
     } else {
       schedule = { kind: 'at-next-reset' }
     }

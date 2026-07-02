@@ -220,6 +220,15 @@ async function runDueTask(task, opts = {}) {
       queueResume(task, pickResetAt(usage))
     }
   }
+  // Repeat tasks re-arm for the next occurrence after every run (a limit-stop still gets its
+  // separate one-shot resume above; the recurring slot keeps firing on schedule regardless).
+  const sched = task.schedule || {}
+  if (sched.kind === 'repeat') {
+    store.updateTask(task.id, {
+      status: 'scheduled',
+      schedule: { ...sched, at: scheduler.nextRepeat(sched).toISOString() },
+    })
+  }
   notifyChange()
 }
 
@@ -279,6 +288,7 @@ Parse the user's message and extract:
 - **title**: short label ≤60 chars
 - **prompt**: the full task Claude should run — be specific, it runs unattended in a headless session
 - **at**: when to run — convert natural language ("4pm tuesday", "tomorrow 9am", "in 2 hours") to ISO 8601 in the user's local timezone
+- **every** *(optional)*: recurrence ("daily" → \`1d\`, "weekly" → \`1w\`, "every 4 hours" → \`4h\`, "every 30 min" → \`30m\`) — makes the task repeat; **at** becomes the first run (omit **at** to start one interval from now)
 - **model** *(optional)*: one of \`claude-opus-4-8\`, \`claude-sonnet-4-6\`, \`claude-haiku-4-5-20251001\`, \`claude-opus-4-7\`, \`claude-opus-4-6\`, \`claude-sonnet-4-5-20250929\` — omit to use the default (Sonnet 4.6)
 - **effort** *(optional)*: \`low\`, \`medium\`, \`high\`, \`xhigh\` (Opus 4.8/4.7 only), or \`max\` — omit to use the model default; not supported on Haiku 4.5
 
@@ -290,6 +300,7 @@ relay schedule --title "TITLE" --prompt "PROMPT" --at "ISO_DATETIME"
 Add \`--cwd "PROJECT_PATH"\` if the task is for a specific project directory.
 Add \`--model "MODEL_ID"\` if the user specified a model.
 Add \`--effort "LEVEL"\` if the user specified an effort level (and the model supports it).
+Add \`--every "30m|4h|1d|1w"\` if the user asked for a recurring/daily/weekly task.
 
 ## Resuming a previous Relay session
 

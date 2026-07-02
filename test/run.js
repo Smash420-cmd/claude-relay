@@ -109,6 +109,41 @@ check('dueTime: at-next-reset without at computes session reset', () => {
 })
 check('dueTime: unsupported kind → Infinity (never fires)', () =>
   assert.strictEqual(scheduler.dueTime({ schedule: { kind: 'cron' } }, {}), Infinity))
+check('dueTime: repeat uses stored at', () => {
+  const at = new Date(2026, 6, 3, 9, 0, 0).toISOString()
+  assert.strictEqual(scheduler.dueTime({ schedule: { kind: 'repeat', n: 1, unit: 'days', at } }, {}), new Date(at).getTime())
+})
+
+// ── nextRepeat — recurring-task re-arm math ───────────────────────────────────
+check('nextRepeat: minutes fast-forward lands on grid within one interval, even after months', () => {
+  const at = new Date(2026, 0, 1, 0, 0, 0), from = new Date(2026, 6, 1, 0, 0, 7)
+  const next = scheduler.nextRepeat({ n: 30, unit: 'minutes', at }, from)
+  assert.ok(next > from && next - from <= 30 * 60e3)
+  assert.strictEqual((next - at) % (30 * 60e3), 0)
+})
+check('nextRepeat: hours advance by n', () => {
+  const next = scheduler.nextRepeat({ n: 4, unit: 'hours', at: new Date(2026, 6, 2, 8, 0, 0) }, new Date(2026, 6, 2, 9, 0, 0))
+  assert.strictEqual(next.getTime(), new Date(2026, 6, 2, 12, 0, 0).getTime())
+})
+check('nextRepeat: days preserve local wall-clock time (DST-safe)', () => {
+  const next = scheduler.nextRepeat({ n: 1, unit: 'days', at: new Date(2026, 2, 1, 9, 0, 0) }, new Date(2026, 5, 15))
+  assert.strictEqual(next.getHours(), 9)
+  assert.ok(next > new Date(2026, 5, 15))
+})
+check('nextRepeat: weeks keep the same weekday and time', () => {
+  const at = new Date(2026, 6, 1, 10, 0, 0)
+  const next = scheduler.nextRepeat({ n: 1, unit: 'weeks', at }, new Date(2026, 6, 20))
+  assert.strictEqual(next.getDay(), at.getDay())
+  assert.strictEqual(next.getHours(), 10)
+})
+check('nextRepeat: future at returned unchanged', () => {
+  const at = new Date(Date.now() + 3600e3)
+  assert.strictEqual(scheduler.nextRepeat({ n: 1, unit: 'days', at }, new Date()).getTime(), at.getTime())
+})
+check('nextRepeat: garbage input → valid date, no throw/loop', () => {
+  const next = scheduler.nextRepeat({ n: 'x', unit: 'days', at: 'not-a-date' }, new Date())
+  assert.ok(next instanceof Date && !isNaN(next))
+})
 
 // ── detectLimit — the trigger for the whole walk-away promise ─────────────────
 check('detectLimit: "usage limit" + "resets at 3:00pm" → stopped + hint', () => {

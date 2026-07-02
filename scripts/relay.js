@@ -4,7 +4,7 @@
 // Self-contained: writes the same store the app reads, so the app's watcher shows changes live.
 //
 //   node scripts/relay.js schedule --prompt "..." [--mode fresh|resume-full]
-//        [--resume <id|current>] [--at next-reset|+30m|+2h|<ISO>] [--cwd <path>] [--title "..."]
+//        [--resume <id|current>] [--at next-reset|+30m|+2h|<ISO>] [--every 30m|4h|1d|1w] [--cwd <path>] [--title "..."]
 //   node scripts/relay.js list
 //   node scripts/relay.js cancel <id>
 const fs = require('fs')
@@ -112,7 +112,17 @@ function cmdSchedule(f) {
   }
   let cwd = f.cwd || ''
   if (mode !== 'fresh' && !cwd && sessionId) cwd = findSessionCwd(sessionId) || ''
-  const at = resolveAt(f.at, db.settings)
+  // --every "30m|4h|1d|1w" makes the task recurring; --at sets the first run (default: one interval from now)
+  let repeat = null
+  if (f.every) {
+    const m = String(f.every).match(/^(\d+)\s*(m|h|d|w)$/i)
+    if (!m) { console.error('error: --every: use e.g. 30m, 4h, 1d, 1w'); process.exit(1) }
+    const units = { m: 'minutes', h: 'hours', d: 'days', w: 'weeks' }
+    repeat = { n: parseInt(m[1], 10), unit: units[m[2].toLowerCase()] }
+  }
+  const at = (repeat && !f.at)
+    ? new Date(Date.now() + repeat.n * { minutes: 60e3, hours: 3600e3, days: 86400e3, weeks: 604800e3 }[repeat.unit]).toISOString()
+    : resolveAt(f.at, db.settings)
   const task = {
     id: uid(),
     title: f.title || String(f.prompt).slice(0, 60),
@@ -122,7 +132,7 @@ function cmdSchedule(f) {
     projectPath: cwd,
     model: f.model || null,
     effort: f.effort || null,
-    schedule: { kind: 'once', at },
+    schedule: repeat ? { kind: 'repeat', ...repeat, at } : { kind: 'once', at },
     status: 'scheduled',
     createdAt: new Date().toISOString(),
   }
@@ -130,7 +140,7 @@ function cmdSchedule(f) {
   saveStore(db)
   console.log(`✓ scheduled "${task.title}"`)
   console.log(`  ${task.mode}${sessionId ? ' · session ' + sessionId.slice(0, 8) : ''}${cwd ? ' · cwd ' + cwd : ''}`)
-  console.log(`  fires ${new Date(at).toLocaleString()}  (id ${task.id})`)
+  console.log(`  ${repeat ? `repeats every ${repeat.n} ${repeat.unit} — first ` : 'fires '}${new Date(at).toLocaleString()}  (id ${task.id})`)
 }
 function cmdList() {
   const db = loadStore()
@@ -171,7 +181,7 @@ try {
   else if (cmd === 'log') cmdLog(pos[1])
   else {
     console.log('relay — usage:')
-    console.log('  schedule --prompt "..." [--mode fresh|resume-full] [--resume <id|current>] [--at next-reset|+30m|<ISO>] [--cwd <path>] [--title "..."]')
+    console.log('  schedule --prompt "..." [--mode fresh|resume-full] [--resume <id|current>] [--at next-reset|+30m|<ISO>] [--every 30m|4h|1d|1w] [--cwd <path>] [--title "..."]')
     console.log('  list')
     console.log('  cancel <id>')
     console.log('  log <task-id>        — print the task log (last line: # session: <uuid> for --resume)')
