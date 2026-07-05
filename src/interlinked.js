@@ -122,6 +122,7 @@ function startIntentPoller({ addTask, notifyChange, intervalMs = 60000 }) {
           title: `📱 ${card.title}`,
           prompt,
           mode: 'fresh',
+          sessionPolicy: 'ephemeral', // phone-verdict chores: transcript deleted after success
           sessionId: null,
           projectPath: card.data?.project_path || '',
           model: card.data?.model || null,

@@ -16,6 +16,7 @@ const tracker = require('./src/tracker')
 const { logsDir, dataDir } = require('./src/paths')
 const { normPct, pickResetAt, isLimitFalsePositive } = require('./src/usage')
 const interlinked = require('./src/interlinked') // no-ops without INTERLINKED_SERVICE_KEY
+const hygiene = require('./src/session-hygiene') // sessionPolicy: keep | ephemeral | rolling:Nd
 
 // Shared helper — called by the IPC renderer bridge AND by runDueTask after a limit-stopped run
 // to get the exact reset timestamps so auto-resume fires at precisely the right moment.
@@ -190,6 +191,8 @@ async function runDueTask(task, opts = {}) {
   notifyChange()
   // Interlinked live card (silent) — updated with the outcome when the run ends
   const ilCardId = await interlinked.taskStarted(task).catch(() => null)
+  // Session hygiene: rolling tasks resume their standing session while it's young enough
+  task = hygiene.beforeRun(task)
   // Resume tasks MUST run in the session's own project dir (sessions are cwd-scoped), or
   // `claude --resume` reports "no conversation found". Fall back to that if no cwd was set.
   let cwd = task.projectPath || settings.defaultProjectPath || undefined
@@ -217,6 +220,11 @@ async function runDueTask(task, opts = {}) {
     resultSessionId: res.resultSessionId || null,
   })
   interlinked.taskFinished(ilCardId, task, res).catch(() => {})
+  // Session hygiene: delete ephemeral transcripts, rotate rolling sessions
+  try {
+    const patch = hygiene.afterRun(task, res)
+    if (patch) store.updateTask(task.id, patch)
+  } catch (e) { console.warn('[hygiene]', e.message) }
   // Core feature: when a run stops on a session/weekly limit and auto-resume is on, schedule a
   // resume at the exact reset moment. "stopped" comes from text-matching the CLI output, which can
   // false-positive (a task that merely prints "resets at …"). When logged in, corroborate with the

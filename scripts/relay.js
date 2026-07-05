@@ -140,6 +140,14 @@ function cmdSchedule(f) {
   const at = (repeat && !f.at)
     ? new Date(Date.now() + repeat.n * { minutes: 60e3, hours: 3600e3, days: 86400e3, weeks: 604800e3 }[repeat.unit]).toISOString()
     : resolveAt(f.at, db.settings)
+  // --session-policy keep|ephemeral|rolling:Nd — session hygiene (src/session-hygiene.js).
+  // Defaults: one-offs are ephemeral (transcript deleted after success); repeats roll weekly.
+  let sessionPolicy = typeof f['session-policy'] === 'string' ? f['session-policy'] : (repeat ? 'rolling:7d' : 'ephemeral')
+  if (!/^(keep|ephemeral|rolling:\d+d)$/.test(sessionPolicy)) {
+    console.error('error: --session-policy: use keep, ephemeral, or rolling:<n>d (e.g. rolling:7d)')
+    process.exit(1)
+  }
+  if (mode !== 'fresh') sessionPolicy = 'keep' // resuming an existing conversation — never delete it
   const task = {
     id: uid(),
     title: f.title || String(f.prompt).slice(0, 60),
@@ -149,13 +157,14 @@ function cmdSchedule(f) {
     projectPath: cwd,
     model: f.model || null,
     effort: f.effort || null,
+    sessionPolicy,
     schedule: repeat ? { kind: 'repeat', ...repeat, at } : { kind: 'once', at },
     status: 'scheduled',
     createdAt: new Date().toISOString(),
   }
   withLock(() => { const fresh = loadStore(); fresh.tasks.unshift(task); saveStore(fresh) })
   console.log(`✓ scheduled "${task.title}"`)
-  console.log(`  ${task.mode}${sessionId ? ' · session ' + sessionId.slice(0, 8) : ''}${cwd ? ' · cwd ' + cwd : ''}`)
+  console.log(`  ${task.mode}${sessionId ? ' · session ' + sessionId.slice(0, 8) : ''}${cwd ? ' · cwd ' + cwd : ''} · sessions: ${sessionPolicy}`)
   console.log(`  ${repeat ? `repeats every ${repeat.n} ${repeat.unit} — first ` : 'fires '}${new Date(at).toLocaleString()}  (id ${task.id})`)
 }
 function cmdList() {
