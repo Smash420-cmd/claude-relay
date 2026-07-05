@@ -74,6 +74,23 @@ function contextDir(task) {
   return path.join(os.homedir(), '.relay', 'context', task.id)
 }
 
+function sharedNotesPath() {
+  return path.join(os.homedir(), '.relay', 'context', 'shared', 'NOTES.md')
+}
+
+function ensureSharedNotes() {
+  const p = sharedNotesPath()
+  try {
+    fs.mkdirSync(path.dirname(p), { recursive: true })
+    if (!fs.existsSync(p)) {
+      fs.writeFileSync(p, `# Shared context — all tasks read this\n\n`
+        + `Cross-task facts only (travel, launches, global decisions, "ignore X").\n`
+        + `Task-specific state belongs in the task's own NOTES.md, not here.\n`)
+    }
+  } catch {}
+  return p
+}
+
 function injectContext(task) {
   if ((task.schedule || {}).kind !== 'repeat') return task
   const dir = contextDir(task)
@@ -84,12 +101,15 @@ function injectContext(task) {
       fs.writeFileSync(notes, `# ${task.title} — running notes\n\n(State left by previous runs. Nothing yet — this is the first.)\n`)
     }
   } catch { return task }
-  const header = `## Context directory (persistent across runs)\n`
-    + `${dir}\n`
-    + `FIRST: read NOTES.md there — it holds state left by previous runs of this task `
-    + `(baselines, things already handled, decisions made). `
-    + `LAST, before you finish: update NOTES.md with whatever the next run should know. `
-    + `Keep it under ~150 lines — prune stale entries. You may keep other working files in that directory too.\n\n`
+  const shared = ensureSharedNotes()
+  const header = `## Context (persistent across runs)\n`
+    + `Task dir: ${dir}\n`
+    + `Shared notes: ${shared}\n`
+    + `FIRST: read both NOTES.md files — the task one holds this task's own state `
+    + `(baselines, things already handled); the shared one holds cross-task facts every routine should know. `
+    + `LAST, before you finish: update the task NOTES.md with what the next run should know; `
+    + `add to the shared NOTES.md ONLY facts that other tasks genuinely need (rare). `
+    + `Keep each under ~150 lines — prune stale entries. The task dir is also yours for working files.\n\n`
   return { ...task, prompt: header + task.prompt }
 }
 
