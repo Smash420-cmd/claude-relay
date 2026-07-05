@@ -66,4 +66,31 @@ function afterRun(task, res) {
   return null
 }
 
-module.exports = { beforeRun, afterRun, deleteTranscript, rollingDays }
+// ── context matrix ───────────────────────────────────────────────────────
+// Recurring tasks get a persistent notes dir (~/.relay/context/<task-id>/) so
+// state survives session rotation: each run reads NOTES.md, does its work,
+// and updates NOTES.md for the next run. Continuity in files, not context.
+function contextDir(task) {
+  return path.join(os.homedir(), '.relay', 'context', task.id)
+}
+
+function injectContext(task) {
+  if ((task.schedule || {}).kind !== 'repeat') return task
+  const dir = contextDir(task)
+  try {
+    fs.mkdirSync(dir, { recursive: true })
+    const notes = path.join(dir, 'NOTES.md')
+    if (!fs.existsSync(notes)) {
+      fs.writeFileSync(notes, `# ${task.title} — running notes\n\n(State left by previous runs. Nothing yet — this is the first.)\n`)
+    }
+  } catch { return task }
+  const header = `## Context directory (persistent across runs)\n`
+    + `${dir}\n`
+    + `FIRST: read NOTES.md there — it holds state left by previous runs of this task `
+    + `(baselines, things already handled, decisions made). `
+    + `LAST, before you finish: update NOTES.md with whatever the next run should know. `
+    + `Keep it under ~150 lines — prune stale entries. You may keep other working files in that directory too.\n\n`
+  return { ...task, prompt: header + task.prompt }
+}
+
+module.exports = { beforeRun, afterRun, deleteTranscript, rollingDays, injectContext }

@@ -193,6 +193,8 @@ async function runDueTask(task, opts = {}) {
   const ilCardId = await interlinked.taskStarted(task).catch(() => null)
   // Session hygiene: rolling tasks resume their standing session while it's young enough
   task = hygiene.beforeRun(task)
+  // Context matrix: recurring tasks get a persistent notes dir that outlives session rotation
+  task = hygiene.injectContext(task)
   // Resume tasks MUST run in the session's own project dir (sessions are cwd-scoped), or
   // `claude --resume` reports "no conversation found". Fall back to that if no cwd was set.
   let cwd = task.projectPath || settings.defaultProjectPath || undefined

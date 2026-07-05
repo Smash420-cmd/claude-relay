@@ -141,8 +141,11 @@ function cmdSchedule(f) {
     ? new Date(Date.now() + repeat.n * { minutes: 60e3, hours: 3600e3, days: 86400e3, weeks: 604800e3 }[repeat.unit]).toISOString()
     : resolveAt(f.at, db.settings)
   // --session-policy keep|ephemeral|rolling:Nd — session hygiene (src/session-hygiene.js).
-  // Defaults: one-offs are ephemeral (transcript deleted after success); repeats roll weekly.
-  let sessionPolicy = typeof f['session-policy'] === 'string' ? f['session-policy'] : (repeat ? 'rolling:7d' : 'ephemeral')
+  // Defaults: one-offs ephemeral; repeats roll at ~4× their cadence (daily→weekly session,
+  // weekly→monthly session) so every run isn't a fresh session but context never grows unbounded.
+  const intervalDays = repeat ? repeat.n * { minutes: 1 / 1440, hours: 1 / 24, days: 1, weeks: 7 }[repeat.unit] : 0
+  let sessionPolicy = typeof f['session-policy'] === 'string' ? f['session-policy']
+    : (repeat ? (intervalDays >= 7 ? 'rolling:28d' : 'rolling:7d') : 'ephemeral')
   if (!/^(keep|ephemeral|rolling:\d+d)$/.test(sessionPolicy)) {
     console.error('error: --session-policy: use keep, ephemeral, or rolling:<n>d (e.g. rolling:7d)')
     process.exit(1)
