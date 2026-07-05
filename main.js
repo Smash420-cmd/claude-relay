@@ -15,6 +15,7 @@ const scheduler = require('./src/scheduler')
 const tracker = require('./src/tracker')
 const { logsDir, dataDir } = require('./src/paths')
 const { normPct, pickResetAt, isLimitFalsePositive } = require('./src/usage')
+const interlinked = require('./src/interlinked') // no-ops without INTERLINKED_SERVICE_KEY
 
 // Shared helper — called by the IPC renderer bridge AND by runDueTask after a limit-stopped run
 // to get the exact reset timestamps so auto-resume fires at precisely the right moment.
@@ -187,6 +188,8 @@ async function runDueTask(task, opts = {}) {
   }
   store.updateTask(task.id, { status: 'running', lastRunAt: new Date().toISOString() })
   notifyChange()
+  // Interlinked live card (silent) — updated with the outcome when the run ends
+  const ilCardId = await interlinked.taskStarted(task).catch(() => null)
   // Resume tasks MUST run in the session's own project dir (sessions are cwd-scoped), or
   // `claude --resume` reports "no conversation found". Fall back to that if no cwd was set.
   let cwd = task.projectPath || settings.defaultProjectPath || undefined
@@ -213,6 +216,7 @@ async function runDueTask(task, opts = {}) {
     resetHint: res.resetHint || null,
     resultSessionId: res.resultSessionId || null,
   })
+  interlinked.taskFinished(ilCardId, task, res).catch(() => {})
   // Core feature: when a run stops on a session/weekly limit and auto-resume is on, schedule a
   // resume at the exact reset moment. "stopped" comes from text-matching the CLI output, which can
   // false-positive (a task that merely prints "resets at …"). When logged in, corroborate with the
@@ -715,6 +719,8 @@ function main() {
     })
     watchRelayDir()
     setInterval(checkAutoResumeArm, 30 * 1000)
+    // Interlinked: consume phone verdicts → enqueue tasks (no-op without the key)
+    interlinked.startIntentPoller({ addTask: store.addTask, notifyChange })
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
   })
 
