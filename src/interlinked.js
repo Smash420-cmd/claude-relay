@@ -87,12 +87,40 @@ async function taskFinished(cardId, task, res) {
 //   no          → nothing
 //   other       → enqueue a revise-proposal prompt around payload.steer
 //   <bespoke>   → enqueue data['on_' + action_id]
-function startIntentPoller({ addTask, notifyChange, intervalMs = 60000 }) {
+// Mirror Relay's upcoming schedule into il_schedule so the phone can render it.
+// Full-replace each sync: the list is tiny and Relay is the only writer.
+async function syncSchedule(tasks) {
+  const rows = (tasks || [])
+    .filter(t => t.status === 'scheduled' && t.schedule?.at)
+    .map(t => ({
+      id: t.id,
+      title: t.title,
+      at: t.schedule.at,
+      every: t.schedule.kind === 'repeat' ? `${t.schedule.n} ${t.schedule.unit}` : null,
+      cwd: t.projectPath || null,
+      updated_at: new Date().toISOString(),
+    }))
+  const keep = rows.map(r => `"${r.id}"`).join(',')
+  await rest('DELETE', `il_schedule?id=not.in.(${keep || '"none"'})`)
+  if (rows.length) {
+    await rest('POST', 'il_schedule', rows).catch(async () => {
+      // fallback: upsert via merge-duplicates when ids already exist
+      await fetch(`${URL_BASE}/rest/v1/il_schedule`, {
+        method: 'POST',
+        headers: { apikey: key(), 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates' },
+        body: JSON.stringify(rows),
+      })
+    })
+  }
+}
+
+function startIntentPoller({ addTask, notifyChange, getTasks, intervalMs = 60000 }) {
   if (!key()) { console.log('[interlinked] no key — poller disabled'); return null }
   const CLI = 'node "C:/Users/pmdse/Documents/relay/scripts/interlinked.js"'
 
   async function tick() {
     try {
+      if (getTasks) await syncSchedule(getTasks()).catch(e => console.warn('[interlinked] schedule sync:', e.message))
       const intents = await rest('GET', 'il_intents?handled_at=is.null&order=created_at.asc&limit=10&select=*')
       if (!intents?.length) return
       for (const intent of intents) {

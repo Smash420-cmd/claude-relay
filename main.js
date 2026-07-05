@@ -730,7 +730,7 @@ function main() {
     watchRelayDir()
     setInterval(checkAutoResumeArm, 30 * 1000)
     // Interlinked: consume phone verdicts → enqueue tasks (no-op without the key)
-    interlinked.startIntentPoller({ addTask: store.addTask, notifyChange })
+    interlinked.startIntentPoller({ addTask: store.addTask, notifyChange, getTasks: store.getTasks })
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
   })
 
