@@ -138,7 +138,8 @@ function startIntentPoller({ addTask, notifyChange, getTasks, intervalMs = 60000
           prompt = `Patrick answered your Interlinked proposal "${card.title}" with "Something else": "${steer}".\n`
             + `Original proposal body:\n${(card.body_md || '').slice(0, 1500)}\n\n`
             + `Act on the steer. If further consent is needed, post a fresh proposal card via:\n`
-            + `${CLI} send --type ${card.type} --title "..." --body "..." --propose --data '{"on_yes":"<prompt to run if Patrick taps Yes>"}'`
+            + `${CLI} send --type ${card.type} --title "..." --body "..." --propose --data '{"on_yes":"<prompt to run if Patrick taps Yes>"}'\n`
+            + `Card style: archaic-hybrid (~/.claude/skills/archaic-hybrid/SKILL.md) — verdict-first title, bullets, ≤120 words, keep every number/name/date.`
         } else {
           prompt = card.data?.['on_' + intent.action_id] || (intent.action_id === 'yes' ? card.data?.on_yes : null)
           if (!prompt && intent.action_id === 'yes') continue // plain ack — nothing to run

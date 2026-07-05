@@ -109,7 +109,9 @@ function injectContext(task) {
     + `(baselines, things already handled); the shared one holds cross-task facts every routine should know. `
     + `LAST, before you finish: update the task NOTES.md with what the next run should know; `
     + `add to the shared NOTES.md ONLY facts that other tasks genuinely need (rare). `
-    + `Keep each under ~150 lines — prune stale entries. The task dir is also yours for working files.\n\n`
+    + `Keep each under ~150 lines — prune stale entries. The task dir is also yours for working files.\n`
+    + `Any Interlinked card you send: archaic-hybrid style (~/.claude/skills/archaic-hybrid/SKILL.md) — `
+    + `verdict-first title, bullets, ≤120 words, every number/name/date kept, no walls of text.\n\n`
   return { ...task, prompt: header + task.prompt }
 }
 
