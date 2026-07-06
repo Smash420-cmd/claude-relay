@@ -71,7 +71,7 @@ async function taskFinished(cardId, task, res) {
       await rest('PATCH', `il_cards?id=eq.${cardId}`, {
         title: `${ok ? '✅' : cancelled ? '✕' : res.status === 'stopped' ? '⏸' : '❌'} ${task.title}`,
         body_md: cancelled
-          ? '**cancelled**'
+          ? (res.note ? `**${res.note}**` : '**cancelled**')
           : `**${res.status}** (exit ${res.exitCode})\n\n\`\`\`\n${tail}\n\`\`\``,
         status: ok ? 'read' : 'unread',
       })

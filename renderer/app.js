@@ -310,8 +310,13 @@ function sessionListHtml(sessions, pickedId) {
     const proj = s.cwd || s.project || s.sessionId.slice(0, 8)
     const branchBadge = s.branch ? `<span class="si-branch">${esc(s.branch)}</span>` : ''
     const liveBadge = s.active ? `<span class="si-live">● live</span>` : ''
+    // Lead with the ai-title — the same name Claude Code's own /resume list shows —
+    // so picking a session here matches what the user sees everywhere else. The slug
+    // codename demotes to a badge (still handy for telling similar sessions apart).
+    const name = s.title || s.slug || s.sessionId.slice(0, 8)
+    const slugBadge = s.title && s.slug ? `<span class="si-branch">${esc(s.slug)}</span>` : ''
     return `<div class="session-item${s.active ? ' active' : ''}${s.sessionId === pickedId ? ' on' : ''}" data-sid="${esc(s.sessionId)}" data-cwd="${esc(s.cwd || '')}">
-      <div class="si-top">${liveBadge}<span class="si-slug">${esc(s.slug || s.sessionId.slice(0, 8))}</span>${branchBadge}<span class="si-age">${esc(fmtWhen(new Date(s.modified).toISOString()))}</span></div>
+      <div class="si-top">${liveBadge}<span class="si-slug">${esc(name)}</span>${slugBadge}${branchBadge}<span class="si-age">${esc(fmtWhen(new Date(s.modified).toISOString()))}</span></div>
       <div class="si-path">${esc(proj)}</div>
       <div class="si-preview">${esc(s.preview || '(no messages found)')}</div>
     </div>`

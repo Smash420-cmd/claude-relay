@@ -37,6 +37,10 @@ function buildArgs(task, opts = {}) {
   const args = []
   if (task.mode === 'resume-full') {
     args.push('--resume', task.sessionId)
+    // Collision escape hatch: resuming a session that's open in another Claude Code
+    // process fails silently. --fork-session continues the same history under a NEW
+    // session id, so the run completes without touching the live conversation.
+    if (task.forkSession) args.push('--fork-session')
   } else if (opts.assignSessionId) {
     // Fresh run: pin the session UUID up front so we know EXACTLY which session this task created
     // and can resume that one — no most-recent-file guessing (which grabs the wrong conversation
@@ -178,15 +182,20 @@ function runTask(task, opts = {}) {
       const limit = detectLimit(output)
       let status = code === 0 ? 'succeeded' : 'failed'
       if (limit.stopped) status = 'stopped'
-      // Deterministic: the session we pinned (fresh) or continued (resume). Heuristic only as a
-      // last resort if neither is known — so the resume chain stays on the originating session.
-      const resultSessionId = assignSessionId || task.sessionId || findResultSession(taskStartMs)
+      // Deterministic: the session we pinned (fresh) or continued (resume). A forked resume
+      // writes to a NEW id only the heuristic can find. Last resort otherwise — so the
+      // resume chain stays on the originating session.
+      const resultSessionId = assignSessionId
+        || (task.forkSession ? findResultSession(taskStartMs) : task.sessionId)
+        || findResultSession(taskStartMs)
       if (!logStream.writableEnded) {
         logStream.write(`\n\n[exit ${code}] status=${status}${limit.resetHint ? ` resetHint=${limit.resetHint}` : ''}\n`)
         if (resultSessionId) logStream.write(`# session: ${resultSessionId}\n`)
         logStream.end()
       }
-      resolve({ exitCode: code, status, logPath, resetHint: limit.resetHint, resultSessionId: resultSessionId || null })
+      // outputLen: collision detector — a resume that dies having printed NOTHING is the
+      // silent session-collision signature (vs a real failure, which always prints something).
+      resolve({ exitCode: code, status, logPath, resetHint: limit.resetHint, resultSessionId: resultSessionId || null, outputLen: output.trim().length })
     })
   })
 }

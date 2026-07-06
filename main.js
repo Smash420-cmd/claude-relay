@@ -211,12 +211,51 @@ async function runDueTask(task, opts = {}) {
   if (task.mode === 'resume-full' && task.sessionId && !task.projectPath) {
     cwd = sessions.findSessionCwd(task.sessionId) || cwd
   }
-  const res = await executor.runTask(task, {
+  // Resume-collision guard. `claude --resume <id>` on a session that's open in another
+  // Claude Code process (VS Code, terminal, claude.ai/code) dies silently — exit ≠ 0,
+  // zero output — and used to strand the task as an unexplained failure (the 7am
+  // auto-resume incident). Two cases when the target is in the live registry:
+  //   • transcript touched in the last 15 min → Patrick is IN that session right now;
+  //     resuming is redundant as well as doomed. Skip quietly, say why.
+  //   • open but idle (left open overnight) → --fork-session: same history, new
+  //     session id, no lock — the work still gets done.
+  if (task.mode === 'resume-full' && task.sessionId) {
+    try {
+      if (sessions.activeSessionIds().has(task.sessionId)) {
+        const mt = sessions.transcriptMtime(task.sessionId)
+        if (mt && Date.now() - mt < 15 * 60e3) {
+          store.updateTask(task.id, { status: 'cancelled', lastExitCode: null })
+          interlinked.taskFinished(ilCardId, task, {
+            status: 'cancelled', exitCode: null, logPath: null,
+            note: 'skipped — that session is active right now (someone is using it); resuming would collide and repeat work already underway',
+          }).catch(() => {})
+          console.log(`[collision] ${task.id}: target session active — skipped`)
+          notifyChange()
+          return
+        }
+        task = { ...task, forkSession: true }
+        console.log(`[collision] ${task.id}: target session open but idle — forking`)
+      }
+    } catch (e) { console.warn('[collision] check failed:', e.message) }
+  }
+  const runOpts = {
     command: settings.claudeCommand || 'claude',
     cwd,
     skipPermissions: settings.skipPermissions !== false, // user-enabled autonomous execution (default on)
     onStart: (child) => running.set(task.id, child),
-  })
+  }
+  let res = await executor.runTask(task, runOpts)
+  // Silent-collision straggler net: the pre-check reads the registry, but a session can be
+  // opened mid-run or leave a stale registry entry. The signature — a resume that failed
+  // having printed NOTHING — never means a real work failure. One retry, forked.
+  if (task.mode === 'resume-full' && !task.forkSession && res.status === 'failed' && res.outputLen === 0) {
+    const still = store.getTask(task.id)
+    if (still && still.status !== 'cancelled') {
+      console.log(`[collision] ${task.id}: silent resume failure — retrying with --fork-session`)
+      task = { ...task, forkSession: true }
+      res = await executor.runTask(task, runOpts)
+    }
+  }
   running.delete(task.id)
   // Re-read before writing results: if the user cancelled (or deleted) the task while it ran,
   // that decision is final — don't overwrite it with the killed child's exit status, don't
@@ -456,6 +495,7 @@ async function checkAutoResumeArm() {
       id: uid(), title: `Auto-resume: ${String(arm.prompt).slice(0, 50)}`,
       prompt: arm.prompt, mode: arm.sessionId ? 'resume-full' : 'fresh', sessionId: arm.sessionId || null,
       projectPath: arm.cwd || '', model: null, effort: null,
+      sessionPolicy: arm.sessionId ? 'keep' : 'ephemeral', // resumes keep their conversation; a fresh fallback is a one-off chore
       schedule: { kind: 'once', at }, status: 'scheduled',
       createdAt: new Date().toISOString(),
     })
@@ -509,15 +549,27 @@ function registerIpc() {
       } catch {}
       schedule.at = resetAt || scheduler.nextSessionReset(settings.sessionStartTime).toISOString()
     }
+    // Session hygiene defaults — mirrors the CLI: resumes keep their conversation,
+    // one-offs are ephemeral (transcript deleted on success), repeats roll at ~4×
+    // their cadence. Without this, UI-created tasks silently defaulted to 'keep'
+    // and every run left a transcript in Claude Code's history forever.
+    const mode = input.mode || 'fresh'
+    let sessionPolicy = 'ephemeral'
+    if (mode !== 'fresh') sessionPolicy = 'keep'
+    else if (schedule.kind === 'repeat') {
+      const intervalDays = (schedule.n || 1) * ({ minutes: 1 / 1440, hours: 1 / 24, days: 1, weeks: 7 }[schedule.unit] || 1)
+      sessionPolicy = intervalDays >= 7 ? 'rolling:28d' : 'rolling:7d'
+    }
     const task = {
       id: uid(),
       title: (input.title && input.title.trim()) || (input.prompt || '').trim().slice(0, 60) || 'Untitled task',
       prompt: input.prompt || '',
-      mode: input.mode || 'fresh',
+      mode,
       sessionId: input.sessionId || null,
       projectPath: input.projectPath || '',
       model: input.model || null,
       effort: input.effort || null,
+      sessionPolicy,
       schedule,
       status: 'scheduled',
       createdAt: new Date().toISOString(),
@@ -537,6 +589,10 @@ function registerIpc() {
   ipcMain.handle('relay:delete', (_e, id) => {
     const child = running.get(id)
     if (child) { executor.killTree(child); running.delete(id) }
+    // A deleted rolling task's standing session would otherwise linger in Claude Code's
+    // history forever — nothing else ever rotates it out once the task record is gone.
+    const t = store.getTask(id)
+    if (t && t.rollSessionId) hygiene.deleteTranscript(t.rollSessionId)
     store.deleteTask(id)
     notifyChange()
   })

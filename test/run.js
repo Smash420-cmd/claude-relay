@@ -203,6 +203,14 @@ check('buildArgs: resume ignores assignSessionId (continues existing, no --sessi
   const a = buildArgs({ mode: 'resume-full', sessionId: 'abc123' }, { assignSessionId: 'uuid-1' })
   assert.ok(!a.includes('--session-id')); assert.strictEqual(a[a.indexOf('--resume') + 1], 'abc123')
 })
+check('buildArgs: forkSession adds --fork-session after --resume (collision escape)', () => {
+  const a = buildArgs({ mode: 'resume-full', sessionId: 'abc123', forkSession: true }, {})
+  assert.ok(a.includes('--fork-session')); assert.strictEqual(a[a.indexOf('--resume') + 1], 'abc123')
+})
+check('buildArgs: no --fork-session unless the collision guard set it', () => {
+  assert.ok(!buildArgs({ mode: 'resume-full', sessionId: 'abc123' }, {}).includes('--fork-session'))
+  assert.ok(!buildArgs({ mode: 'fresh', forkSession: true }, {}).includes('--fork-session')) // fresh never forks
+})
 check('buildArgs: model + effort forwarded when set', () => {
   const a = buildArgs({ mode: 'fresh', model: 'claude-opus-4-8', effort: 'high' }, {})
   assert.strictEqual(a[a.indexOf('--model') + 1], 'claude-opus-4-8')

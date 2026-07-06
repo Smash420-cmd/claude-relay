@@ -51,6 +51,7 @@ function listSessions(limit = 60) {
       out.push({
         sessionId,
         slug: meta.slug || '',
+        title: meta.title || '',
         project: cwd || decodeProject(proj.name),
         modified: stat.mtimeMs,
         preview: meta.preview,
@@ -70,9 +71,11 @@ function decodeProject(encoded) {
   return encoded.replace(/^-/, '').split('-').filter(Boolean).slice(-2).join('/') || encoded
 }
 
-// One pass over the transcript: grab slug, first user message, and cwd.
+// One pass over the transcript: grab title, slug, first user message, and cwd.
+// `ai-title` records hold the SAME conversation name Claude Code's own /resume
+// list shows — surface it so the picker matches what the user sees elsewhere.
 function readMeta(file) {
-  let preview = '', slug = '', cwd = ''
+  let preview = '', slug = '', cwd = '', title = ''
   try {
     const lines = fs.readFileSync(file, 'utf8').split('\n')
     for (const line of lines) {
@@ -81,6 +84,7 @@ function readMeta(file) {
       try { o = JSON.parse(line) } catch { continue }
       if (!slug && o.slug) slug = o.slug
       if (!cwd && o.cwd) cwd = o.cwd
+      if (!title && o.type === 'ai-title' && o.aiTitle) title = String(o.aiTitle).slice(0, 80)
       if (!preview) {
         const content = o.message && o.message.content
         if (typeof content === 'string' && content.trim() && o.type === 'user') preview = clean(content)
@@ -89,10 +93,21 @@ function readMeta(file) {
           if (t && o.type === 'user') preview = clean(t.text)
         }
       }
-      if (slug && preview && cwd) break
+      if (slug && preview && cwd && title) break
     }
   } catch {}
-  return { preview, slug, cwd }
+  return { preview, slug, cwd, title }
+}
+
+// Newest mtime of the session's transcript — proxy for "was someone just using this?"
+function transcriptMtime(sessionId) {
+  const root = claudeProjectsDir()
+  try {
+    for (const proj of fs.readdirSync(root)) {
+      try { return fs.statSync(path.join(root, proj, sessionId + '.jsonl')).mtimeMs } catch {}
+    }
+  } catch {}
+  return null
 }
 
 function gitBranch(cwd) {
@@ -133,4 +148,4 @@ function findSessionCwd(sessionId) {
   return null
 }
 
-module.exports = { listSessions, findSessionCwd }
+module.exports = { listSessions, findSessionCwd, activeSessionIds, transcriptMtime }
