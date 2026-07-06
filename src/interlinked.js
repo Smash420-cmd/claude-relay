@@ -57,19 +57,26 @@ async function taskStarted(task) {
 }
 
 // Task finished → update the live card. Failures also insert an alert (pushes).
+// 'cancelled' (user-initiated, via CLI or app UI) closes the card out too, but
+// quietly — no alert card, since it's an intentional action, not a failure.
+// Without this, a task cancelled mid-run left its "Running: ..." card stuck
+// at in_progress forever (the bug that produced the two orphaned cards).
 async function taskFinished(cardId, task, res) {
   try {
     let tail = ''
     try { tail = fs.readFileSync(res.logPath, 'utf8').slice(-600) } catch {}
     const ok = res.status === 'succeeded'
+    const cancelled = res.status === 'cancelled'
     if (cardId) {
       await rest('PATCH', `il_cards?id=eq.${cardId}`, {
-        title: `${ok ? '✅' : res.status === 'stopped' ? '⏸' : '❌'} ${task.title}`,
-        body_md: `**${res.status}** (exit ${res.exitCode})\n\n\`\`\`\n${tail}\n\`\`\``,
+        title: `${ok ? '✅' : cancelled ? '✕' : res.status === 'stopped' ? '⏸' : '❌'} ${task.title}`,
+        body_md: cancelled
+          ? '**cancelled**'
+          : `**${res.status}** (exit ${res.exitCode})\n\n\`\`\`\n${tail}\n\`\`\``,
         status: ok ? 'read' : 'unread',
       })
     }
-    if (!ok) {
+    if (!ok && !cancelled) {
       await rest('POST', 'il_cards', {
         type: 'alert',
         title: `Relay task ${res.status}: ${task.title}`,
@@ -79,6 +86,26 @@ async function taskFinished(cardId, task, res) {
       })
     }
   } catch (e) { console.warn('[interlinked] taskFinished:', e.message) }
+}
+
+// Startup orphan sweep — covers the case runDueTask's own cleanup can't:
+// Relay itself was force-quit/restarted while a task was mid-run, so nothing
+// ever called taskFinished for its card. There's no in-memory cardId to reuse
+// (it only ever lived in runDueTask's closure), so find it via the same
+// relay_task_id every card is tagged with at creation. Looked up by task id
+// rather than a persisted card id — no extra store write on every task start.
+async function closeOrphanedCard(taskId, reason) {
+  try {
+    const cards = await rest('GET',
+      `il_cards?data->>relay_task_id=eq.${taskId}&status=eq.in_progress&select=id,title`)
+    for (const c of cards || []) {
+      await rest('PATCH', `il_cards?id=eq.${c.id}`, {
+        title: `⚠ ${c.title.replace(/^Running:\s*/, '')}`,
+        body_md: `**${reason}** — Relay was restarted or quit while this task was still running, so its real outcome is unknown.`,
+        status: 'unread',
+      })
+    }
+  } catch (e) { console.warn('[interlinked] closeOrphanedCard:', e.message) }
 }
 
 // ── intents poller (phone verdicts → Relay tasks) ────────────────────────
@@ -112,6 +139,31 @@ async function syncSchedule(tasks) {
       })
     })
   }
+}
+
+// Push ~/.relay/usage.json (5h/7d %, written by the statusLine bridge) to a
+// single-row mirror table. Relay is the only writer; Interlinked never talks
+// to claude.ai directly — it just reads whatever Relay last reported.
+async function syncUsage(usage) {
+  const rl = usage?.rate_limits
+  if (!rl) return
+  const row = {
+    id: 'singleton',
+    five_hour_pct: rl.five_hour?.used_percentage ?? null,
+    five_hour_resets_at: rl.five_hour?.resets_at ? new Date(rl.five_hour.resets_at * 1000).toISOString() : null,
+    seven_day_pct: rl.seven_day?.used_percentage ?? null,
+    seven_day_resets_at: rl.seven_day?.resets_at ? new Date(rl.seven_day.resets_at * 1000).toISOString() : null,
+    updated_at: new Date().toISOString(),
+  }
+  try {
+    const k = key()
+    if (!k) return
+    await fetch(`${URL_BASE}/rest/v1/il_usage`, {
+      method: 'POST',
+      headers: { apikey: k, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify(row),
+    })
+  } catch (e) { console.warn('[interlinked] syncUsage:', e.message) }
 }
 
 function startIntentPoller({ addTask, notifyChange, getTasks, intervalMs = 60000 }) {
@@ -173,4 +225,4 @@ function startIntentPoller({ addTask, notifyChange, getTasks, intervalMs = 60000
   return timer
 }
 
-module.exports = { taskStarted, taskFinished, startIntentPoller }
+module.exports = { taskStarted, taskFinished, startIntentPoller, syncUsage, closeOrphanedCard }

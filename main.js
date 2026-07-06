@@ -97,6 +97,8 @@ function watchStore() {
 function watchRelayDir() {
   const relayDir = path.join(os.homedir(), '.relay')
   const signalPath = path.join(relayDir, 'restart.signal')
+  const usagePath = path.join(relayDir, 'usage.json')
+  let usageSyncTimer = null
   try {
     fs.mkdirSync(relayDir, { recursive: true })
     fs.watch(relayDir, (_event, filename) => {
@@ -105,7 +107,15 @@ function watchRelayDir() {
         app.relaunch()
         app.exit(0)
       }
-      if (filename === 'usage.json') notifyChange()
+      if (filename === 'usage.json') {
+        notifyChange()
+        // Debounced — usage.json is rewritten on every Claude Code turn across
+        // every session, but the phone only needs a fresh number every few seconds.
+        clearTimeout(usageSyncTimer)
+        usageSyncTimer = setTimeout(() => {
+          try { interlinked.syncUsage(JSON.parse(fs.readFileSync(usagePath, 'utf8'))) } catch {}
+        }, 3000)
+      }
     })
   } catch (e) { console.error('[watchRelayDir]', e.message) }
 }
@@ -212,8 +222,14 @@ async function runDueTask(task, opts = {}) {
   // that decision is final — don't overwrite it with the killed child's exit status, don't
   // queue a resume, and don't re-arm a repeat. (A manual "Run now" on a cancelled repeat task
   // intentionally restarts its recurrence — the run sets status back to 'running' first.)
+  // The Interlinked card still needs closing out here even though the task's own
+  // status is left alone — otherwise its "Running: ..." card is orphaned forever.
   const stored = store.getTask(task.id)
-  if (!stored || stored.status === 'cancelled') { notifyChange(); return }
+  if (!stored || stored.status === 'cancelled') {
+    interlinked.taskFinished(ilCardId, task, { status: 'cancelled', exitCode: null, logPath: null }).catch(() => {})
+    notifyChange()
+    return
+  }
   store.updateTask(task.id, {
     status: res.status,
     lastLogPath: res.logPath,
@@ -686,6 +702,9 @@ function rotateLogs(maxAgeDays = 14) {
 function cleanupOrphanedTasks() {
   for (const t of store.getTasks()) {
     if (t.status !== 'running') continue
+    // Relay itself was quit/crashed mid-run — runDueTask's own post-run reconciliation never got
+    // to execute, so nothing ever told Interlinked this task stopped. Close its card out too.
+    interlinked.closeOrphanedCard(t.id, 'interrupted').catch(() => {})
     // A repeat task orphaned mid-run must keep its recurrence — re-arm at the next occurrence
     // instead of stranding it as 'interrupted' (which would silently end the daily/weekly job).
     if (t.schedule && t.schedule.kind === 'repeat') {
@@ -731,6 +750,8 @@ function main() {
     setInterval(checkAutoResumeArm, 30 * 1000)
     // Interlinked: consume phone verdicts → enqueue tasks (no-op without the key)
     interlinked.startIntentPoller({ addTask: store.addTask, notifyChange, getTasks: store.getTasks })
+    // Push whatever usage.json already has on startup — don't wait for the next Claude Code turn.
+    try { interlinked.syncUsage(JSON.parse(fs.readFileSync(path.join(os.homedir(), '.relay', 'usage.json'), 'utf8'))) } catch {}
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
   })
 
