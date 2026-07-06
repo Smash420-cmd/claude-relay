@@ -45,7 +45,23 @@ function load() {
       db.settings = { ...DEFAULT_SETTINGS, ...(db.settings || {}) }
     }
     return db
-  } catch {
+  } catch (e) {
+    // A corrupt store must NEVER silently become an empty one — the next save
+    // would make the wipe permanent (this ate every pre-Jul-5 task, including
+    // the Hidden Examiner weekly). Quarantine the bad file for recovery, fall
+    // back to the last-known-good .bak if one exists, and say so loudly.
+    const file = tasksFile()
+    if (fs.existsSync(file)) {
+      try { fs.copyFileSync(file, `${file}.corrupt-${Date.now()}`) } catch {}
+      console.error('[store] relay-data.json unreadable — quarantined a copy:', e.message)
+      try {
+        const bak = JSON.parse(fs.readFileSync(file + '.bak', 'utf8'))
+        bak.tasks = Array.isArray(bak.tasks) ? bak.tasks : []
+        bak.settings = { ...DEFAULT_SETTINGS, ...(bak.settings || {}) }
+        console.error('[store] recovered from .bak —', bak.tasks.length, 'tasks')
+        return bak
+      } catch {}
+    }
     return emptyDB()
   }
 }
@@ -53,6 +69,8 @@ function load() {
 function save(db) {
   const file = tasksFile()
   fs.mkdirSync(path.dirname(file), { recursive: true })
+  // One-generation backup of the outgoing state — the corruption fallback in load()
+  try { if (fs.existsSync(file)) fs.copyFileSync(file, file + '.bak') } catch {}
   const tmp = file + '.tmp'
   fs.writeFileSync(tmp, JSON.stringify(db, null, 2))
   fs.renameSync(tmp, file) // atomic-ish replace

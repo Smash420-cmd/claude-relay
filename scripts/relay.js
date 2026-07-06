@@ -23,12 +23,27 @@ const CLAUDE_PROJECTS = path.join(os.homedir(), '.claude', 'projects')
 const CLAUDE_SESSIONS = path.join(os.homedir(), '.claude', 'sessions')
 
 // ── store ──
+// Corruption never silently becomes an empty store (a follow-up save would wipe
+// every task for good) — quarantine the bad file, recover from .bak. Mirrors src/store.js.
 function loadStore() {
   try { const d = JSON.parse(fs.readFileSync(STORE, 'utf8')); d.tasks = d.tasks || []; d.settings = d.settings || {}; return d }
-  catch { return { tasks: [], settings: {} } }
+  catch (e) {
+    if (fs.existsSync(STORE)) {
+      try { fs.copyFileSync(STORE, `${STORE}.corrupt-${Date.now()}`) } catch {}
+      console.error('warning: relay-data.json unreadable — quarantined a copy:', e.message)
+      try {
+        const b = JSON.parse(fs.readFileSync(STORE + '.bak', 'utf8'))
+        b.tasks = b.tasks || []; b.settings = b.settings || {}
+        console.error('recovered from .bak — ' + b.tasks.length + ' tasks')
+        return b
+      } catch {}
+    }
+    return { tasks: [], settings: {} }
+  }
 }
 function saveStore(db) {
   fs.mkdirSync(path.dirname(STORE), { recursive: true })
+  try { if (fs.existsSync(STORE)) fs.copyFileSync(STORE, STORE + '.bak') } catch {}
   const tmp = STORE + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(db, null, 2)); fs.renameSync(tmp, STORE)
 }
 // Mutation lock shared with the app (src/store.js withLock) — prevents a CLI load→save pair from
