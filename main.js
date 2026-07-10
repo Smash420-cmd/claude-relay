@@ -214,9 +214,13 @@ async function runDueTask(task, opts = {}) {
     task = { ...task, mode: 'fresh', sessionId: null, forkSession: false }
   }
   // Resume tasks MUST run in the session's own project dir (sessions are cwd-scoped), or
-  // `claude --resume` reports "no conversation found". Fall back to that if no cwd was set.
+  // `claude --resume` reports "no conversation found". The transcript's real dir ALWAYS wins
+  // over task.projectPath — an armed auto-resume can carry the cwd of the work (psychgentic)
+  // while the conversation lives in the dir the session was launched from (claude-itinerary);
+  // resuming there restores the conversation, which itself knows where its work is
+  // (2026-07-11 psychgentic auto-resume failure — explicit-but-wrong projectPath).
   let cwd = task.projectPath || settings.defaultProjectPath || undefined
-  if (task.mode === 'resume-full' && task.sessionId && !task.projectPath) {
+  if (task.mode === 'resume-full' && task.sessionId) {
     cwd = sessions.findSessionCwd(task.sessionId) || cwd
   }
   // Resume-collision guard. `claude --resume <id>` on a session that's open in another
