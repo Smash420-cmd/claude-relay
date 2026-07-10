@@ -167,6 +167,16 @@ check('detectLimit: "implemented rate limiting for the API" does not false-trigg
   assert.strictEqual(detectLimit('implemented rate limiting for the API').stopped, false))
 check('detectLimit: "try again attaching the file" does not false-trigger', () =>
   assert.strictEqual(detectLimit('please try again attaching the file').stopped, false))
+// STRUCTURAL: a real limit stop terminates output, so only the tail is scanned. Limit-shaped
+// prose buried mid-report (a task DISCUSSING limits — the 2026-07-10 fix-task false positive)
+// must not trip; the same phrase as the final output must.
+check('detectLimit: limit prose mid-output with a long tail after it → not stopped', () =>
+  assert.strictEqual(detectLimit('Fixed the usage limit regex, resets at 3:00pm was matching prose. ' + 'x'.repeat(400) + ' All tests green.').stopped, false))
+check('detectLimit: real limit message at end of long output → stopped + hint', () => {
+  const r = detectLimit('x'.repeat(5000) + "\nYou've hit your usage limit. resets at 3:00pm")
+  assert.strictEqual(r.stopped, true)
+  assert.strictEqual(r.resetHint, '3:00pm')
+})
 
 // ── SECURITY: isSecretEnv — what gets stripped from a headless task's env ─────
 for (const name of ['ANTHROPIC_API_KEY', 'GH_TOKEN', 'GITHUB_TOKEN', 'AWS_SECRET_ACCESS_KEY', 'OPENAI_API_KEY',

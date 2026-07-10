@@ -64,9 +64,18 @@ function buildArgs(task, opts = {}) {
 const LIMIT_RE = /(usage|rate|session)\s+limit\b|limit reached|you'?ve hit your|resets?\s+at\b|try again (later|at\b)/i
 const RESET_AT_RE = /resets?\s+at\s+([0-9]{1,2}[:.][0-9]{2}\s*(?:am|pm)?)/i
 
+// Structural guard: a real limit stop TERMINATES the run, so the CLI's limit message is
+// always the last thing printed. Only the output tail is signal — everything earlier is
+// ordinary task prose, which may legitimately discuss limits ("implemented rate limiting",
+// a task report about this very regex). Whole-output matching produced two real false
+// positives (2026-07-10); tail-scoping removes the class, not just the phrases.
+const LIMIT_TAIL = 300
+
 function detectLimit(text) {
-  if (!text || !LIMIT_RE.test(text)) return { stopped: false, resetHint: null }
-  const m = text.match(RESET_AT_RE)
+  if (!text) return { stopped: false, resetHint: null }
+  const tail = text.slice(-LIMIT_TAIL)
+  if (!LIMIT_RE.test(tail)) return { stopped: false, resetHint: null }
+  const m = tail.match(RESET_AT_RE)
   return { stopped: true, resetHint: m ? m[1].trim() : null }
 }
 
