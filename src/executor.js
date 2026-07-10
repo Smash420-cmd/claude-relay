@@ -58,7 +58,10 @@ function buildArgs(task, opts = {}) {
 }
 
 // Limit detection heuristic — tuned against real limit-reached output.
-const LIMIT_RE = /(usage|rate|session)\s+limit|limit reached|you'?ve hit your|resets?\s+at|try again (later|at)/i
+// \b after every bare "limit"/"at" — without it, "limit" substring-matches "limiting"/"limitation"
+// and "at" substring-matches "attempts"/"attaching" etc, false-triggering a stop on ordinary task
+// prose (e.g. "password-reset attempts", "implemented rate limiting for the API").
+const LIMIT_RE = /(usage|rate|session)\s+limit\b|limit reached|you'?ve hit your|resets?\s+at\b|try again (later|at\b)/i
 const RESET_AT_RE = /resets?\s+at\s+([0-9]{1,2}[:.][0-9]{2}\s*(?:am|pm)?)/i
 
 function detectLimit(text) {

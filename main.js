@@ -205,6 +205,14 @@ async function runDueTask(task, opts = {}) {
   task = hygiene.beforeRun(task)
   // Context matrix: recurring tasks get a persistent notes dir that outlives session rotation
   task = hygiene.injectContext(task)
+  // Missing-transcript fallback: a resume target's transcript can vanish between scheduling and
+  // firing (rolling rotation, ephemeral cleanup, manual deletion) — `claude --resume` on a gone id
+  // just dies with "No conversation found with session ID …" and strands the task as a failure.
+  // Fall back to a fresh session instead of hard-failing.
+  if (task.mode === 'resume-full' && task.sessionId && sessions.transcriptMtime(task.sessionId) == null) {
+    console.log(`[hygiene] resume target ${task.sessionId.slice(0, 8)}… has no transcript on disk — falling back to fresh`)
+    task = { ...task, mode: 'fresh', sessionId: null, forkSession: false }
+  }
   // Resume tasks MUST run in the session's own project dir (sessions are cwd-scoped), or
   // `claude --resume` reports "no conversation found". Fall back to that if no cwd was set.
   let cwd = task.projectPath || settings.defaultProjectPath || undefined
@@ -269,6 +277,22 @@ async function runDueTask(task, opts = {}) {
     notifyChange()
     return
   }
+  // Core feature: when a run stops on a session/weekly limit and auto-resume is on, corroborate
+  // with the usage API BEFORE recording or announcing anything. "stopped" comes from text-matching
+  // the CLI output, which can false-positive (a task that merely prints "resets at …"). Running the
+  // veto here — ahead of the card PATCH and alert POST below — means a vetoed false positive never
+  // pushes a scary "stopped" alert to the phone; it gets relabelled by exit code first. If the API
+  // is unavailable (logged out / blip), trust the text match (a phantom there is cancelable).
+  let usage = null
+  let vetoed = false
+  if (res.status === 'stopped' && settings.autoResumeOnLimit) {
+    try { usage = await fetchClaudeUsage() } catch {}
+    if (isLimitFalsePositive(usage)) {
+      vetoed = true
+      res = { ...res, status: res.exitCode === 0 ? 'succeeded' : 'failed' }
+      console.log(`[autoresume] limit text matched but usage is ${usage.sessionPct}%/${usage.weeklyPct}% — false positive, not resuming`)
+    }
+  }
   store.updateTask(task.id, {
     status: res.status,
     lastLogPath: res.logPath,
@@ -282,23 +306,9 @@ async function runDueTask(task, opts = {}) {
     const patch = hygiene.afterRun(task, res)
     if (patch) store.updateTask(task.id, patch)
   } catch (e) { console.warn('[hygiene]', e.message) }
-  // Core feature: when a run stops on a session/weekly limit and auto-resume is on, schedule a
-  // resume at the exact reset moment. "stopped" comes from text-matching the CLI output, which can
-  // false-positive (a task that merely prints "resets at …"). When logged in, corroborate with the
-  // usage API as a VETO: if it's reachable AND both windows are clearly below a limit, it's a false
-  // positive — relabel the run by its exit code and don't resume. If the API is unavailable (logged
-  // out / blip), we're in manual mode and trust the text match (a phantom there is cancelable).
-  if (res.status === 'stopped' && settings.autoResumeOnLimit) {
-    let usage = null
-    try { usage = await fetchClaudeUsage() } catch {}
-    if (isLimitFalsePositive(usage)) {
-      const realStatus = res.exitCode === 0 ? 'succeeded' : 'failed'
-      store.updateTask(task.id, { status: realStatus })
-      console.log(`[autoresume] limit text matched but usage is ${usage.sessionPct}%/${usage.weeklyPct}% — false positive, not resuming`)
-    } else {
-      if (res.resultSessionId && !task.sessionId) task = { ...task, sessionId: res.resultSessionId, mode: 'resume-full' }
-      queueResume(task, pickResetAt(usage))
-    }
+  if (res.status === 'stopped' && settings.autoResumeOnLimit && !vetoed) {
+    if (res.resultSessionId && !task.sessionId) task = { ...task, sessionId: res.resultSessionId, mode: 'resume-full' }
+    queueResume(task, pickResetAt(usage))
   }
   // Repeat tasks re-arm for the next occurrence after every run (a limit-stop still gets its
   // separate one-shot resume above; the recurring slot keeps firing on schedule regardless).

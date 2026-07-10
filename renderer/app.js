@@ -237,7 +237,13 @@ function taskRow(t) {
   const folder = t.projectPath ? t.projectPath.replace(/\\/g, '/').split('/').pop() : ''
   const ranAt  = t.status === 'scheduled' ? scheduleText(t) : (t.lastRunAt ? `ran ${fmtWhen(t.lastRunAt)}` : scheduleText(t))
   const exit   = (t.lastExitCode != null && t.status !== 'scheduled') ? `exit ${t.lastExitCode}` : ''
-  const extras = [modeText(t), folder, ranAt, exit, t.resetHint ? `resets ${esc(t.resetHint)}` : ''].filter(Boolean).join(' · ')
+  // Recurring tasks re-arm to 'scheduled' right after each run, which used to hide the outcome
+  // entirely (exit above is blanked for 'scheduled'). Surface the last run's result alongside
+  // the next-fire time so repeat tasks show *something* happened.
+  const lastRun = (t.status === 'scheduled' && t.lastRunAt && t.lastExitCode != null)
+    ? `last run ${t.lastExitCode === 0 ? '✓' : '✕'} exit ${t.lastExitCode} · ${fmtWhen(t.lastRunAt)}`
+    : ''
+  const extras = [modeText(t), folder, ranAt, lastRun, exit, t.resetHint ? `resets ${esc(t.resetHint)}` : ''].filter(Boolean).join(' · ')
 
   return `<div class="task" data-id="${esc(t.id)}">
     <div class="task-main">

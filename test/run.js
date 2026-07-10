@@ -158,6 +158,15 @@ check('detectLimit: "delimiter" does not false-trigger on "limit"', () => assert
 // KNOWN BRITTLENESS (documented, not failed): bare "resets at" in a task's own output trips it.
 check('detectLimit: KNOWN false-positive — bare "resets at" trips (documented)', () =>
   assert.strictEqual(detectLimit('the cache resets at 02:00 nightly').stopped, true))
+// REGRESSION: mr7hatbkh48kqb-1783648838861.log — a successful email-digest run (exit 0) got
+// wrongly marked "stopped" because unanchored "resets?\s+at" substring-matched "reset" + the
+// leading "at" of "attempts". Word-boundary fix in LIMIT_RE.
+check('detectLimit: "no new password-reset attempts or Pay-in-4 activity" does not false-trigger', () =>
+  assert.strictEqual(detectLimit('no new password-reset attempts or Pay-in-4 activity').stopped, false))
+check('detectLimit: "implemented rate limiting for the API" does not false-trigger', () =>
+  assert.strictEqual(detectLimit('implemented rate limiting for the API').stopped, false))
+check('detectLimit: "try again attaching the file" does not false-trigger', () =>
+  assert.strictEqual(detectLimit('please try again attaching the file').stopped, false))
 
 // ── SECURITY: isSecretEnv — what gets stripped from a headless task's env ─────
 for (const name of ['ANTHROPIC_API_KEY', 'GH_TOKEN', 'GITHUB_TOKEN', 'AWS_SECRET_ACCESS_KEY', 'OPENAI_API_KEY',
