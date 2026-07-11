@@ -1,6 +1,6 @@
 {
   "name": "claude-relay",
-  "version": "0.4.32",
+  "version": "0.4.33",
   "description": "Schedule prompts into local Claude Code sessions and auto-resume work across session limits.",
   "main": "main.js",
   "author": "Patrick",

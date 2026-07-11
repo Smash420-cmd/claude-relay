@@ -820,8 +820,26 @@ function main() {
     setInterval(checkAutoResumeArm, 30 * 1000)
     // Interlinked: consume phone verdicts → enqueue tasks (no-op without the key)
     interlinked.startIntentPoller({ addTask: store.addTask, notifyChange, getTasks: store.getTasks })
-    // Push whatever usage.json already has on startup — don't wait for the next Claude Code turn.
-    try { interlinked.syncUsage(JSON.parse(fs.readFileSync(path.join(os.homedir(), '.relay', 'usage.json'), 'utf8'))) } catch {}
+    // Usage mirror: push the SAME live API the Relay UI shows. usage.json is a statusline
+    // artifact that goes stale whenever no Claude Code session is running turns — mirroring
+    // it stamped 17h-old percentages as fresh on the phone (2026-07-11 divergence report).
+    // Live API first; usage.json only as a fallback and only while actually fresh.
+    const syncUsageLive = async () => {
+      let u = null
+      try { u = await fetchClaudeUsage() } catch {}
+      if (u && !u.error && typeof u.sessionPct === 'number') {
+        return interlinked.syncUsage({ rate_limits: {
+          five_hour: { used_percentage: u.sessionPct, resets_at: u.sessionResetsAt ? u.sessionResetsAt / 1000 : null },
+          seven_day: { used_percentage: u.weeklyPct, resets_at: u.weeklyResetsAt ? u.weeklyResetsAt / 1000 : null },
+        } }).catch(() => {})
+      }
+      try {
+        const j = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.relay', 'usage.json'), 'utf8'))
+        if (j.capturedAt && Date.now() - j.capturedAt * 1000 < 30 * 60e3) await interlinked.syncUsage(j).catch(() => {})
+      } catch {}
+    }
+    syncUsageLive()
+    setInterval(syncUsageLive, 5 * 60 * 1000)
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
   })
 
