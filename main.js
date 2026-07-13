@@ -31,12 +31,20 @@ async function fetchClaudeUsage({ retries = 2, retryDelayMs = 3000 } = {}) {
         return { error: 'not_logged_in' }
       }
       const headers = { 'Cookie': `sessionKey=${cookies[0].value}`, 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Cache-Control': 'no-store' }
+      // An expired/invalid sessionKey stays in the cookie store (length > 0) but the server
+      // rejects it with 401/403. Without this check that surfaced as `no_org` or a fake success
+      // with null %, neither of which the UI treats as logged-out — so the "Log in" button never
+      // showed (2026-07-13). Any auth rejection IS logged-out: clear the cached org and say so.
       if (!cachedOrgId) {
-        const orgs = await fetch('https://claude.ai/api/organizations', { headers, cache: 'no-store' }).then(r => r.json())
+        const orgRes = await fetch('https://claude.ai/api/organizations', { headers, cache: 'no-store' })
+        if (orgRes.status === 401 || orgRes.status === 403) { cachedOrgId = null; return { error: 'not_logged_in' } }
+        const orgs = await orgRes.json()
         cachedOrgId = orgs[0] && orgs[0].uuid // ponytail: first org — multi-org accounts may need a picker
         if (!cachedOrgId) return { error: 'no_org' }
       }
-      const data = await fetch(`https://claude.ai/api/organizations/${cachedOrgId}/usage`, { headers, cache: 'no-store' }).then(r => r.json())
+      const usageRes = await fetch(`https://claude.ai/api/organizations/${cachedOrgId}/usage`, { headers, cache: 'no-store' })
+      if (usageRes.status === 401 || usageRes.status === 403) { cachedOrgId = null; return { error: 'not_logged_in' } }
+      const data = await usageRes.json()
       return {
         sessionPct: normPct(data.five_hour),
         weeklyPct: normPct(data.seven_day),
