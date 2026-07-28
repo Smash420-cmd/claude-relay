@@ -384,46 +384,112 @@ function writeSkill(filename, content) {
   }
 }
 
+// Absolute path to the relay CLI. The skills must call it through node — a bare `relay`
+// only resolves if the PATH setup button was ever pressed, and is "not a command" otherwise.
+function relayScriptPath() {
+  const scriptsDir = app.isPackaged
+    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'scripts')
+    : path.join(app.getAppPath(), 'scripts')
+  return path.join(scriptsDir, 'relay.js').replace(/\\/g, '/')
+}
+
 function writeRelaySkill() {
+  const relayJs = relayScriptPath()
   writeSkill('relay.md', `Schedule the described work into the Relay queue for later autonomous Claude Code execution.
 
-Parse the user's message and extract:
-- **title**: short label ≤60 chars
-- **prompt**: the full task Claude should run — be specific, it runs unattended in a headless session
-- **at**: when to run — convert natural language ("4pm tuesday", "tomorrow 9am", "in 2 hours") to ISO 8601 in the user's local timezone
-- **every** *(optional)*: recurrence ("daily" → \`1d\`, "weekly" → \`1w\`, "every 4 hours" → \`4h\`, "every 30 min" → \`30m\`) — makes the task repeat; **at** becomes the first run (omit **at** to start one interval from now)
-- **model** *(optional)*: one of \`claude-opus-4-8\`, \`claude-sonnet-4-6\`, \`claude-haiku-4-5-20251001\`, \`claude-opus-4-7\`, \`claude-opus-4-6\`, \`claude-sonnet-4-5-20250929\` — omit to use the default (Sonnet 4.6)
-- **effort** *(optional)*: \`low\`, \`medium\`, \`high\`, \`xhigh\` (Opus 4.8/4.7 only), or \`max\` — omit to use the model default; not supported on Haiku 4.5
+## Read this before you compose a prompt
 
-Run via Bash:
+**Never build the \`--prompt\` value as a PowerShell here-string that contains \`--flags\`.**
+PowerShell 5.1 re-parses the string and truncates the value at the first embedded \`--flag\`.
+On 2026-07-28 this silently cut a task prompt in half — the task ran a third of its brief and
+nobody noticed until the report came back wrong. Pass the prompt as a separate array argument
+(execFileSync style), or write it to a file and pass the file path. Verify what actually landed
+with \`node ${relayJs} list\` before you walk away.
+
+**\`--prompt\` must be the LAST flag on the line.** A multi-line value swallows anything after it.
+
+## Parse the user's message
+
+- **title**: short label ≤60 chars
+- **prompt**: the full task Claude should run — it runs unattended in a headless session, so it
+  must stand alone: no "as we discussed", absolute paths only
+- **model** *(REQUIRED)* and **effort** *(REQUIRED)* — see below
+- **at** *(optional, but read what omitting it means)*: convert natural language
+  ("4pm tuesday", "tomorrow 9am", "in 2 hours") to ISO 8601 local, or use \`+30m\` / \`+2h\` / \`next-reset\`
+- **every** *(optional)*: recurrence — "daily" → \`1d\`, "weekly" → \`1w\`, "every 4 hours" → \`4h\`,
+  "every 30 min" → \`30m\`
+
+## Model + effort are REQUIRED — the CLI exits 1 without them
+
+There is no default. An unpinned task would inherit the Claude CLI's interactive default, which
+changes without warning and can burn the 5-hour allowance on a premium model.
+
+| Model ID | Effort |
+|---|---|
+| \`claude-opus-5\` | low, medium, high, xhigh, max |
+| \`claude-sonnet-5\` | low, medium, high, xhigh, max |
+| \`claude-haiku-4-5-20251001\` | **none** — omit \`--effort\` entirely, it errors on Haiku |
+| \`claude-fable-5\` | low, medium, high, xhigh, max — **Max plan only**, burns the premium weekly allowance fast. Don't pick it unless the user asks for it by name. |
+
+Legacy, still accepted for tasks pinned to them: \`claude-opus-4-8\`, \`claude-opus-4-7\` (both xhigh),
+\`claude-opus-4-6\`, \`claude-sonnet-4-6\`, \`claude-sonnet-4-5-20250929\` (no xhigh).
+
+On Opus 5, disabling thinking is rejected above \`high\` effort.
+
+## Schedule it
+
 \`\`\`bash
-relay schedule --title "TITLE" --prompt "PROMPT" --at "ISO_DATETIME"
+node ${relayJs} schedule \\
+  --title "TITLE" --model claude-sonnet-5 --effort high \\
+  --cwd "PROJECT_PATH" --at "ISO_DATETIME" \\
+  --prompt "PROMPT"
 \`\`\`
 
-Add \`--cwd "PROJECT_PATH"\` if the task is for a specific project directory.
-Add \`--model "MODEL_ID"\` if the user specified a model.
-Add \`--effort "LEVEL"\` if the user specified an effort level (and the model supports it).
-Add \`--every "30m|4h|1d|1w"\` if the user asked for a recurring/daily/weekly task.
+- **\`--at\` omitted does NOT mean now.** It resolves to \`next-reset\`: the five-hour reset from
+  \`~/.relay/usage.json\` if that timestamp is still in the future, otherwise \`sessionStartTime\` + 5h
+  (tomorrow if that's already past). A task you meant to run immediately can sit for hours.
+  For soon, say so: \`--at +5m\`.
+  Exception: with \`--every\` and no \`--at\`, the first run is one interval from now.
+- **\`--cwd\` must point at a directory that exists RIGHT NOW.** A stale path kills the run before
+  Claude starts (spawn cmd.exe ENOENT — 2026-07-28, when \`claude_itinerary\` was renamed to
+  \`sojournly-v1\`). Check it before scheduling.
+- **\`--session-policy keep|ephemeral|rolling:Nd\`** — transcript hygiene. Defaults if omitted:
+  one-offs \`ephemeral\` (transcript deleted on success), repeats \`rolling:7d\`, repeats at ≥7d
+  cadence \`rolling:28d\`. Resume-mode tasks are forced to \`keep\`.
+
+## Recurring tasks: the prompt lives in a file
+
+For anything recurring, write the brief to \`C:/Users/pmdse/Projects/relay/tasks/<slug>.md\` and give
+the scheduled task only a pointer:
+
+\`\`\`
+Read C:/Users/pmdse/Projects/relay/tasks/<slug>.md and follow it exactly.
+It is authoritative — if this prompt and the file disagree, follow the file.
+\`\`\`
+
+Rules and the current brief list: \`C:/Users/pmdse/Projects/relay/tasks/README.md\`. A brief can then
+be edited and diffed without rescheduling anything.
+
+## Browser work
+
+A relay run gets no Claude-in-Chrome tools unless the task opts in (\`--chrome\`, added 2026-07-28).
+**That opt-in is currently settable only in the Relay app's task modal** ("Browser access") — the CLI
+has no \`--chrome\` flag yet. If the task needs a browser, schedule it and then tell the user to tick
+that box, or create the task in the app instead. \`chrome-devtools\` MCP is not a substitute: it drives
+a fresh automation profile with no logged-in session.
 
 ## Resuming a previous Relay session
 
-When a relay task runs, it creates or uses a Claude Code session. Relay records that session's UUID in the task log. To schedule a follow-up that resumes the same session:
+Relay records the session UUID in the task log. To schedule a follow-up in the same conversation:
 
 \`\`\`bash
-# 1. Find the session UUID from the completed task's log
-relay log TASK_ID
-# Look for the last line: "# session: <uuid>"
-
-# 2. Schedule the follow-up targeting that session
-relay schedule --title "TITLE" --prompt "PROMPT" --at "ISO_DATETIME" \\
-  --mode resume-full --resume SESSION_UUID --cwd "PROJECT_PATH"
+node ${relayJs} log TASK_ID       # last line: "# session: <uuid>"
+node ${relayJs} schedule --title "TITLE" --model claude-sonnet-5 --effort high \\
+  --mode resume-full --resume SESSION_UUID --cwd "PROJECT_PATH" --at "ISO_DATETIME" \\
+  --prompt "PROMPT"
 \`\`\`
 
-To resume your *current* session (the one you are running in right now):
-\`\`\`bash
-relay schedule --title "TITLE" --prompt "PROMPT" --at "ISO_DATETIME" \\
-  --mode resume-full --resume current --cwd "PROJECT_PATH"
-\`\`\`
+Use \`--resume current\` to resume the session you're running in right now.
 
 Confirm with one line after scheduling: \`✓ "TITLE" → HUMAN_READABLE_TIME\`
 `)
@@ -530,17 +596,18 @@ async function checkAutoResumeArm() {
 }
 
 function writeRelayListenSkill() {
+  const relayJs = relayScriptPath()
   writeSkill('relay-listen.md', `Hibernate this session until relay tasks complete, then act on or report the findings.
 
 ## Steps
 
-1. Run \`relay list\` — note every task ID currently in \`scheduled\` or \`running\` status
+1. Run \`node ${relayJs} list\` — note every task ID currently in \`scheduled\` or \`running\` status
 2. If none, tell the user the relay queue is empty and stop
 3. Otherwise enter a 2-minute polling loop using \`/loop 120\`:
-   - Each wake: run \`relay list\`
+   - Each wake: run \`node ${relayJs} list\`
    - If all watched tasks are now \`done\`, \`failed\`, or \`cancelled\` → exit the loop, go to step 4
    - Otherwise: show how many tasks remain and wait for the next tick
-4. For each finished task run \`relay log <id>\` to read its output
+4. For each finished task run \`node ${relayJs} log <id>\` to read its output
 5. Act on the results:
    - If outputs contain actionable findings (code to integrate, errors to fix, a plan to execute) → do the work now
    - If outputs are informational → write a concise report the user can read on return, saved to \`relay-listen-report.md\` in the current directory

@@ -92,22 +92,25 @@ Requires **"/relay-autoresume — self-schedule on session limit"** to be enable
 Any script or Claude Code session can enqueue tasks directly:
 
 ```bash
-relay schedule --prompt "continue the bench run" --resume current --at next-reset
-relay schedule --prompt "build day 7" --at +30m
-relay schedule --prompt "run tests" --model claude-opus-4-8 --effort high --at +1h
+relay schedule --model claude-sonnet-5 --effort high --at next-reset --resume current --prompt "continue the bench run"
+relay schedule --model claude-sonnet-5 --effort high --at +30m --prompt "build day 7"
 relay list
 relay cancel <id>
 relay log <id>    # print the task log; last line "# session: <uuid>" is the resume target
 relay restart     # signal the tray app to relaunch
 ```
 
+`relay` as a bare command only works once the PATH has been set up in Settings — otherwise call
+`node <install>/scripts/relay.js`. Keep `--prompt` last: a multi-line value swallows later flags.
+
 **Key flags:**
+- `--model` **(required)** — `claude-opus-5`, `claude-sonnet-5`, `claude-haiku-4-5-20251001`, `claude-fable-5` (Max plan only), or a legacy id (`claude-opus-4-8`, `claude-opus-4-7`, `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-sonnet-4-5-20250929`)
+- `--effort low | medium | high | xhigh | max` **(required)** — `xhigh` only on the 5-family and Opus 4.8/4.7; not supported on Haiku
 - `--resume current` — auto-detects the live Claude Code session
 - `--resume <uuid>` — resume a specific session (get the UUID from `relay log <id>`)
-- `--at next-reset | +30m | +2h | <ISO datetime>`
+- `--at next-reset | +30m | +2h | <ISO datetime>` — omitted means `next-reset`, **not** now
 - `--mode fresh | resume-full`
-- `--model` — one of `claude-opus-4-8`, `claude-sonnet-4-6`, `claude-haiku-4-5-20251001`, `claude-opus-4-7`, `claude-opus-4-6`, `claude-sonnet-4-5-20250929`
-- `--effort low | medium | high | xhigh | max` — `xhigh` only on Opus 4.8/4.7; not supported on Haiku
+- `--session-policy keep | ephemeral | rolling:Nd` — defaults: one-offs `ephemeral`, repeats `rolling:7d` (`rolling:28d` at ≥7d cadence), resumes forced to `keep`
 
 ### Chaining tasks across sessions
 

@@ -5,13 +5,17 @@
 // Usage: node scripts/test-models.js
 const { spawnSync } = require('child_process')
 
+// Mirrors MODELS in renderer/app.js — keep both in step.
 const MODELS = [
-  { id: '',                           label: 'Default (Sonnet 4.6)', effort: ['low','medium','high','max'] },
-  { id: 'claude-opus-4-8',            label: 'Opus 4.8',            effort: ['low','medium','high','xhigh','max'] },
-  { id: 'claude-sonnet-4-6',          label: 'Sonnet 4.6',          effort: ['low','medium','high','max'] },
+  { id: '',                           label: 'Default (no --model)', effort: ['low','medium','high','max'] },
+  { id: 'claude-opus-5',              label: 'Opus 5',              effort: ['low','medium','high','xhigh','max'] },
+  { id: 'claude-sonnet-5',            label: 'Sonnet 5',            effort: ['low','medium','high','xhigh','max'] },
   { id: 'claude-haiku-4-5-20251001',  label: 'Haiku 4.5',           effort: null },
+  { id: 'claude-fable-5',             label: 'Fable 5 (Max only)',  effort: ['low','medium','high','xhigh','max'] },
+  { id: 'claude-opus-4-8',            label: 'Opus 4.8',            effort: ['low','medium','high','xhigh','max'] },
   { id: 'claude-opus-4-7',            label: 'Opus 4.7',            effort: ['low','medium','high','xhigh','max'] },
   { id: 'claude-opus-4-6',            label: 'Opus 4.6',            effort: ['low','medium','high','max'] },
+  { id: 'claude-sonnet-4-6',          label: 'Sonnet 4.6',          effort: ['low','medium','high','max'] },
   { id: 'claude-sonnet-4-5-20250929', label: 'Sonnet 4.5',          effort: ['low','medium','high','max'] },
 ]
 

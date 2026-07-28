@@ -152,21 +152,28 @@ $distDir = "C:\Users\pmdse\Documents\relay\dist"
 
 ## Model + Effort
 
-### Available models (as of 0.4.11)
+### Available models (as of 2026-07-28)
 
-| Model ID | Label | Effort support |
-|----------|-------|---------------|
-| *(empty)* | Default · Sonnet 4.6 | low / medium / high / max |
-| `claude-opus-4-8` | Opus 4.8 | low / medium / high / **xhigh** / max |
-| `claude-sonnet-4-6` | Sonnet 4.6 | low / medium / high / max |
-| `claude-haiku-4-5-20251001` | Haiku 4.5 | **none** — effort flag must be omitted |
-| `claude-opus-4-7` | Opus 4.7 (Legacy) | low / medium / high / **xhigh** / max |
-| `claude-opus-4-6` | Opus 4.6 (Legacy) | low / medium / high / max |
-| `claude-sonnet-4-5-20250929` | Sonnet 4.5 (Legacy) | low / medium / high / max |
+| Model ID | Label | Group | Effort support |
+|----------|-------|-------|---------------|
+| *(empty)* | Default · no `--model` (CLI decides) | — | low / medium / high / max |
+| `claude-opus-5` | Opus 5 | Current | low / medium / high / **xhigh** / max |
+| `claude-sonnet-5` | Sonnet 5 | Current | low / medium / high / **xhigh** / max |
+| `claude-haiku-4-5-20251001` | Haiku 4.5 | Current | **none** — effort flag must be omitted |
+| `claude-fable-5` | Fable 5 (Max plan only) | Max plan | low / medium / high / **xhigh** / max |
+| `claude-opus-4-8` | Opus 4.8 | Legacy | low / medium / high / **xhigh** / max |
+| `claude-opus-4-7` | Opus 4.7 | Legacy | low / medium / high / **xhigh** / max |
+| `claude-opus-4-6` | Opus 4.6 | Legacy | low / medium / high / max |
+| `claude-sonnet-4-6` | Sonnet 4.6 | Legacy | low / medium / high / max |
+| `claude-sonnet-4-5-20250929` | Sonnet 4.5 | Legacy | low / medium / high / max |
 
-`xhigh` is only valid on Opus 4.8 and Opus 4.7. Sending it to other models causes a CLI error.
+`xhigh` is valid on the 5-family and on Opus 4.8 / 4.7 only. Sending it elsewhere causes a CLI error.
+An empty model means no `--model` flag at all — the Claude CLI picks, and that pick changes between
+CLI releases. Don't label it with a model name; the CLI `schedule` command requires `--model`/`--effort`
+explicitly for exactly this reason.
+On Opus 5, disabling thinking is rejected above `high` effort.
 
-All 33 model × effort combinations are smoke-tested by `scripts/test-models.js` — run it before bumping a version if model/effort code changes.
+Every model × effort combination is smoke-tested by `scripts/test-models.js` — run it before bumping a version if model/effort code changes. It spawns real CLI runs and spends allowance, so it is not part of `npm run check`.
 
 ### Rules when adding/removing models
 
@@ -178,7 +185,8 @@ All 33 model × effort combinations are smoke-tested by `scripts/test-models.js`
 
 ### Model Availability Notes
 
-- **claude-fable-5 is excluded** from the model list — unavailable due to US Government security concerns. Do not add it back until Patrick confirms it's cleared.
+- **claude-fable-5 is back in the list, gated** (Patrick, 2026-07-28 — supersedes the earlier "excluded, US Government security concerns" note). It sits in its own **Max plan** optgroup, labelled "Fable 5 (Max plan only)", never the default and never at the top of Current. Relay tasks run on the claude.ai subscription (`ANTHROPIC_API_KEY` is scrubbed before spawn), so the plan tier is what gates it — and it eats the premium weekly allowance fast.
+- **Premium usage tracking is a name-pattern match** — `src/tracker.js` tests `/opus|fable|mythos/i` against the turn's model. Any new premium family whose name isn't in that regex is invisible to the Weekly · Opus gauge. Update the regex when a family is added.
 
 ## `/relay` Claude Code Skill
 

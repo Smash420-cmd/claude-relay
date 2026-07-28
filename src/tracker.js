@@ -163,7 +163,10 @@ function snapshot(settings, now = Date.now()) {
   for (const t of turns) {
     if (t.ts >= now - weekMs) {
       weeklyLoad += t.load
-      if (/opus/i.test(t.model)) weeklyOpus += t.load
+      // ponytail: premium tier by name pattern — /opus/ alone missed claude-fable-5 entirely,
+      // so a Fable-heavy week read as zero premium spend. Ceiling: the NEXT premium family name
+      // falls through this the same way. Upgrade path when that bites — a per-model tier map.
+      if (/opus|fable|mythos/i.test(t.model)) weeklyOpus += t.load
     }
   }
 

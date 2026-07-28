@@ -59,20 +59,26 @@ function barClass(pct) {
 }
 
 // ── model + effort data ───────────────────────────────────────────────────────
+// Empty id = no --model flag at all, so the Claude CLI picks — and that pick changes
+// without warning between CLI releases. Don't label it with a model name.
 const MODELS = [
-  { id: '',                          label: 'Default · Sonnet 4.6',  group: null,      effort: ['low','medium','high','max'] },
-  { id: 'claude-opus-4-8',           label: 'Opus 4.8',              group: 'Current', effort: ['low','medium','high','xhigh','max'] },
-  { id: 'claude-sonnet-4-6',         label: 'Sonnet 4.6',            group: 'Current', effort: ['low','medium','high','max'] },
-  { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5',             group: 'Current', effort: null },
+  { id: '',                          label: 'Default · no --model (CLI decides)', group: null, effort: ['low','medium','high','max'] },
+  { id: 'claude-opus-5',             label: 'Opus 5',                group: 'Current',  effort: ['low','medium','high','xhigh','max'] },
+  { id: 'claude-sonnet-5',           label: 'Sonnet 5',              group: 'Current',  effort: ['low','medium','high','xhigh','max'] },
+  { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5',             group: 'Current',  effort: null },
+  { id: 'claude-fable-5',            label: 'Fable 5 (Max plan only)', group: 'Max plan', effort: ['low','medium','high','xhigh','max'] },
+  { id: 'claude-opus-4-8',           label: 'Opus 4.8',              group: 'Legacy',  effort: ['low','medium','high','xhigh','max'] },
   { id: 'claude-opus-4-7',           label: 'Opus 4.7',              group: 'Legacy',  effort: ['low','medium','high','xhigh','max'] },
   { id: 'claude-opus-4-6',           label: 'Opus 4.6',              group: 'Legacy',  effort: ['low','medium','high','max'] },
+  { id: 'claude-sonnet-4-6',         label: 'Sonnet 4.6',            group: 'Legacy',  effort: ['low','medium','high','max'] },
   { id: 'claude-sonnet-4-5-20250929',label: 'Sonnet 4.5',            group: 'Legacy',  effort: ['low','medium','high','max'] },
 ]
+const MODEL_GROUPS = ['Current', 'Max plan', 'Legacy']
 const EFFORT_LABELS = { low: 'Low — fastest & cheapest', medium: 'Medium', high: 'High (default)', xhigh: 'xHigh — agentic / coding', max: 'Max — highest capability' }
 
 function modelOptsHtml(selectedId) {
-  let h = `<option value=""${!selectedId ? ' selected' : ''}>Default · Sonnet 4.6</option>`
-  for (const g of ['Current', 'Legacy']) {
+  let h = `<option value=""${!selectedId ? ' selected' : ''}>${esc(MODELS[0].label)}</option>`
+  for (const g of MODEL_GROUPS) {
     h += `<optgroup label="${g}">`
     for (const m of MODELS.filter(m => m.group === g))
       h += `<option value="${esc(m.id)}"${selectedId === m.id ? ' selected' : ''}>${esc(m.label)}</option>`
@@ -391,6 +397,7 @@ async function openTaskModal(task = null) {
         <select id="f-effort" ${!(MODELS.find(m=>m.id===taskModel)||MODELS[0]).effort ? 'disabled' : ''}>${effortOptsHtml(taskModel, taskEffort)}</select>
       </div>
     </div>
+    <div class="hint">Fable 5 needs a Max plan and eats the premium weekly allowance fast. Haiku 4.5 takes no effort. On Opus 5, disabling thinking is rejected above <code>high</code> effort.</div>
     <div class="field">
       <label class="toggle"><input type="checkbox" id="f-chrome" ${task && task.chrome ? 'checked' : ''}/> Browser access (Claude in Chrome)</label>
       <div class="hint">Off = no browser tools. On drives your real Chrome profile — logged-in sessions included.</div>
