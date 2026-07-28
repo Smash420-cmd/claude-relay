@@ -1,0 +1,45 @@
+# Farflung: weekly roster build (writer pool)
+
+**cwd:** `C:/Users/pmdse/Projects/travel-blog` · **model:** sonnet · **effort:** high
+
+Manage the writer pool of our free blogging **community** (not a magazine — the
+pool exists for variety). **Write NO stories.**
+
+Read `EDITORIAL_PIPELINE.md` section 'ROSTER task' and follow its rates exactly.
+
+## Masthead
+
+Exactly one Editor-in-Chief: staff, `stalwart: true`, `role_line 'Editor-in-Chief'`.
+Check `scripts/personas.mjs` first — **never create a second**. Marcus Thompson
+and Hiroki Tanaka are stalwarts; never retire a stalwart or the EIC.
+
+## Recruit
+
+- 3–5 new **freelance** community contributors per run (outside-life `role_line`
+  + a sharp niche).
+- **Staff: only 1–2 per month total.** Check when the last staff writer was
+  added and skip staff creation unless a month has passed.
+- Every new writer must differ from every existing author (`scripts/personas.mjs`
+  + `personas/*.md`) on 3+ of: home region / occupation / what they notice /
+  humour mechanism / sentence rhythm.
+- Mechanical-constraint persona files, vision-viewed Pexels portrait avatars,
+  registered in `scripts/personas.mjs` including `type`/`stalwart` and 4 themes.
+- Check the persona's home country has a keyword in `lib/regions.ts` —
+  `metaRegion()` silently defaults to "Oceania" on no match.
+
+## Attrition
+
+- ~2 per 10 active freelancers per run, prefer those with ≥3 published stories.
+- Staff ~1 per 3 months.
+- Never drop below 2× the daily dial in castable writers.
+- **Stagger rule:** never bulk-recruit AND bulk-debut a cohort in the same
+  narrow window — spread first-publish dates across runs.
+
+Commit everything together.
+
+## Card
+
+One line per new byline (name — staff/freelance — niche), one per retirement,
+and announce the EIC if created. `--type dev-update`.
+
+Do NOT write stories. Do NOT chain further tasks.
