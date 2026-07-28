@@ -45,6 +45,12 @@ function turnLoad(u) {
   return (u.input_tokens || 0) + (u.output_tokens || 0) + (u.cache_creation_input_tokens || 0)
 }
 
+// Transcripts are append-only, so a re-parse only earns anything when mtime/size moved. Without
+// this the 30s gauge refresh re-read ~90MB (5h window) or ~840MB (7d estimate) of JSONL on the main
+// process every time, blocking every other IPC while it ran.
+// ponytail: whole-file re-parse when a file changes — tail-only if that ever shows in a profile.
+const fileCache = new Map() // path -> { mtimeMs, size, turns }
+
 // Read every assistant turn (with usage) across all project transcripts touched within the window.
 function collectTurns(sinceMs) {
   const root = claudeProjectsDir()
@@ -59,21 +65,29 @@ function collectTurns(sinceMs) {
       const full = path.join(dir, f)
       let stat; try { stat = fs.statSync(full) } catch { continue }
       if (stat.mtimeMs < sinceMs) continue // file untouched in window — skip whole file
-      let data; try { data = fs.readFileSync(full, 'utf8') } catch { continue }
-      for (const line of data.split('\n')) {
-        if (line.indexOf('"output_tokens"') === -1) continue // fast filter before JSON.parse
-        let o; try { o = JSON.parse(line) } catch { continue }
-        const u = o.message && o.message.usage
-        if (!u || u.output_tokens == null) continue
-        const ts = Date.parse(o.timestamp)
-        if (!ts || ts < sinceMs) continue
-        turns.push({
-          ts,
-          model: (o.message && o.message.model) || '',
-          load: turnLoad(u),
-          sessionId: o.sessionId || f.replace(/\.jsonl$/, ''),
-        })
+      const hit = fileCache.get(full)
+      let fileTurns
+      if (hit && hit.mtimeMs === stat.mtimeMs && hit.size === stat.size) fileTurns = hit.turns
+      else {
+        let data; try { data = fs.readFileSync(full, 'utf8') } catch { continue }
+        fileTurns = []
+        for (const line of data.split('\n')) {
+          if (line.indexOf('"output_tokens"') === -1) continue // fast filter before JSON.parse
+          let o; try { o = JSON.parse(line) } catch { continue }
+          const u = o.message && o.message.usage
+          if (!u || u.output_tokens == null) continue
+          const ts = Date.parse(o.timestamp)
+          if (!ts) continue
+          fileTurns.push({
+            ts,
+            model: (o.message && o.message.model) || '',
+            load: turnLoad(u),
+            sessionId: o.sessionId || f.replace(/\.jsonl$/, ''),
+          })
+        }
+        fileCache.set(full, { mtimeMs: stat.mtimeMs, size: stat.size, turns: fileTurns })
       }
+      for (const t of fileTurns) if (t.ts >= sinceMs) turns.push(t)
     }
   }
   turns.sort((a, b) => a.ts - b.ts)

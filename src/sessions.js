@@ -36,7 +36,9 @@ function listSessions(limit = 60) {
     return []
   }
 
-  const out = []
+  // Cheap pass first (stat + the active registry) — everything the sort needs. Reading metadata is
+  // the expensive part, so it happens AFTER the slice: 60 transcripts, not the whole 1.3GB history.
+  const found = []
   for (const proj of projects) {
     const dir = path.join(root, proj.name)
     let files = []
@@ -46,25 +48,27 @@ function listSessions(limit = 60) {
       let stat
       try { stat = fs.statSync(full) } catch { continue }
       const sessionId = f.replace(/\.jsonl$/, '')
-      const meta = readMeta(full) // { preview, slug, cwd }
-      const cwd = meta.cwd || ''
-      out.push({
-        sessionId,
-        slug: meta.slug || '',
-        title: meta.title || '',
-        project: cwd || decodeProject(proj.name),
-        modified: stat.mtimeMs,
-        preview: meta.preview,
-        cwd,
-        branch: gitBranch(cwd),
-        active: active.has(sessionId),
-        status: active.get(sessionId) || null,
-      })
+      found.push({ full, sessionId, proj: proj.name, modified: stat.mtimeMs, active: active.has(sessionId) })
     }
   }
   // active sessions first, then most-recently-modified
-  out.sort((a, b) => (b.active - a.active) || (b.modified - a.modified))
-  return out.slice(0, limit)
+  found.sort((a, b) => (b.active - a.active) || (b.modified - a.modified))
+  return found.slice(0, limit).map(s => {
+    const meta = readMeta(s.full) // { preview, slug, cwd, title }
+    const cwd = meta.cwd || ''
+    return {
+      sessionId: s.sessionId,
+      slug: meta.slug || '',
+      title: meta.title || '',
+      project: cwd || decodeProject(s.proj),
+      modified: s.modified,
+      preview: meta.preview,
+      cwd,
+      branch: gitBranch(cwd),
+      active: s.active,
+      status: active.get(s.sessionId) || null,
+    }
+  })
 }
 
 function decodeProject(encoded) {
@@ -74,10 +78,28 @@ function decodeProject(encoded) {
 // One pass over the transcript: grab title, slug, first user message, and cwd.
 // `ai-title` records hold the SAME conversation name Claude Code's own /resume
 // list shows — surface it so the picker matches what the user sees elsewhere.
+// ponytail: 256KB head. title/preview/cwd are always in the opening records; `slug` is written
+// later on some transcripts (measured: 8 of the 13 that have one land inside this window), so a
+// few old sessions show no codename. Widen the window if that ever matters — it costs read time.
+// Head-only: every field here is written in the opening records, but the old whole-file read cost
+// 3.7s across a 1.3GB history each time the task modal opened — and on a transcript over ~512MB it
+// threw (V8 max string length) so those sessions silently showed no metadata at all.
+function readHead(file, bytes = 256 * 1024) {
+  let fd
+  try {
+    fd = fs.openSync(file, 'r')
+    const buf = Buffer.alloc(bytes)
+    const n = fs.readSync(fd, buf, 0, bytes, 0)
+    const s = buf.slice(0, n).toString('utf8')
+    if (n < bytes) return s
+    return s.slice(0, s.lastIndexOf('\n') + 1) // drop the partial trailing line
+  } finally { if (fd !== undefined) try { fs.closeSync(fd) } catch {} }
+}
+
 function readMeta(file) {
   let preview = '', slug = '', cwd = '', title = ''
   try {
-    const lines = fs.readFileSync(file, 'utf8').split('\n')
+    const lines = readHead(file).split('\n')
     for (const line of lines) {
       if (!line.trim()) continue
       let o
@@ -138,7 +160,7 @@ function findSessionCwd(sessionId) {
       if (!p.isDirectory()) continue
       const fp = path.join(root, p.name, sessionId + '.jsonl')
       if (!fs.existsSync(fp)) continue
-      for (const line of fs.readFileSync(fp, 'utf8').split('\n')) {
+      for (const line of readHead(fp).split('\n')) { // cwd is in the opening records — never read the whole transcript
         if (line.indexOf('"cwd"') === -1) continue
         try { const o = JSON.parse(line); if (o.cwd) return o.cwd } catch {}
       }

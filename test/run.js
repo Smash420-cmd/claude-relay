@@ -283,6 +283,62 @@ check('cli schedule: model + effort → accepted, both persisted on the task', (
 })
 try { fs.rmSync(SANDBOX, { recursive: true, force: true }) } catch {}
 
+// ── transcript reads: the task modal and the usage gauge must not read 1.3GB ──
+// Both used to slurp whole transcripts: opening "Add task" cost 3.7s, and every 30s gauge refresh
+// re-parsed ~90MB on the main process. Metadata is head-only now; turns are cached per mtime+size.
+{
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'relay-home-'))
+  const projDir = path.join(home, '.claude', 'projects', '-c--proj')
+  fs.mkdirSync(projDir, { recursive: true })
+  const file = path.join(projDir, '11111111-2222-3333-4444-555555555555.jsonl')
+  const turn = (mins, model, out) => JSON.stringify({
+    type: 'assistant', timestamp: new Date(Date.now() - mins * 60e3).toISOString(),
+    message: { model, usage: { input_tokens: 10, output_tokens: out, cache_creation_input_tokens: 5 } },
+  })
+  fs.writeFileSync(file, [
+    JSON.stringify({ type: 'user', cwd: 'C:\\proj', message: { role: 'user', content: 'first ask' } }),
+    JSON.stringify({ type: 'ai-title', aiTitle: 'Session title' }),
+    turn(10, 'claude-sonnet-5', 100),
+    'x'.repeat(400 * 1024), // past the 256KB head window — must not be needed for metadata
+  ].join('\n') + '\n')
+
+  const prevHome = process.env.HOME, prevProfile = process.env.USERPROFILE
+  process.env.HOME = home; process.env.USERPROFILE = home
+  try {
+    delete require.cache[require.resolve('../src/tracker')]
+    delete require.cache[require.resolve('../src/sessions')]
+    const tracker = require('../src/tracker')
+    const sessions = require('../src/sessions')
+
+    check('sessions: metadata comes from the head, not the whole file', () => {
+      const s = sessions.listSessions()
+      assert.strictEqual(s.length, 1)
+      assert.strictEqual(s[0].title, 'Session title')
+      assert.strictEqual(s[0].cwd, 'C:\\proj')
+      assert.match(s[0].preview, /first ask/)
+    })
+    check('collectTurns: reads turns in window', () => {
+      const t = tracker.collectTurns(Date.now() - 3600e3)
+      assert.strictEqual(t.length, 1); assert.strictEqual(t[0].load, 115)
+    })
+    check('collectTurns: cache invalidates when the transcript grows (REGRESSION: stale gauge)', () => {
+      fs.appendFileSync(file, turn(1, 'claude-opus-5', 50) + '\n')
+      const t = tracker.collectTurns(Date.now() - 3600e3)
+      assert.strictEqual(t.length, 2)
+      assert.ok(t.some(x => /opus/.test(x.model)), 'appended turn missing — cache served a stale parse')
+    })
+    check('collectTurns: window filter still applies to cached turns', () => {
+      assert.strictEqual(tracker.collectTurns(Date.now() - 5 * 60e3).length, 1) // only the 1-min-old turn
+    })
+  } finally {
+    if (prevHome === undefined) delete process.env.HOME; else process.env.HOME = prevHome
+    if (prevProfile === undefined) delete process.env.USERPROFILE; else process.env.USERPROFILE = prevProfile
+    delete require.cache[require.resolve('../src/tracker')]
+    delete require.cache[require.resolve('../src/sessions')]
+    try { fs.rmSync(home, { recursive: true, force: true }) } catch {}
+  }
+}
+
 // ── report ────────────────────────────────────────────────────────────────────
 console.log(`\nrelay tests: ${pass} passed, ${fail} failed`)
 if (fail) { console.log('\nFAILURES:\n' + fails.join('\n')); process.exit(1) }

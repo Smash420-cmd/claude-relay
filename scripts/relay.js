@@ -84,7 +84,15 @@ function findSessionCwd(id) {
       if (!p.isDirectory()) continue
       const fp = path.join(CLAUDE_PROJECTS, p.name, id + '.jsonl')
       if (!fs.existsSync(fp)) continue
-      for (const line of fs.readFileSync(fp, 'utf8').split('\n')) {
+      // Head only — cwd is in the opening records, and readFileSync on a >512MB transcript throws
+      // (V8 max string length), which used to silently strand a --resume task with no cwd.
+      let head = ''
+      try {
+        const fd = fs.openSync(fp, 'r'), buf = Buffer.alloc(65536)
+        const n = fs.readSync(fd, buf, 0, buf.length, 0); fs.closeSync(fd)
+        head = buf.slice(0, n).toString('utf8')
+      } catch { continue }
+      for (const line of head.split('\n')) {
         if (line.indexOf('"cwd"') === -1) continue
         try { const o = JSON.parse(line); if (o.cwd) return o.cwd } catch {}
       }
