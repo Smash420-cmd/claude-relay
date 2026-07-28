@@ -591,6 +591,7 @@ function registerIpc() {
       projectPath: input.projectPath || '',
       model: input.model || null,
       effort: input.effort || null,
+      chrome: !!input.chrome,
       sessionPolicy,
       schedule,
       status: 'scheduled',

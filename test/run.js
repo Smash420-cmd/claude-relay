@@ -239,6 +239,10 @@ check('buildArgs: no model/effort flags when unset', () => {
   const a = buildArgs({ mode: 'fresh' }, {})
   assert.ok(!a.includes('--model')); assert.ok(!a.includes('--effort'))
 })
+check('buildArgs: --chrome only when the task opts in', () => {
+  assert.ok(buildArgs({ mode: 'fresh', chrome: true }, {}).includes('--chrome'))
+  assert.ok(!buildArgs({ mode: 'fresh' }, {}).includes('--chrome'))
+})
 
 // ── report ────────────────────────────────────────────────────────────────────
 console.log(`\nrelay tests: ${pass} passed, ${fail} failed`)

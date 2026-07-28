@@ -49,6 +49,11 @@ function buildArgs(task, opts = {}) {
   }
   if (task.model) args.push('--model', task.model)
   if (task.effort) args.push('--effort', task.effort)
+  // Opt-in browser access: without --chrome a headless run gets no Claude-in-Chrome tools
+  // (measured 2026-07-28). The other half of the requirement — no ANTHROPIC_API_KEY in the
+  // env — scrubSecrets already guarantees. Off by default: a task that doesn't need the
+  // browser shouldn't get one.
+  if (task.chrome) args.push('--chrome')
   args.push('-p')
   // Unattended runs can't answer permission prompts; without this the session just replies with text
   // and "succeeds" without editing/committing. User-enabled (settings.skipPermissions, default ON) so

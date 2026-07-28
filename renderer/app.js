@@ -267,6 +267,7 @@ function taskRow(t) {
         <div><b>Mode</b>${esc(modeText(t))}</div>
         <div><b>Model</b>${esc(t.model ? (MODELS.find(m => m.id === t.model) || {label: t.model}).label : 'Default')}</div>
         <div><b>Effort</b>${esc(t.effort || 'Default')}</div>
+        ${t.chrome ? '<div><b>Browser</b>Chrome</div>' : ''}
       </div>
     </div>
   </div>`
@@ -391,6 +392,10 @@ async function openTaskModal(task = null) {
       </div>
     </div>
     <div class="field">
+      <label class="toggle"><input type="checkbox" id="f-chrome" ${task && task.chrome ? 'checked' : ''}/> Browser access (Claude in Chrome)</label>
+      <div class="hint">Off = no browser tools. On drives your real Chrome profile — logged-in sessions included.</div>
+    </div>
+    <div class="field">
       <label>When</label>
       <div class="radio-row" id="f-sched">
         <div class="radio-chip${scheduleKind === 'at-next-reset' ? ' on' : ''}" data-v="at-next-reset">At next reset (${resetLabel})</div>
@@ -474,6 +479,7 @@ async function openTaskModal(task = null) {
       projectPath: modalEl.querySelector('#f-project').value.trim(),
       model: taskModel || null,
       effort: modalEl.querySelector('#f-effort').value || null,
+      chrome: modalEl.querySelector('#f-chrome').checked,
       schedule,
     }
     if (editing) await window.relay.update(task.id, { ...payload, status: 'scheduled' })
