@@ -3,7 +3,7 @@
 // relay CLI — enqueue/list/cancel tasks from anywhere (Claude, scripts, the bench loop).
 // Self-contained: writes the same store the app reads, so the app's watcher shows changes live.
 //
-//   node scripts/relay.js schedule --prompt "..." [--mode fresh|resume-full]
+//   node scripts/relay.js schedule --prompt "..." --model <id> --effort <low|medium|high> [--mode fresh|resume-full]
 //        [--resume <id|current>] [--at next-reset|+30m|+2h|<ISO>] [--every 30m|4h|1d|1w] [--cwd <path>] [--title "..."]
 //   node scripts/relay.js list
 //   node scripts/relay.js cancel <id>
@@ -50,6 +50,7 @@ function saveStore(db) {
 // erasing a task the app wrote in between (and vice versa). Same lock path, same 5s stale-break.
 function withLock(fn) {
   const lock = STORE + '.lock'
+  fs.mkdirSync(path.dirname(STORE), { recursive: true }) // first run: the store dir may not exist yet
   for (let i = 0; i < 50; i++) {
     try {
       fs.writeFileSync(lock, String(process.pid), { flag: 'wx' })
@@ -166,6 +167,22 @@ function cmdSchedule(f) {
     process.exit(1)
   }
   if (mode !== 'fresh') sessionPolicy = 'keep' // resuming an existing conversation — never delete it
+  // Model + effort must be explicit: an unpinned task inherits the CLI's
+  // interactive default, which changes without warning and can burn the 5hr
+  // allowance on a premium model.
+  if (typeof f.model !== 'string' || !f.model) {
+    console.error('error: --model is required (e.g. --model claude-sonnet-5). No default — state it.')
+    process.exit(1)
+  }
+  const haiku = /haiku/i.test(f.model) // Haiku has no effort levels — the Claude CLI errors on --effort
+  if (haiku && f.effort) {
+    console.error('error: --effort is not supported on Haiku — omit it.')
+    process.exit(1)
+  }
+  if (!haiku && (typeof f.effort !== 'string' || !f.effort)) {
+    console.error('error: --effort is required (low|medium|high|xhigh|max). No default — state it.')
+    process.exit(1)
+  }
   const task = {
     id: uid(),
     title: f.title || String(f.prompt).slice(0, 60),
@@ -173,7 +190,7 @@ function cmdSchedule(f) {
     mode,
     sessionId: sessionId || null,
     projectPath: cwd,
-    model: f.model || null,
+    model: f.model,
     effort: f.effort || null,
     sessionPolicy,
     schedule: repeat ? { kind: 'repeat', ...repeat, at } : { kind: 'once', at },
@@ -228,7 +245,7 @@ try {
   else if (cmd === 'log') cmdLog(pos[1])
   else {
     console.log('relay — usage:')
-    console.log('  schedule --prompt "..." [--mode fresh|resume-full] [--resume <id|current>] [--at next-reset|+30m|<ISO>] [--every 30m|4h|1d|1w] [--cwd <path>] [--title "..."]')
+    console.log('  schedule --prompt "..." --model <claude-sonnet-5|claude-opus-5|...> --effort <low|medium|high|xhigh|max — omit for Haiku> [--mode fresh|resume-full] [--resume <id|current>] [--at next-reset|+30m|<ISO>] [--every 30m|4h|1d|1w] [--cwd <path>] [--title "..."]')
     console.log('  list')
     console.log('  cancel <id>')
     console.log('  log <task-id>        — print the task log (last line: # session: <uuid> for --resume)')

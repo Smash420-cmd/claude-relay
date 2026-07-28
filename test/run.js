@@ -244,6 +244,45 @@ check('buildArgs: --chrome only when the task opts in', () => {
   assert.ok(!buildArgs({ mode: 'fresh' }, {}).includes('--chrome'))
 })
 
+// ── relay CLI: --model/--effort are mandatory ────────────────────────────────
+// A task scheduled without them inherits the Claude CLI's interactive default, which changes
+// between CLI releases — an unattended run can silently land on a premium model.
+const { spawnSync } = require('child_process')
+const fs = require('fs'), os = require('os'), path = require('path')
+const CLI = path.join(__dirname, '..', 'scripts', 'relay.js')
+const SANDBOX = fs.mkdtempSync(path.join(os.tmpdir(), 'relay-test-')) // store path comes from APPDATA/HOME — keep the real store out of this
+const cli = (...args) => spawnSync(process.execPath, [CLI, 'schedule', '--at', '+5m', '--prompt', 'x', ...args],
+  { encoding: 'utf8', env: { ...process.env, APPDATA: SANDBOX, HOME: SANDBOX, USERPROFILE: SANDBOX, XDG_CONFIG_HOME: SANDBOX } })
+
+check('cli schedule: no --model → exits 1', () => {
+  const r = cli()
+  assert.strictEqual(r.status, 1); assert.match(r.stderr, /--model is required/)
+})
+check('cli schedule: --model with no value → exits 1 (bare flag parses to boolean true)', () => {
+  const r = cli('--model', '--effort', 'high')
+  assert.strictEqual(r.status, 1); assert.match(r.stderr, /--model is required/)
+})
+check('cli schedule: --model without --effort → exits 1', () => {
+  const r = cli('--model', 'claude-sonnet-5')
+  assert.strictEqual(r.status, 1); assert.match(r.stderr, /--effort is required/)
+})
+check('cli schedule: Haiku + --effort → exits 1 (the Claude CLI rejects effort on Haiku)', () => {
+  const r = cli('--model', 'claude-haiku-4-5-20251001', '--effort', 'high')
+  assert.strictEqual(r.status, 1); assert.match(r.stderr, /not supported on Haiku/)
+})
+check('cli schedule: Haiku without --effort → accepted', () => {
+  const r = cli('--model', 'claude-haiku-4-5-20251001')
+  assert.strictEqual(r.status, 0, r.stderr)
+})
+check('cli schedule: model + effort → accepted, both persisted on the task', () => {
+  const r = cli('--model', 'claude-sonnet-5', '--effort', 'high')
+  assert.strictEqual(r.status, 0, r.stderr)
+  const db = JSON.parse(fs.readFileSync(path.join(SANDBOX, 'relay', 'relay-data.json'), 'utf8'))
+  assert.strictEqual(db.tasks[0].model, 'claude-sonnet-5')
+  assert.strictEqual(db.tasks[0].effort, 'high')
+})
+try { fs.rmSync(SANDBOX, { recursive: true, force: true }) } catch {}
+
 // ── report ────────────────────────────────────────────────────────────────────
 console.log(`\nrelay tests: ${pass} passed, ${fail} failed`)
 if (fail) { console.log('\nFAILURES:\n' + fails.join('\n')); process.exit(1) }
