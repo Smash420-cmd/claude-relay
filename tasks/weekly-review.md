@@ -15,14 +15,26 @@ Patrick's Sunday weekly review. ONE card. Do not edit files.
    for signups, sales count + AUD sum (`sum(amount_total)/100.0`, cents), errors.
 3. **Queued** — `node C:/Users/pmdse/Projects/relay/scripts/relay.js list`,
    summarise what's scheduled.
+4. **Instagram week** — needs the Claude-in-Chrome extension (task must have
+   Browser access ticked in the Relay app). If `mcp__claude-in-chrome__*` tools
+   are absent, write `IG: no browser access` in the card and move on — never
+   substitute chrome-devtools. Otherwise, in Claude's own tab group:
+   - `https://www.instagram.com/sojournly.au/` → current **followers** total
+     (delta vs the number in last week's card is the follows-per-week trend).
+   - For each post dated in the last 7 days in
+     `C:/Users/pmdse/Projects/sojournly-v1/.claude/context/instagram-log.md`:
+     open it from the profile grid → View insights → **views, non-follower %,
+     saves, follows**. Saves are the number that matters; likes are noise.
+   - Close every tab in the group when done.
 
 ## Body
 
-Three tight markdown sections:
+Four tight markdown sections:
 
 ```
 ## Shipped        — one line per meaningful theme, not per commit
 ## Sojournly week — the numbers
+## Instagram week — followers total, then per-post: views / non-follower % / saves
 ## Queued         — what's scheduled
 ```
 
