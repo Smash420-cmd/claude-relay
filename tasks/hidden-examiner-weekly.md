@@ -50,10 +50,44 @@ Read `specs/006-hidden-examiner/TEST-PLAN.md` and FOLLOW IT EXACTLY: do only the
 
 **Preferred path** is the CLI student (`scripts/exam-cli.mjs`), which runs on the
 Max plan for free: each episode is one `claude -p` whose only tools are the world
-MCP server. On the first live run, confirm the claude flags actually restrict to
+MCP server.
+
+**Student model is `claude-opus-5`** (Patrick, 2026-07-29 — was sonnet; the default
+in `exam-cli.mjs` is now pinned to the full ID). Two consequences:
+
+- **The ~3.1 min/episode baseline is void.** It was measured on sonnet and is what
+  produced the "6 episodes safe, 8 the ceiling" rule for the 45-minute cap. On the
+  first Opus 5 run, **time a single episode before launching a batch**, then size
+  the batch from that number and record it in NOTES.md.
+- **Scores before and after are not comparable.** T1–T3 were sonnet. Any Opus 5
+  result is a new curve, not a continuation — say so in the card rather than
+  reading it as compounding. On the first live run, confirm the claude flags actually restrict to
 the 7 world tools (built-ins hidden) and that scores land in
 `students/<id>/submissions.jsonl`. If a flag is wrong, FIX `scripts/exam-cli.mjs`
 and note it — that is expected shakedown, not failure.
+
+## BLOCKED — do not start T4 until Patrick rules
+
+T3's run raised two things that make T4 meaningless if ignored. Both need Patrick,
+not you. If T4 is the first unchecked test and these are still open, **do not run
+it** — send a card asking for the rulings and stop.
+
+1. **`worlds/books-v1` is signed but was never reviewed.** `key.json` carries
+   `certifiedBy: Patrick, certifiedAt: 2026-07-04`, yet every checkbox in
+   `REVIEW-KEY.md` is unticked — all 5 truths and all 8 traps. The file's own
+   instruction is to open each screenshot, tick, *then* sign. Consequence:
+   `booksamillion` and `thirdplacebooks` are truths that `search` never returns
+   (their pages exist in `capture/` and `fetch/` — reachable only if you already
+   know the URL). A student that cannot discover them cannot submit them, so the
+   `passMark: 0.9` may be unreachable by construction. Whether that is a world bug
+   or the actual test is Patrick's call.
+2. **Four open rulings sit unresolved** at the bottom of `REVIEW-KEY.md`: whether
+   used hardcovers (HPB, ThriftBooks) count as truths given the request says "buy
+   NEW"; whether `jamesclear.com` is a category-page trap; whether the B&N URL is
+   really the hardcover in stock; and whether mcnallyrobinson is genuinely a
+   ghost. Each changes the truth set, and therefore every score.
+
+Until these land, T3's 0.6667 is a score against an uncertified key.
 
 ## Hard rules
 
