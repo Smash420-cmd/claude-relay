@@ -1,12 +1,12 @@
 # Instagram daily post — @sojournly.au (+ Pinterest mirror)
 
-**cwd:** `C:/Users/pmdse/Projects/sojournly-v1` · **model:** opus · **effort:** high
+**cwd:** `C:/Users/pmdse/Projects/sojournly-social` · **model:** opus · **effort:** high
 
 Post one image to the @sojournly.au Instagram account. After a successful
 post, mirror it as a pin per `.claude/context/pinterest.md` — but ONLY if that
 file's Status line says ACTIVE; while it says DORMANT, skip Pinterest silently.
 
-Authoritative playbook: `C:/Users/pmdse/Projects/sojournly-v1/.claude/context/instagram.md`
+Authoritative playbook: `C:/Users/pmdse/Projects/sojournly-social/.claude/context/instagram.md`
 — read it in full before doing anything, plus `.claude/context/social-voice.md`
 for caption voice. If this brief and the playbook disagree, follow the playbook.
 

@@ -1,6 +1,6 @@
 # Pinterest daily pin — sojournly.au
 
-**cwd:** `C:/Users/pmdse/Projects/sojournly-v1` · **model:** opus · **effort:** high
+**cwd:** `C:/Users/pmdse/Projects/sojournly-social` · **model:** opus · **effort:** high
 **Browser:** required — this task must run with browser access enabled.
 
 Publish one pin per day to Pinterest from Patrick's pre-approved photo pool.
