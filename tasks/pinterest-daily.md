@@ -39,16 +39,32 @@ no longer true and must not be reintroduced:
    in `pinterest.md`. Portrait lane only: **0.667–0.80 pins as-is**. Landscape
    belongs to Instagram; panoramas are never pinned.
 3. **Reject repeats** — grep `instagram-log.md` for `pin:<filename>`.
-4. **Open the image before posting.** Look at it. The label tells you the
-   subject, not whether the frame is good or whether a person is identifiable.
-5. **Write title and description** per `pinterest.md` — keyword-first title of
-   ≤100 chars aimed at what a trip planner would actually search, description
-   ≤500 chars in the `social-voice.md` voice, facts only, no hashtags.
+4. **Open the image and describe it to yourself before writing a word.** Not a
+   safety glance — this is the writing step. Name out loud what is actually in
+   the frame: time of day, weather, what's lit, who's in it, what the road or
+   sky is doing. The filename gives you the subject; only the picture gives you
+   the caption. It also tells you whether a person is identifiable — still check
+   that.
+5. **Write title and description** per `pinterest.md`, obeying
+   `social-voice.md` §"Write from the frame": the description **opens on
+   something visible in this photograph**, and the fact you choose must be
+   reachable from that in one step. If the fact you want isn't in the picture,
+   it's the wrong fact for this photo. Keyword-first title ≤100 chars aimed at
+   what a trip planner would search; description ≤500 chars, no hashtags. Run
+   the read-back checklist — question 1 is the one that fails.
 6. **Pin it** via the Claude-in-Chrome extension in Claude's own tab group. Never
    chrome-devtools. Never log in. Board by destination per `pinterest.md`.
    Link is always `https://sojournly.au/?utm_source=pinterest`.
 7. **Log one `P` line** in `instagram-log.md`:
-   `DATE | P | pin:<filename> | <board> | <title> | link:ok`
+   `DATE | P | pin:<filename> | <board> | <title> | frame:<what you opened on> | link:ok`
+   `frame:` is the visible detail the description opens on — a few words, e.g.
+   `frame:wet road, empty crossing, tower lit`. It exists so the next run (and
+   Patrick) can see at a glance whether the caption came from the photograph.
+8. **Keep the last five descriptions** in this task's `NOTES.md` under
+   `## Last five descriptions`, newest first, trimming to five. Read them before
+   writing — they are the only way to notice your captions converging on one
+   shape. The log line records that a pin happened; only this records how it
+   read.
 
 ## When the lane is empty
 
