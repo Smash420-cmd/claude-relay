@@ -15,8 +15,9 @@ Authoritative playbook: `C:/Users/pmdse/Projects/sojournly-social/.claude/contex
 — read it in full before doing anything, plus `.claude/context/social-voice.md`
 for caption voice. If this brief and the playbook disagree, follow the playbook.
 
-**image + research + training data + writing style = post.** All four are
-required, and the order is image → research → write. Run three or four targeted
+**image + research + training data + writing style + Sojournly = post.** All five
+are required — the Sojournly tie-in is a term, not a garnish; a post without one
+is someone else's travel account. The order is image → research → write. Run three or four targeted
 searches on the subject before drafting — what it is, why it exists, what its name
 means, what happens there that doesn't elsewhere. Prefer tourist boards, museums,
 operators and transit authorities over travel listicles; two independent sources
