@@ -15,10 +15,11 @@ Authoritative playbook: `C:/Users/pmdse/Projects/sojournly-social/.claude/contex
 — read it in full before doing anything, plus `.claude/context/social-voice.md`
 for caption voice. If this brief and the playbook disagree, follow the playbook.
 
-**The caption starts from the photograph**, per `social-voice.md` §"Write from
-the frame": open on something literally visible in the image, pick a fact the
-picture earns, and log a `frame:` token recording what you opened on. Observe,
-don't infer — no weather, season or time of day unless the picture states it.
+**The caption is anchored to the photograph but never describes it**, per
+`social-voice.md` §"Write from the frame". The reader is looking at the image, so
+naming what's in it is wasted words — take a visible thing and hang a fact on it
+the eye can't supply. Log a `frame:` token naming that thing. Observe, don't
+infer: no weather, season or time of day unless the picture states it.
 
 ## Browser — the only supported route
 
