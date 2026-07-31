@@ -15,22 +15,13 @@ Authoritative playbook: `C:/Users/pmdse/Projects/sojournly-social/.claude/contex
 — read it in full before doing anything, plus `.claude/context/social-voice.md`
 for caption voice. If this brief and the playbook disagree, follow the playbook.
 
-**image + research + training data + writing style + Sojournly = post.** All five
-are required — the Sojournly tie-in is a term, not a garnish; a post without one
-is someone else's travel account. The order is image → research → write. Run three or four targeted
-searches on the subject before drafting — what it is, why it exists, what its name
-means, what happens there that doesn't elsewhere. Prefer tourist boards, museums,
-operators and transit authorities over travel listicles; two independent sources
-for anything the caption leans on. Recall decides what to search for, not what to
-print. If web search isn't available, log `research:unavailable` and keep the
-caption to what needs no source rather than writing from memory. `social-voice.md`
-§Facts governs.
+**Order is image → research → write.** Look at the photograph, run a few searches
+on the subject, then write. Never research to justify a draft you've already
+written. If web search isn't available, log `research:unavailable` and keep the
+caption to what needs no source rather than writing from memory.
 
-**The caption is anchored to the photograph but never describes it**, per
-`social-voice.md` §"Write from the frame". The reader is looking at the image, so
-naming what's in it is wasted words — take a visible thing and hang a fact on it
-the eye can't supply. Log a `frame:` token naming that thing. Observe, don't
-infer: no weather, season or time of day unless the picture states it.
+`social-voice.md` is short and governs the writing. Follow it; nothing about the
+words is repeated here.
 
 ## Browser — the only supported route
 

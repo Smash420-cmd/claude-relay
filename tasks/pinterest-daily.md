@@ -39,45 +39,21 @@ no longer true and must not be reintroduced:
    in `pinterest.md`. Portrait lane only: **0.667–0.80 pins as-is**. Landscape
    belongs to Instagram; panoramas are never pinned.
 3. **Reject repeats** — grep `instagram-log.md` for `pin:<filename>`.
-4. **Open the image and describe it to yourself before writing a word.** Not a
-   safety glance — this is the writing step. Name out loud what is actually in
-   the frame: time of day, weather, what's lit, who's in it, what the road or
-   sky is doing. The filename gives you the subject; only the picture gives you
-   the caption. It also tells you whether a person is identifiable — still check
-   that.
-4b. **Research the subject before writing a word of it.** Three or four targeted
-   searches — what the place is, why it exists, what its name means, what happens
-   there that doesn't happen elsewhere. Name-meaning is the highest-yield search
-   and the most often skipped. Prefer tourist boards, museums, operators and
-   transit authorities over travel listicles. `social-voice.md` §Facts governs.
-   **The order is image → research → write**, never research to justify a draft.
-   If web search isn't available, log `research:unavailable` and keep the
-   description to what genuinely needs no source — don't write from memory and
-   present it as checked.
-5. **Write title and description** per `pinterest.md`, obeying
-   `social-voice.md` §"Write from the frame". The description is **anchored to
-   this photograph but never describes it** — the reader is looking at the image,
-   so naming what's in it is wasted. Take a visible thing and hang a fact on it
-   that the eye can't supply. If the fact you want can't be reached from
-   something in the picture, it's the wrong fact for this photo. Keyword-first
-   title ≤100 chars aimed at what a trip planner would search; description ≤500
-   chars, no hashtags. Run the read-back checklist — questions 1 and 2 are the
-   ones that fail.
+4. **Open the image and look at it.** Also check whether anyone in it is
+   identifiable.
+5. **Research, then write.** A few searches on the subject before drafting, never
+   after. If web search isn't available, log `research:unavailable` and keep the
+   description to what needs no source. Then write the title and description —
+   `social-voice.md` governs the words and is short; keyword-first title ≤100
+   chars aimed at what a trip planner would search, description ≤500 characters.
 6. **Pin it** via the Claude-in-Chrome extension in Claude's own tab group. Never
    chrome-devtools. Never log in. Board by destination per `pinterest.md`.
    Link is always `https://sojournly.au/?utm_source=pinterest`.
 7. **Log one `P` line** in `instagram-log.md`:
-   `DATE | P | pin:<filename> | <board> | <title> | frame:<what you opened on> | link:ok`
-   `frame:` is the visible thing the description hangs a fact on — a few words,
-   e.g. `frame:pilings -> why rorbuer sit over water`. Not what the description
-   describes; it never describes the image. It exists so the next run (and
-   Patrick) can see at a glance whether the writing came from the photograph.
-8. **Keep the last five descriptions** in this task's `NOTES.md` under
-   `## Last five descriptions`, newest first, trimming to five, **each with the
-   two or three source URLs you used**. Read them before writing — they are the
-   only way to notice your descriptions converging on one shape, and the URLs
-   tell you which wells were already dry. The log line records that a pin
-   happened; only this records how it read and where it came from.
+   `DATE | P | pin:<filename> | <board> | <title> | <the one fact you used> | link:ok`
+8. **Keep the last five descriptions** in this task's `NOTES.md`, newest first,
+   each with the source URLs. It's how the next run sees what's already been said
+   about a place, and which wells were dry.
 
 ## When the lane is empty
 
