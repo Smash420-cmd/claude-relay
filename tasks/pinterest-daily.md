@@ -45,6 +45,15 @@ no longer true and must not be reintroduced:
    sky is doing. The filename gives you the subject; only the picture gives you
    the caption. It also tells you whether a person is identifiable — still check
    that.
+4b. **Research the subject before writing a word of it.** Three or four targeted
+   searches — what the place is, why it exists, what its name means, what happens
+   there that doesn't happen elsewhere. Name-meaning is the highest-yield search
+   and the most often skipped. Prefer tourist boards, museums, operators and
+   transit authorities over travel listicles. `social-voice.md` §Facts governs.
+   **The order is image → research → write**, never research to justify a draft.
+   If web search isn't available, log `research:unavailable` and keep the
+   description to what genuinely needs no source — don't write from memory and
+   present it as checked.
 5. **Write title and description** per `pinterest.md`, obeying
    `social-voice.md` §"Write from the frame". The description is **anchored to
    this photograph but never describes it** — the reader is looking at the image,
@@ -64,10 +73,11 @@ no longer true and must not be reintroduced:
    describes; it never describes the image. It exists so the next run (and
    Patrick) can see at a glance whether the writing came from the photograph.
 8. **Keep the last five descriptions** in this task's `NOTES.md` under
-   `## Last five descriptions`, newest first, trimming to five. Read them before
-   writing — they are the only way to notice your captions converging on one
-   shape. The log line records that a pin happened; only this records how it
-   read.
+   `## Last five descriptions`, newest first, trimming to five, **each with the
+   two or three source URLs you used**. Read them before writing — they are the
+   only way to notice your descriptions converging on one shape, and the URLs
+   tell you which wells were already dry. The log line records that a pin
+   happened; only this records how it read and where it came from.
 
 ## When the lane is empty
 

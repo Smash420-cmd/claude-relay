@@ -15,6 +15,16 @@ Authoritative playbook: `C:/Users/pmdse/Projects/sojournly-social/.claude/contex
 — read it in full before doing anything, plus `.claude/context/social-voice.md`
 for caption voice. If this brief and the playbook disagree, follow the playbook.
 
+**image + research + training data + writing style = post.** All four are
+required, and the order is image → research → write. Run three or four targeted
+searches on the subject before drafting — what it is, why it exists, what its name
+means, what happens there that doesn't elsewhere. Prefer tourist boards, museums,
+operators and transit authorities over travel listicles; two independent sources
+for anything the caption leans on. Recall decides what to search for, not what to
+print. If web search isn't available, log `research:unavailable` and keep the
+caption to what needs no source rather than writing from memory. `social-voice.md`
+§Facts governs.
+
 **The caption is anchored to the photograph but never describes it**, per
 `social-voice.md` §"Write from the frame". The reader is looking at the image, so
 naming what's in it is wasted words — take a visible thing and hang a fact on it
