@@ -1,14 +1,24 @@
-# Instagram daily post — @sojournly.au (+ Pinterest mirror)
+# Instagram daily post — @sojournly.au
 
 **cwd:** `C:/Users/pmdse/Projects/sojournly-social` · **model:** opus · **effort:** high
 
-Post one image to the @sojournly.au Instagram account. After a successful
-post, mirror it as a pin per `.claude/context/pinterest.md` — but ONLY if that
-file's Status line says ACTIVE; while it says DORMANT, skip Pinterest silently.
+Post one image to the @sojournly.au Instagram account. **Instagram only.**
+
+**Do not pin anything.** Pinterest was decoupled on 2026-07-31 and has its own
+daily task (`pinterest-daily.md`) that picks its own frame. This brief used to
+say "after a successful post, mirror it as a pin per `pinterest.md`, but only
+while its Status says ACTIVE" — that Status now reads ACTIVE, so following it
+would pin twice a day and hand Pinterest whatever Instagram happened to choose.
+Nothing in this run touches Pinterest.
 
 Authoritative playbook: `C:/Users/pmdse/Projects/sojournly-social/.claude/context/instagram.md`
 — read it in full before doing anything, plus `.claude/context/social-voice.md`
 for caption voice. If this brief and the playbook disagree, follow the playbook.
+
+**The caption starts from the photograph**, per `social-voice.md` §"Write from
+the frame": open on something literally visible in the image, pick a fact the
+picture earns, and log a `frame:` token recording what you opened on. Observe,
+don't infer — no weather, season or time of day unless the picture states it.
 
 ## Browser — the only supported route
 
