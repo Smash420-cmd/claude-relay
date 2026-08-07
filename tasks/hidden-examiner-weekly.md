@@ -96,13 +96,27 @@ Two guards are already committed (`6304aad`) — you do not need to write them:
 1. **Read `worlds/books-v1/urls.json`** (13 items). Note that `booksamillion` and
    `thirdplacebooks` are now `trap:bot-wall`, matching the signed key.
 2. **Add reachable NEW-hardcover sellers as `truth` items** until there are **5–6
-   truths**, so the board is wider than the submission budget with margin. The
-   request is AUD-flavoured ("buy new right now", Amazon shows AUD 25.95), so
-   Australian sellers fit the request and are far less likely to bot-wall than the
-   US chains that failed: Booktopia, Dymocks, QBD, Angus & Robertson, Readings,
-   Boffins. **Verify each URL is the HARDCOVER of ISBN 9780735211292**, not the
-   paperback and not a bundle. A wrong-format URL added as a truth is the same
-   class of error this whole exercise is fixing.
+   truths**, so the board is wider than the submission budget with margin.
+
+   **Spread them across markets on purpose.** Spec 005: *"The harness engine is
+   domain-free and region-free — it has no opinion on geography"*, with `region`
+   ("AU" / "US" / "UK" / "global") a first-class spec field. Robustness in any
+   market is the goal, so a truth set that spans US, UK, AU and CA tests more than
+   a single-market one. books-v1 is currently US-heavy (amazon.com, christianbook,
+   B&N) with one CA and one UK seller — widen the spread, do not narrow it.
+   Candidates: **UK** Waterstones, Blackwell's, Foyles · **AU** Booktopia, Dymocks,
+   QBD, Angus & Robertson · **CA** Indigo · **US** Bookshop.org, Powell's.
+
+   Mixed currencies cost nothing in scoring — the judge reads only the URL set
+   (`judge.ts` declares `priceAud` but never reads it). Verify each URL is the
+   **HARDCOVER of ISBN 9780735211292**, not the paperback and not a bundle. A
+   wrong-format URL added as a truth is the same class of error this whole
+   exercise is fixing.
+
+   Which sellers survive recording is an empirical question, not a guess — pick a
+   spread, record, and let the bodyless-truth warning in step 3 tell you which ones
+   are real. Over-supply the list so there are replacements when some wall.
+
 3. **Re-record:** `node scripts/record-urls.mjs worlds/books-v1` (run `npm run
    build` first — the script reads `dist/`). Watch for the bodyless-truth warning.
    Any truth it names is undiscoverable: replace that seller or demote it. Do not
