@@ -30,7 +30,8 @@ takes effect on the next run with no rescheduling.
 
 | File | Task | Cadence |
 |------|------|---------|
-| `instagram-daily.md` | Instagram post — @sojournly.au | daily 18:30 |
+| `instagram-daily.md` | Instagram post — @sojournly.au | daily 14:00 |
+| `pinterest-daily.md` | Pinterest pin — @sojournly.au | daily 15:00 |
 | `morning-briefing.md` | Interlinked morning briefing | daily 07:00 |
 | `ops-digest.md` | Interlinked ops digest | daily 21:00 |
 | `weekly-review.md` | Interlinked weekly review | Sun 18:00 |

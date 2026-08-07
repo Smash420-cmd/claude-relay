@@ -8,6 +8,7 @@ Patrick's Sunday weekly review. ONE card. Do not edit files.
 
 1. **Shipped** — `git -C <path> log --oneline --since='7 days ago'` for:
    - `C:/Users/pmdse/Projects/sojournly-v1` (live Sojournly)
+   - `C:/Users/pmdse/Projects/sojournly-social` (social agent — own repo since 2026-08-01)
    - `C:/Users/pmdse/Projects/sojournly-v2` (skunkworks)
    - `C:/Users/pmdse/Projects/relay`
    - `C:/Users/pmdse/Projects/interlinked`
@@ -22,7 +23,8 @@ Patrick's Sunday weekly review. ONE card. Do not edit files.
    - `https://www.instagram.com/sojournly.au/` → current **followers** total
      (delta vs the number in last week's card is the follows-per-week trend).
    - For each post dated in the last 7 days in
-     `C:/Users/pmdse/Projects/sojournly-v1/.claude/context/instagram-log.md`:
+     `C:/Users/pmdse/Projects/sojournly-social/.claude/context/instagram-log.md`
+     (moved from sojournly-v1 on 2026-08-01; the v1 copy is stale):
      open it from the profile grid → View insights → **views, non-follower %,
      saves, follows**. Saves are the number that matters; likes are noise.
    - Close every tab in the group when done.

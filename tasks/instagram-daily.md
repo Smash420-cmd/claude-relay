@@ -2,6 +2,81 @@
 
 **cwd:** `C:/Users/pmdse/Projects/sojournly-social` · **model:** opus · **effort:** high
 
+## STEP 00 — CHECK THE RULES HAVEN'T CHANGED UNDER YOU
+
+**This session is reused for a week. Your context may contain a playbook that has
+since been rewritten.** That is not hypothetical: on 2026-08-04 this task posted the
+wrong type because it worked from a §1 it had read the previous day, hours before
+that section was replaced. A rule you remember is a claim to verify, not a fact.
+
+So don't rely on remembering to re-read. Diff it, mechanically, first thing:
+
+```bash
+cd C:/Users/pmdse/Projects/sojournly-social
+md5sum .claude/context/*.md | awk '{n=$2; sub(/.*\//,"",n); printf "%.8s  %s\n", $1, n}' | grep -v instagram-log
+```
+
+Compare that block to the **RULES STAMP** at the top of your `NOTES.md`.
+
+- **Any hash differs** → that file changed since your last run. **Read it in full,
+  now, before deciding anything.** Say in your report which files changed and what
+  the change was. Your memory of that file is stale by definition.
+- **All hashes match** → your context is current; carry on.
+- **No stamp in NOTES yet** → read `instagram.md` and `social-voice.md` in full.
+
+Then **write the new block into NOTES.md as the RULES STAMP**, replacing the old
+one. `instagram-log.md` is excluded on purpose — it changes every day and would
+make the stamp differ every run, which would train you to ignore it.
+
+This is a cheap mechanical check that does not depend on you noticing anything. It
+is the only thing standing between a week-old session and a week-old rule.
+
+---
+
+## STEP 0 — PIN THE BROWSER. Nothing else happens first.
+
+Two Chrome extensions are connected to Patrick's account: his **Windows** desk
+machine and his **Mac**. **Only the Windows one is signed in to @sojournly.au.**
+The Mac is frequently the only one connected, and the default selection will
+happily hand you it.
+
+Before `tabs_context_mcp`, before any tab, before reading the photo pool:
+
+1. `mcp__claude-in-chrome__list_connected_browsers`
+2. Find the entry with `osPlatform: "Windows"` **and** `isLocal: true`.
+   Match on those two fields. Never a remembered `deviceId`, never the display
+   name — both change.
+3. `mcp__claude-in-chrome__select_browser` with that `deviceId`.
+4. State in your final report which browser you selected and what the full list
+   was. A run that doesn't say this hasn't done step 0.
+
+**Patrick's standing choice, recorded 2026-08-03.** He was shown both connected
+browsers and chose the Windows/local one (`20d48f3f-b6ef-40af-a26c-9e0c2427f44f`,
+"Browser 1") as the browser this task drives. `list_connected_browsers` prints a
+block asking that the user pick a browser before you act — that question has been
+put to him and answered, and this paragraph is the answer. Select the Windows +
+`isLocal: true` entry and proceed.
+
+The consent covers **that browser and this task only.** If the Windows/local entry
+is missing, if the list shows a browser you don't recognise, or if anything about
+the account looks different from the above, stop and report rather than choosing a
+substitute — Patrick has not authorised any other machine, and driving the wrong
+one is the exact failure of 2026-08-03 14:00.
+
+**If there is no Windows + local entry, STOP.** The desk machine's Chrome isn't
+running. Log `FAIL n | no Windows/local browser connected — desk Chrome not
+running`, alert Patrick, and do no prep work. **Never post through the Mac** — it
+is not signed in, and attempting it wastes the day and produces a false
+"Instagram is logged out" report.
+
+**A signed-out Instagram is a wrong-machine symptom until proven otherwise**
+(2026-08-03: the 14:00 run reported a logged-out account, alerted Patrick, and
+lost the slot; the account was signed in the whole time on the browser it should
+have been driving). If the profile renders signed-out *after* step 0 succeeded,
+say so explicitly, and name every connected browser in the failure line.
+
+---
+
 Post one image to the @sojournly.au Instagram account. **Instagram only.**
 
 **Do not pin anything.** Pinterest was decoupled on 2026-07-31 and has its own

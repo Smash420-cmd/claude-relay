@@ -66,28 +66,28 @@ the 7 world tools (built-ins hidden) and that scores land in
 `students/<id>/submissions.jsonl`. If a flag is wrong, FIX `scripts/exam-cli.mjs`
 and note it — that is expected shakedown, not failure.
 
-## BLOCKED — do not start T4 until Patrick rules
+## T4 is UNBLOCKED (Patrick ruled 2026-08-07)
 
-T3's run raised two things that make T4 meaningless if ignored. Both need Patrick,
-not you. If T4 is the first unchecked test and these are still open, **do not run
-it** — send a card asking for the rulings and stop.
+The two blockers that stopped the 2026-08-05 run are resolved. Do **not** re-audit
+`worlds/books-v1`, and do not re-send the blocked card.
 
-1. **`worlds/books-v1` is signed but was never reviewed.** `key.json` carries
-   `certifiedBy: Patrick, certifiedAt: 2026-07-04`, yet every checkbox in
-   `REVIEW-KEY.md` is unticked — all 5 truths and all 8 traps. The file's own
-   instruction is to open each screenshot, tick, *then* sign. Consequence:
-   `booksamillion` and `thirdplacebooks` are truths that `search` never returns
-   (their pages exist in `capture/` and `fetch/` — reachable only if you already
-   know the URL). A student that cannot discover them cannot submit them, so the
-   `passMark: 0.9` may be unreachable by construction. Whether that is a world bug
-   or the actual test is Patrick's call.
-2. **Four open rulings sit unresolved** at the bottom of `REVIEW-KEY.md`: whether
-   used hardcovers (HPB, ThriftBooks) count as truths given the request says "buy
-   NEW"; whether `jamesclear.com` is a category-page trap; whether the B&N URL is
-   really the hardcover in stock; and whether mcnallyrobinson is genuinely a
-   ghost. Each changes the truth set, and therefore every score.
+- `books-v1/key.json` re-signed `certifiedAt: 2026-08-07`. **booksamillion** and
+  **thirdplacebooks** were demoted from truths to `bot-wall` traps (both proofs are
+  Cloudflare interstitials; both fetch records are zero-byte, so `student.ts` never
+  indexed them and no student could ever have found them). **Truths are now 3** —
+  amazon, christianbook, barnesandnoble. `REVIEW-KEY.md` is ticked against the real
+  screenshots with all four open rulings answered.
+- **Scale is now 4**, so a perfect board = 1.0000 and one missed truth = 0.7500.
+  `passMark 0.9` requires a perfect board. Intended, not a bug.
+- The recorder bug behind it is fixed in `8acd385`: `_outOfStock` is tri-state and
+  a bot-wall now reports `"unknown"` instead of certifying as in-stock.
 
-Until these land, T3's 0.6667 is a score against an uncertified key.
+`worlds/` is gitignored, so the corrected key exists only on this machine. If it is
+missing or has reverted to 5 truths, **stop and card Patrick** — do not re-derive
+the ruling and do not run T4 against the old key.
+
+**T4 results are not comparable to T1–T3**: different truth set, different
+denominator, and Opus 5 rather than sonnet. Report it as a fresh curve.
 
 ## Hard rules
 
