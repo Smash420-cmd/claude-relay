@@ -65,87 +65,57 @@ MCP server.
   sonnet on a 5-truth key; T4 was Opus on a 3-truth key. Every key edit resets the
   curve. Say so in the card rather than reading any of it as compounding.
 
-## THE JOB THIS WEEK: re-record books-v1, then re-run T4
+## THE JOB THIS WEEK: re-run RAM (exam #1) against the newly certified key
 
-T1–T4 are all ticked. T4 passed 1.0000 on 2026-08-07 — but it passed for the
-wrong reason, and Patrick ruled the same day to fix depth rather than accept it.
-That fix is this week's work. **Do not treat the ticked T4 as the end of the
-test plan.** Read `specs/006-hidden-examiner/results/t4-deeper-run.md` first.
+**Read `specs/006-hidden-examiner/TEST-PLAN.md` T6 first, then this.** The books-v1
+re-record (T5) is NOT this week's job — it has been deferred behind this.
 
-### Why
+### Why this and not books
 
-`submit_answer` returns the numeric score on a miss, so a student can add one URL
-per attempt and read off which ones belonged. With 3 truths and `MAX_SUBMISSIONS:
-3`, that solves the board by enumeration with no domain knowledge and no learning
-— two independent students did exactly that, one on its first ever episode
-(`students/books-t4b/submissions.jsonl`: 0.5 → 0.75 → 1.0 in one episode). The
-board got that narrow because the 2026-08-07 key ruling demoted two undiscoverable
-truths, correctly, leaving only three.
+`worlds/ram-v1` is **exam #1, the graduation gate**: Spec 007 C8 says passing it is
+what graduates the protocol, and generality (books) is only claimed afterwards.
+**It has never been passed** — best ever is 0.6087 by `cc-01` over 5 episodes,
+on sonnet, in a curve that got *worse* (0.6087 → 0.5652 → 0.5652 → 0.3913 → 0.5652).
 
-Two guards are already committed (`6304aad`) — you do not need to write them:
+Until 2026-08-07 that number was untrustworthy: `REVIEW-KEY.md` had 129 boxes and
+zero ticked while `key.json` was signed `2026-07-04`. All 83 proof shots have now
+been opened and the key re-signed `certifiedAt: 2026-08-07` (commit `24379e7`).
+Two truths were demoted — both had been penalising a *correct* student. So a RAM
+run now is the first trustworthy learning signal this project will have had.
 
-- **`world-mcp` now refuses to start when `MAX_SUBMISSIONS >= truths`.** With
-  `exam-cli.mjs` pinned at 3, the re-recorded world needs **at least 4 truths** or
-  every episode dies at startup. That error is the guard working, not a bug —
-  fix the world, do not lower the guard.
-- **`recordingFetch` now falls back to the Playwright-rendered DOM** when plain
-  HTTP fails, and `record-urls.mjs` warns by name when a truth ends up bodyless.
+### Current bars (recomputed after certification)
+
+| exam | truths | scale | must show |
+|---|---|---|---|
+| `ddr4-open` | 34 | 35 | 31 of 34, zero traps |
+| `ddr4-gskill` | 22 | 23 | 20 of 22, zero traps |
+| `ddr5-6000` | 33 | 34 | 30 of 33, zero traps |
+
+All comfortably above `MAX_SUBMISSIONS: 3`, so the enumeration guard will not trip
+and the books-v1 failure mode cannot recur here.
 
 ### Do this
 
-1. **Read `worlds/books-v1/urls.json`** (13 items). Note that `booksamillion` and
-   `thirdplacebooks` are now `trap:bot-wall`, matching the signed key.
-2. **Add reachable NEW-hardcover sellers as `truth` items** until there are **5–6
-   truths**, so the board is wider than the submission budget with margin.
+1. `npm run build`, then **verify the world before spending anything**: `key.json`
+   must read `certifiedAt: 2026-08-07` with 34/22/33 truths. `worlds/` is gitignored,
+   so if it has reverted to 35/22/34 and `2026-07-04`, **STOP and card Patrick** —
+   do not run against the old key.
+2. **Time one episode first.** Opus measured ~3.5 min/episode on books
+   (3.9 cold, ~3.3 after), but RAM boards are far larger — do not assume the number
+   transfers. Size the batch from what you actually measure.
+3. Run `scripts/exam-cli.mjs` against `ram-v1` with a **fresh student id**, one
+   `--episodes N` increment per Bash call, committing after each.
+4. Record into `specs/006-hidden-examiner/results/t6-ram-recertified.md`. The
+   question is not only "does it pass" but **does anything compound across
+   episodes** — that is what T2/T3 failed to find and T4 never tested.
 
-   **Spread them across markets on purpose.** Spec 005: *"The harness engine is
-   domain-free and region-free — it has no opinion on geography"*, with `region`
-   ("AU" / "US" / "UK" / "global") a first-class spec field. Robustness in any
-   market is the goal, so a truth set that spans US, UK, AU and CA tests more than
-   a single-market one. books-v1 is currently US-heavy (amazon.com, christianbook,
-   B&N) with one CA and one UK seller — widen the spread, do not narrow it.
-   Candidates: **UK** Waterstones, Blackwell's, Foyles · **AU** Booktopia, Dymocks,
-   QBD, Angus & Robertson · **CA** Indigo · **US** Bookshop.org, Powell's.
+### Flag, do not fix
 
-   Mixed currencies cost nothing in scoring — the judge reads only the URL set
-   (`judge.ts` declares `priceAud` but never reads it). Verify each URL is the
-   **HARDCOVER of ISBN 9780735211292**, not the paperback and not a bundle. A
-   wrong-format URL added as a truth is the same class of error this whole
-   exercise is fixing.
-
-   Which sellers survive recording is an empirical question, not a guess — pick a
-   spread, record, and let the bodyless-truth warning in step 3 tell you which ones
-   are real. Over-supply the list so there are replacements when some wall.
-
-3. **Re-record:** `node scripts/record-urls.mjs worlds/books-v1` (run `npm run
-   build` first — the script reads `dist/`). Watch for the bodyless-truth warning.
-   Any truth it names is undiscoverable: replace that seller or demote it. Do not
-   sign a key over one.
-4. **Review the key for real.** Open EVERY screenshot and confirm what it shows
-   before ticking `worlds/books-v1/REVIEW-KEY.md`. The 2026-07-04 key was signed
-   with every box unticked and notes written from URLs — that single shortcut cost
-   this project three test runs. Then update `key.json` and re-sign
-   `certifiedBy: Patrick`, `certifiedAt: <today>`.
-5. **Re-run T4** against the rebuilt world. Record it as a NEW result file
-   (`results/t4-rerun-<date>.md`), do not overwrite `t4-deeper-run.md`. Report the
-   curve, whether the pass survives a wider board, and — the actual question —
-   **whether the strategy is still in-episode hill climbing or something that
-   compounds across episodes.**
-
-### Budget honestly
-
-Step 3 is live network capture and can eat 10+ minutes on its own. If the
-45-minute cap is going to bite, **stop after step 4, commit the rebuilt world and
-the reviewed key, and card what remains.** A correctly re-recorded world with no
-T4 re-run is real progress; a rushed key is not. `worlds/` is gitignored, so say
-explicitly in the card what exists only on the machine.
-
-### Do not
-
-- Do not lower `MAX_SUBMISSIONS` or raise/lower `passMark` to make a number move.
-  Patrick chose re-recording over the cheap levers deliberately.
-- Do not compare any result to T1–T3. Different truth set, different denominator,
-  Opus 5 rather than sonnet — a fresh curve every time the key changes.
+The bar demands showing 31 of 34 truths with zero traps, for a request phrased
+"find me a 32GB DDR4 kit ... that I can actually buy right now". That is closer to
+"enumerate the catalogue perfectly" than "find me one". **Patrick has not ruled on
+whether that is the intended task.** Report what the run implies about it; do not
+change `passMark` or the weights to make a number move.
 
 ## Hard rules
 
