@@ -5,6 +5,7 @@
 //
 //   node scripts/relay.js schedule --prompt "..." --model <id> --effort <low|medium|high> [--mode fresh|resume-full]
 //        [--resume <id|current>] [--at next-reset|+30m|+2h|<ISO>] [--every 30m|4h|1d|1w] [--cwd <path>] [--title "..."]
+//        [--chrome]
 //   node scripts/relay.js list
 //   node scripts/relay.js cancel <id>
 const fs = require('fs')
@@ -200,6 +201,9 @@ function cmdSchedule(f) {
     projectPath: cwd,
     model: f.model,
     effort: f.effort || null,
+    // Browser access is opt-in per task (executor turns this into --chrome). Same box the
+    // app's task modal ticks — without it a headless run gets no Claude-in-Chrome tools.
+    chrome: f.chrome === true || f.chrome === 'true',
     sessionPolicy,
     schedule: repeat ? { kind: 'repeat', ...repeat, at } : { kind: 'once', at },
     status: 'scheduled',
@@ -207,7 +211,7 @@ function cmdSchedule(f) {
   }
   withLock(() => { const fresh = loadStore(); fresh.tasks.unshift(task); saveStore(fresh) })
   console.log(`✓ scheduled "${task.title}"`)
-  console.log(`  ${task.mode}${sessionId ? ' · session ' + sessionId.slice(0, 8) : ''}${cwd ? ' · cwd ' + cwd : ''} · sessions: ${sessionPolicy}`)
+  console.log(`  ${task.mode}${sessionId ? ' · session ' + sessionId.slice(0, 8) : ''}${cwd ? ' · cwd ' + cwd : ''} · sessions: ${sessionPolicy}${task.chrome ? ' · browser: on' : ''}`)
   console.log(`  ${repeat ? `repeats every ${repeat.n} ${repeat.unit} — first ` : 'fires '}${new Date(at).toLocaleString()}  (id ${task.id})`)
 }
 function cmdList() {
@@ -253,7 +257,8 @@ try {
   else if (cmd === 'log') cmdLog(pos[1])
   else {
     console.log('relay — usage:')
-    console.log('  schedule --prompt "..." --model <claude-sonnet-5|claude-opus-5|...> --effort <low|medium|high|xhigh|max — omit for Haiku> [--mode fresh|resume-full] [--resume <id|current>] [--at next-reset|+30m|<ISO>] [--every 30m|4h|1d|1w] [--cwd <path>] [--title "..."]')
+    console.log('  schedule --prompt "..." --model <claude-sonnet-5|claude-opus-5|...> --effort <low|medium|high|xhigh|max — omit for Haiku> [--mode fresh|resume-full] [--resume <id|current>] [--at next-reset|+30m|<ISO>] [--every 30m|4h|1d|1w] [--cwd <path>] [--title "..."] [--chrome]')
+  console.log('    --chrome           — give the run Claude-in-Chrome browser tools (off by default)')
     console.log('  list')
     console.log('  cancel <id>')
     console.log('  log <task-id>        — print the task log (last line: # session: <uuid> for --resume)')

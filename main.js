@@ -472,11 +472,15 @@ be edited and diffed without rescheduling anything.
 
 ## Browser work
 
-A relay run gets no Claude-in-Chrome tools unless the task opts in (\`--chrome\`, added 2026-07-28).
-**That opt-in is currently settable only in the Relay app's task modal** ("Browser access") — the CLI
-has no \`--chrome\` flag yet. If the task needs a browser, schedule it and then tell the user to tick
-that box, or create the task in the app instead. \`chrome-devtools\` MCP is not a substitute: it drives
+A relay run gets no Claude-in-Chrome tools unless the task opts in. Pass **\`--chrome\`** when
+scheduling — same switch as the "Browser access" box in the app's task modal. Off by default; a task
+that doesn't need a browser shouldn't get one. \`chrome-devtools\` MCP is not a substitute: it drives
 a fresh automation profile with no logged-in session.
+
+\`\`\`bash
+node ${relayJs} schedule --title "Post the story" --model claude-sonnet-5 --effort high \\
+  --chrome --at "+2h" --prompt "..."
+\`\`\`
 
 ## Resuming a previous Relay session
 

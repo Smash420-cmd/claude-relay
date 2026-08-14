@@ -281,6 +281,15 @@ check('cli schedule: model + effort → accepted, both persisted on the task', (
   assert.strictEqual(db.tasks[0].model, 'claude-sonnet-5')
   assert.strictEqual(db.tasks[0].effort, 'high')
 })
+// Browser access has to be reachable from the CLI: agents schedule through it and can't tick
+// the app's "Browser access" box, so without --chrome a browser task silently runs tool-less.
+check('cli schedule: --chrome persists chrome:true; omitted → false', () => {
+  const readTop = () => JSON.parse(fs.readFileSync(path.join(SANDBOX, 'relay', 'relay-data.json'), 'utf8')).tasks[0]
+  assert.strictEqual(cli('--model', 'claude-sonnet-5', '--effort', 'high', '--chrome').status, 0)
+  assert.strictEqual(readTop().chrome, true)
+  assert.strictEqual(cli('--model', 'claude-sonnet-5', '--effort', 'high').status, 0)
+  assert.strictEqual(readTop().chrome, false)
+})
 try { fs.rmSync(SANDBOX, { recursive: true, force: true }) } catch {}
 
 // ── transcript reads: the task modal and the usage gauge must not read 1.3GB ──
