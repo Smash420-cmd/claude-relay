@@ -335,6 +335,17 @@ async function runDueTask(task, opts = {}) {
   notifyChange()
 }
 
+// Pause the whole queue until `at`. One settings timestamp, so no task's own schedule is touched —
+// a recurring job that misses its slot during the hold simply misses it and keeps its normal time.
+// `at` can come from the Claude API, so it's clamped: a garbage far-future value would otherwise
+// silently brick the scheduler, and the longest legitimate wait is the 7-day weekly reset.
+function holdQueueUntil(at) {
+  const ms = new Date(at).getTime()
+  if (!ms || ms <= Date.now() || ms > Date.now() + 8 * 86400e3) return
+  const current = new Date(store.getSettings().holdUntil || 0).getTime() || 0
+  if (ms > current) store.setSettings({ holdUntil: new Date(ms).toISOString() })
+}
+
 // resetAt: ISO string from the Claude API (exact moment the 5h or 7d window resets).
 // Without API: 3 quick retries every 2 min to catch the reset, then 1h hold with all pending paused.
 function queueResume(task, resetAt) {
@@ -345,14 +356,14 @@ function queueResume(task, resetAt) {
   let at
   if (resetAt) {
     at = resetAt
-    store.rescheduleAllPending(resetAt)
+    holdQueueUntil(resetAt)
   } else if (resumeCount <= 3) {
     // Quick retries: 2 min apart — catches the reset the moment it clears
     at = new Date(Date.now() + 2 * 60 * 1000).toISOString()
   } else {
     // 3 quick retries exhausted: wait 1h, hold all pending jobs until then
     at = new Date(Date.now() + 60 * 60 * 1000).toISOString()
-    store.rescheduleAllPending(at)
+    holdQueueUntil(at)
   }
 
   store.addTask({
@@ -716,7 +727,7 @@ function registerIpc() {
     const already = store.getTasks().find(x => x.resumeOf === id && x.status === 'scheduled')
     if (already) { notifyChange(); return }
     // Fetch the live reset time so queueResume schedules at the real moment
-    // and rescheduleAllPending pushes all stale tasks to align with it too.
+    // and holdQueueUntil pauses the rest of the queue until the same moment.
     let resetAt = null
     try { resetAt = pickResetAt(await fetchClaudeUsage()) } catch {}
     queueResume(t, resetAt)

@@ -136,6 +136,43 @@ check('nextRepeat: weeks keep the same weekday and time', () => {
   assert.strictEqual(next.getDay(), at.getDay())
   assert.strictEqual(next.getHours(), 10)
 })
+// Regression, 2026-08-17: a Sunday weekly-limit hold used to rewrite every pending task's
+// schedule.at to reset+30s*n. For repeats that is permanent — nextRepeat steps forward from `at` —
+// so six dailies (12:00/14:00/15:00/19:41/21:00/21:50) were stuck at ~12:00 every day after.
+// The hold is now one settings.holdUntil and must leave each task's own slot untouched.
+// start() fires one tick synchronously, and the hold check sits before any await, so a plain
+// sync assertion sees the outcome. runDueTask is likewise invoked before the first suspend.
+function tickOnce(settings, task) {
+  const ran = []
+  scheduler.start({
+    intervalMs: 60e3,
+    getState: () => ({ tasks: [task], settings }),
+    runDueTask: t => { ran.push(t.id); return Promise.resolve() },
+  })()
+  return ran
+}
+check('holdUntil pauses the queue without moving any task', () => {
+  const at = new Date(Date.now() - 60e3).toISOString() // overdue: fires instantly unless held
+  const task = { id: 't1', status: 'scheduled', schedule: { kind: 'repeat', n: 1, unit: 'days', at } }
+  const ran = tickOnce({ holdUntil: new Date(Date.now() + 3600e3).toISOString() }, task)
+  assert.strictEqual(ran.length, 0, 'held queue ran a task')
+  assert.strictEqual(task.schedule.at, at, 'hold moved the task — the old rescheduleAllPending bug')
+})
+check('holdUntil in the past does not block (stale value stays inert)', () => {
+  const at = new Date(Date.now() - 60e3).toISOString()
+  const task = { id: 't1', status: 'scheduled', schedule: { kind: 'repeat', n: 1, unit: 'days', at } }
+  assert.deepStrictEqual(tickOnce({ holdUntil: new Date(Date.now() - 3600e3).toISOString() }, task), ['t1'])
+})
+check('nextRepeat: a slot missed during a hold keeps its wall-clock time', () => {
+  // Task due Sunday 14:00, held through to Monday 12:00 — next fire must be Monday 14:00, not noon.
+  const next = scheduler.nextRepeat(
+    { n: 1, unit: 'days', at: new Date(2026, 7, 16, 14, 0, 0) },
+    new Date(2026, 7, 17, 12, 0, 0),
+  )
+  assert.strictEqual(next.getDate(), 17)
+  assert.strictEqual(next.getHours(), 14)
+  assert.strictEqual(next.getMinutes(), 0)
+})
 check('nextRepeat: future at returned unchanged', () => {
   const at = new Date(Date.now() + 3600e3)
   assert.strictEqual(scheduler.nextRepeat({ n: 1, unit: 'days', at }, new Date()).getTime(), at.getTime())

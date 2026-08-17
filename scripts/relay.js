@@ -230,6 +230,21 @@ function cmdCancel(id) {
   if (!found) { console.error('no task ' + id); process.exit(1) }
   console.log('✓ cancelled ' + id)
 }
+// Move a task's next fire time. Repeat tasks keep kind/n/unit — only `at` moves, and since
+// scheduler.nextRepeat() steps forward from `at`, the new wall-clock time becomes the standing slot.
+function cmdRetime(id, f) {
+  if (!id || !f.at) { console.error('error: retime needs a task id and --at'); process.exit(1) }
+  const at = resolveAt(f.at, loadStore().settings)
+  const t = withLock(() => {
+    const db = loadStore()
+    const task = db.tasks.find(x => x.id === id)
+    if (!task) return null
+    task.schedule = { ...(task.schedule || { kind: 'once' }), at }
+    saveStore(db); return task
+  })
+  if (!t) { console.error('no task ' + id); process.exit(1) }
+  console.log(`✓ ${t.title} → ${new Date(at).toLocaleString()}`)
+}
 function cmdLog(taskId) {
   if (!taskId) { console.error('error: log needs a task id'); process.exit(1) }
   const logsDir = path.join(userDataDir(), 'logs')
@@ -253,6 +268,7 @@ try {
   if (cmd === 'schedule') cmdSchedule(f)
   else if (cmd === 'list') cmdList()
   else if (cmd === 'cancel') cmdCancel(pos[1])
+  else if (cmd === 'retime') cmdRetime(pos[1], f)
   else if (cmd === 'restart') cmdRestart()
   else if (cmd === 'log') cmdLog(pos[1])
   else {
@@ -261,6 +277,7 @@ try {
   console.log('    --chrome           — give the run Claude-in-Chrome browser tools (off by default)')
     console.log('  list')
     console.log('  cancel <id>')
+    console.log('  retime <id> --at <ISO|+30m|next-reset>  — move a task\'s next fire (repeats keep their interval)')
     console.log('  log <task-id>        — print the task log (last line: # session: <uuid> for --resume)')
     console.log('  restart              — signal the running Relay tray app to relaunch')
   }

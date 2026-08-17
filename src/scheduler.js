@@ -61,6 +61,16 @@ function start({ intervalMs, getState, runDueTask }) {
     try {
       const { tasks, settings } = getState()
       const now = Date.now()
+      // A usage limit holds the WHOLE queue until the reset, as one timestamp. The old approach
+      // rewrote every pending task's schedule.at instead — which for a repeat task is permanent
+      // (nextRepeat steps forward from `at`), so one Sunday limit moved six dailies to noon
+      // for good. Never touch a task's own slot; a missed occurrence is just missed.
+      const hold = settings.holdUntil ? new Date(settings.holdUntil).getTime() : 0
+      if (hold > now) {
+        if (!tick.heldLogged) { console.log(`[scheduler] queue held until ${new Date(hold).toLocaleString()} (usage limit)`); tick.heldLogged = true }
+        return
+      }
+      tick.heldLogged = false
       // Due tasks run SEQUENTIALLY on purpose: parallel claude runs would race each other into the
       // session limit. Consequence: one long run delays everything behind it (incl. repeat slots).
       for (const t of tasks) {

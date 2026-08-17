@@ -22,6 +22,7 @@ const DEFAULT_SETTINGS = {
   allowExtendedUsage: false,    // OFF by default — don't auto-run past the free limit and spend credits
   pauseAtPct: 100,              // defer scheduled runs at/above this session % (when allowExtendedUsage is off)
   skipPermissions: true,        // --dangerously-skip-permissions: unattended tasks edit/run/commit with no gate
+  holdUntil: '',                // ISO: usage limit hit — scheduler runs nothing until then (see scheduler.start)
   defaultModel: '',             // empty = no --model flag (Claude Code default, currently Sonnet 4.6)
   defaultEffort: '',            // empty = no --effort flag (model default, currently high)
   skillAutoResumeOnLimit: false, // OFF: /relay-autoresume skill self-schedules a resume when a session hits its limit
@@ -112,26 +113,6 @@ function deleteTask(id) { withLock(() => { const db = load(); db.tasks = db.task
 function getSettings() { return load().settings }
 function setSettings(patch) { return withLock(() => { const db = load(); db.settings = { ...db.settings, ...patch }; save(db); return db.settings }) }
 
-// When a task is stopped by the session limit, push all pending scheduled tasks to just after
-// the reset so they don't all pile up trying to fire while usage is still at 100%.
-// Stagger by 30s each so the scheduler can sequence them cleanly after the resume task fires first.
-function rescheduleAllPending(resetAt) {
-  withLock(() => {
-    const db = load()
-    const resetMs = new Date(resetAt).getTime()
-    let offset = 0
-    for (const t of db.tasks) {
-      if (t.status === 'scheduled' && new Date(t.schedule && t.schedule.at || 0).getTime() <= resetMs) {
-        offset++
-        const at = new Date(resetMs + offset * 30000).toISOString()
-        // Repeat tasks keep their kind/interval — only the next fire time is pushed past the reset.
-        t.schedule = t.schedule && t.schedule.kind === 'repeat' ? { ...t.schedule, at } : { kind: 'once', at }
-      }
-    }
-    save(db)
-  })
-}
-
 module.exports = {
-  getTasks, getTask, addTask, updateTask, deleteTask, getSettings, setSettings, rescheduleAllPending,
+  getTasks, getTask, addTask, updateTask, deleteTask, getSettings, setSettings,
 }
