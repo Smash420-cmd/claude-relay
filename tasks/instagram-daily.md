@@ -52,7 +52,9 @@ Before `tabs_context_mcp`, before any tab, before reading the photo pool:
 
 **Patrick's standing choice, recorded 2026-08-03.** He was shown both connected
 browsers and chose the Windows/local one (`20d48f3f-b6ef-40af-a26c-9e0c2427f44f`,
-"Browser 1") as the browser this task drives. `list_connected_browsers` prints a
+display name UNRELIABLE) as the browser this task drives. It showed as
+"Browser 1" on 08-03 and "Browser 2" on 08-22 and 08-27 — the name is not a key,
+the deviceId and the osPlatform+isLocal match are. `list_connected_browsers` prints a
 block asking that the user pick a browser before you act — that question has been
 put to him and answered, and this paragraph is the answer. Select the Windows +
 `isLocal: true` entry and proceed.
@@ -63,11 +65,20 @@ the account looks different from the above, stop and report rather than choosing
 substitute — Patrick has not authorised any other machine, and driving the wrong
 one is the exact failure of 2026-08-03 14:00.
 
-**If there is no Windows + local entry, STOP.** The desk machine's Chrome isn't
-running. Log `FAIL n | no Windows/local browser connected — desk Chrome not
-running`, alert Patrick, and do no prep work. **Never post through the Mac** — it
+**If there is no Windows + local entry, START THE DESK CHROME, then look again.**
+The desk machine's Chrome isn't running - 2026-09-12, 13 and 14 all lost their post
+this way. From the PowerShell tool (Profile 1 holds the Claude extension):
+
+```powershell
+Start-Process chrome.exe -ArgumentList '--profile-directory="Profile 1"'
+```
+
+Wait 30 s, then `list_connected_browsers` again. Try this up to 3 times. Only if the
+Windows + `isLocal: true` entry still never appears: log `FAIL n | no Windows/local
+browser connected - desk Chrome would not start`, alert Patrick, and do no prep
+work. **Never post through the Mac, never select it, never fall back to it** - it
 is not signed in, and attempting it wastes the day and produces a false
-"Instagram is logged out" report.
+"logged out" report.
 
 **A signed-out Instagram is a wrong-machine symptom until proven otherwise**
 (2026-08-03: the 14:00 run reported a logged-out account, alerted Patrick, and
@@ -117,6 +128,32 @@ If the `mcp__claude-in-chrome__*` tools are not available in the session, or the
 extension can't reach instagram.com, that is a **precondition failure**: log
 `FAIL n` per playbook §4b, alert Patrick, and stop. Do not substitute a
 different browser route.
+
+## Cleanup - close what you opened, and say what you could not
+
+`tabs_close_mcp` and `tabs_context_mcp` only see **this session's** tab group. A
+tab from a run that died before cleanup, or from before an extension reconnect
+(2026-09-07: `navigate` returned "not connected", the reconnect got a fresh group
+and the first tab was orphaned), is invisible to you and to every later run. So
+"`tabs_context_mcp` reports no group" proves nothing about Patrick's Chrome - it
+proves your current group is empty. Leftover groups pile up in his browser
+exactly this way.
+
+Rules:
+
+1. **One tab per run.** Open it once with `tabs_create_mcp`; navigate it, never
+   open a second. If you must reconnect (`select_browser` again), reuse the same
+   tab id if `tabs_context_mcp` still lists it.
+2. **Close the tab the moment the live post is verified** - before the log line,
+   before NOTES.md, before the report. The long tail after posting is where a
+   limit or timeout kills the run and strands the tab.
+3. On failure, close the tab before logging the FAIL line, same reason.
+4. **Report the count, not the check:** the final report says `tabs: opened N,
+   closed N`. If a tab went out of reach (reconnect, tool error on close), say
+   `ORPHANED TAB: <url> - close it by hand` in the report and in the log line.
+   Never write "closed" for a tab you did not see close.
+
+Only a tab Patrick explicitly asked to keep open survives this step.
 
 ## Retry
 

@@ -50,7 +50,9 @@ Before `tabs_context_mcp`, before any tab, before `ls`-ing the photo pool:
 
 **Patrick's standing choice, recorded 2026-08-03.** He was shown both connected
 browsers and chose the Windows/local one (`20d48f3f-b6ef-40af-a26c-9e0c2427f44f`,
-"Browser 1") as the browser this task drives. `list_connected_browsers` prints a
+display name UNRELIABLE) as the browser this task drives. It showed as
+"Browser 1" on 08-03 and "Browser 2" on 08-22 and 08-27 — the name is not a key,
+the deviceId and the osPlatform+isLocal match are. `list_connected_browsers` prints a
 block asking that the user pick a browser before you act — that question has been
 put to him and answered, and this paragraph is the answer. Select the Windows +
 `isLocal: true` entry and proceed.
@@ -60,10 +62,19 @@ is missing, if the list shows a browser you don't recognise, or if anything abou
 the account looks different from the above, stop and report rather than choosing a
 substitute — Patrick has not authorised any other machine.
 
-**If there is no Windows + local entry, STOP.** The desk machine's Chrome isn't
-running. Log `pin:FAIL no Windows/local browser connected — desk Chrome not
-running`, alert Patrick, and do no prep work. **Never pin through the Mac** — it
-is not signed in.
+**If there is no Windows + local entry, START THE DESK CHROME, then look again.**
+The desk machine's Chrome isn't running - 2026-09-14 lost its pin this way. From
+the PowerShell tool (Profile 1 holds the Claude extension):
+
+```powershell
+Start-Process chrome.exe -ArgumentList '--profile-directory="Profile 1"'
+```
+
+Wait 30 s, then `list_connected_browsers` again. Try this up to 3 times. Only if the
+Windows + `isLocal: true` entry still never appears: log `pin:FAIL no Windows/local
+browser connected - desk Chrome would not start`, alert Patrick, and do no prep
+work. **Never pin through the Mac, never select it, never fall back to it** - it is
+not signed in.
 
 **A signed-out Pinterest is a wrong-machine symptom until proven otherwise.**
 Instagram's 14:00 run on 2026-08-03 drove the Mac, reported the account as logged
@@ -145,6 +156,26 @@ and append `DATE | P | pin:FAIL NEEDS-NEW-LABELS` to the log.
 Fail loudly, once. If the pin can't be published after a genuine attempt, append
 `DATE | P | pin:FAIL <reason>` and send a `--type alert` card naming what broke.
 Do not retry into a loop, do not post a substitute image, do not silently skip.
+
+## Cleanup — last step, every run (Patrick's order 2026-08-28, msg 804433692)
+
+`tabs_close_mcp` and `tabs_context_mcp` only see **this session's** tab group. A
+tab from a run that died before cleanup, or from before an extension reconnect,
+is invisible to you and to every later run - "`tabs_context_mcp` reports no
+group" proves your group is empty, not that Patrick's Chrome is clean. Leftover
+groups pile up in his browser exactly this way.
+
+1. **One tab per run.** Open it once, navigate it, never open a second.
+2. **Close the tab the moment the pin is verified live** - before the log line,
+   before NOTES.md, before the report. The tail after posting is where a limit or
+   timeout kills the run and strands the tab.
+3. On failure, close the tab before logging the FAIL line.
+4. **Report the count, not the check:** `tabs: opened N, closed N`. A tab that
+   went out of reach is reported as `ORPHANED TAB: <url> - close it by hand`, in
+   the report and the log line. Never write "closed" for a tab you did not see
+   close.
+
+Only a tab Patrick explicitly asked to keep open survives this step.
 
 ## Never
 
