@@ -63,7 +63,7 @@ function barClass(pct) {
 // without warning between CLI releases. Don't label it with a model name.
 const MODELS = [
   { id: '',                          label: 'Default · no --model (CLI decides)', group: null, effort: ['low','medium','high','max'] },
-  { id: 'claude-opus-5-5',            label: 'Opus 5.5',                  group: 'Current', effort: ['low','medium','high','xhigh','max'] },
+  { id: 'claude-opus-5-5',            label: 'Opus 5.5',                  group: 'Current', effort: ['low','medium','high'], def: 'medium' }, // capped at high — executor enforces
   { id: 'claude-sonnet-5',            label: 'Sonnet 5',                  group: 'Current', effort: ['low','medium','high','xhigh','max'] },
   { id: 'claude-haiku-4-5-20251001',  label: 'Haiku 4.5',                 group: 'Current', effort: null },
   { id: 'claude-fable-5-1',           label: 'Fable 5.1 (Max plan only)', group: 'Max plan', effort: ['low','medium','high','xhigh','max'] },
@@ -98,7 +98,7 @@ function modelOptsHtml(selectedId) {
 function effortOptsHtml(modelId, selectedEffort) {
   const m = MODELS.find(m => m.id === modelId) || MODELS[0]
   if (!m.effort) return '<option value="">N/A</option>'
-  let h = `<option value=""${!selectedEffort ? ' selected' : ''}>Default</option>`
+  let h = `<option value=""${!selectedEffort ? ' selected' : ''}>Default${m.def ? ` (${m.def})` : ''}</option>`
   for (const e of ['low','medium','high','xhigh','max','ultra']) {
     const avail = m.effort.includes(e)
     h += `<option value="${e}"${selectedEffort === e ? ' selected' : ''}${!avail ? ' disabled' : ''}>${esc(EFFORT_LABELS[e])}</option>`

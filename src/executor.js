@@ -30,6 +30,18 @@ function findResultSession(taskStartMs) {
   return best ? best.uuid : null
 }
 
+// Per-model effort policy (Patrick, 2026-09-26): Opus 5.5 never runs past high, and an
+// unset effort means medium (not the CLI's own default). Enforced here so no path — UI, CLI,
+// /relay skill, tasks stored before the cap — can get around it.
+const EFFORT_ORDER = ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']
+const EFFORT_POLICY = { 'claude-opus-5-5': { def: 'medium', max: 'high' } }
+function effortFor(model, effort) {
+  const p = EFFORT_POLICY[model]
+  if (!p) return effort || null
+  if (!effort) return p.def
+  return EFFORT_ORDER.indexOf(effort) > EFFORT_ORDER.indexOf(p.max) ? p.max : effort
+}
+
 // Flags only — the PROMPT is passed via stdin, never as an arg. With shell:true (needed to resolve
 // `claude` on Windows) a spaced prompt arg gets re-split by the shell into separate words, which
 // silently truncates it. stdin sidesteps that entirely.
@@ -48,7 +60,8 @@ function buildArgs(task, opts = {}) {
     args.push('--session-id', opts.assignSessionId)
   }
   if (task.model) args.push('--model', task.model)
-  if (task.effort) args.push('--effort', task.effort)
+  const effort = effortFor(task.model, task.effort)
+  if (effort) args.push('--effort', effort)
   // Opt-in browser access: without --chrome a headless run gets no Claude-in-Chrome tools
   // (measured 2026-07-28). The other half of the requirement — no ANTHROPIC_API_KEY in the
   // env — scrubSecrets already guarantees. Off by default: a task that doesn't need the
@@ -244,4 +257,4 @@ function runTask(task, opts = {}) {
   })
 }
 
-module.exports = { runTask, buildArgs, buildCodexArgs, isCodexModel, detectLimit, isSecretEnv, scrubSecrets, killTree }
+module.exports = { runTask, buildArgs, effortFor, EFFORT_POLICY, EFFORT_ORDER, buildCodexArgs, isCodexModel, detectLimit, isSecretEnv, scrubSecrets, killTree }

@@ -440,7 +440,7 @@ changes without warning and can burn the 5-hour allowance on a premium model.
 
 | Model ID | Effort |
 |---|---|
-| \`claude-opus-5-5\` | low, medium, high, xhigh, max |
+| \`claude-opus-5-5\` | low, **medium** (default), high — **never above high**; the CLI rejects xhigh/max for it |
 | \`claude-sonnet-5\` | low, medium, high, xhigh, max |
 | \`claude-haiku-4-5-20251001\` | **none** — omit \`--effort\` entirely, it errors on Haiku |
 | \`claude-fable-5-1\` | low, medium, high, xhigh, max — **Max plan only**, burns the premium weekly allowance fast. Don't pick it unless the user asks for it by name. |

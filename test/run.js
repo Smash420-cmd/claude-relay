@@ -319,6 +319,22 @@ check('cli schedule: Haiku + --effort → exits 1 (the Claude CLI rejects effort
   const r = cli('--model', 'claude-haiku-4-5-20251001', '--effort', 'high')
   assert.strictEqual(r.status, 1); assert.match(r.stderr, /not supported on Haiku/)
 })
+check('cli schedule: Opus 5.5 above high → exits 1; high → accepted', () => {
+  for (const e of ['xhigh', 'max']) {
+    const r = cli('--model', 'claude-opus-5-5', '--effort', e)
+    assert.strictEqual(r.status, 1); assert.match(r.stderr, /capped at --effort high/)
+  }
+  assert.strictEqual(cli('--model', 'claude-opus-5-5', '--effort', 'high').status, 0)
+})
+check('buildArgs: Opus 5.5 effort clamps to high, unset → medium; other models untouched', () => {
+  const eff = (t) => { const a = buildArgs(t, {}); return a.includes('--effort') ? a[a.indexOf('--effort') + 1] : null }
+  assert.strictEqual(eff({ model: 'claude-opus-5-5', effort: 'max' }), 'high')
+  assert.strictEqual(eff({ model: 'claude-opus-5-5', effort: 'xhigh' }), 'high')
+  assert.strictEqual(eff({ model: 'claude-opus-5-5', effort: 'low' }), 'low')
+  assert.strictEqual(eff({ model: 'claude-opus-5-5' }), 'medium')
+  assert.strictEqual(eff({ model: 'claude-sonnet-5', effort: 'max' }), 'max')
+  assert.strictEqual(eff({ model: 'claude-sonnet-5' }), null)
+})
 check('cli schedule: Haiku without --effort → accepted', () => {
   const r = cli('--model', 'claude-haiku-4-5-20251001')
   assert.strictEqual(r.status, 0, r.stderr)

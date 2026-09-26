@@ -157,7 +157,7 @@ $distDir = "C:\Users\pmdse\Documents\relay\dist"
 | Model ID | Label | Group | Effort support |
 |----------|-------|-------|---------------|
 | *(empty)* | Default · no `--model` (CLI decides) | — | low / medium / high / max |
-| `claude-opus-5-5` | Opus 5.5 | Current | low / medium / high / **xhigh** / max |
+| `claude-opus-5-5` | Opus 5.5 | Current | low / **medium** (default) / high — **capped at high** |
 | `claude-sonnet-5` | Sonnet 5 | Current | low / medium / high / **xhigh** / max |
 | `claude-haiku-4-5-20251001` | Haiku 4.5 | Current | **none** — effort flag must be omitted |
 | `claude-fable-5-1` | Fable 5.1 (Max plan only) | Max plan | low / medium / high / **xhigh** / max |
@@ -180,6 +180,9 @@ $distDir = "C:\Users\pmdse\Documents\relay\dist"
 the session id is read back from codex's `session id:` header, and resume uses `codex exec resume <id>`.
 Codex list comes from `~/.codex/models_cache.json` (visibility `list`). `OPENAI_API_KEY` is scrubbed
 like every `*_KEY`, so Codex runs on the ChatGPT login. A Codex limit stop is not auto-resumed.
+
+**Opus 5.5 effort cap** (Patrick, 2026-09-26): never above `high`; unset effort = `medium`. `EFFORT_POLICY`
+in `src/executor.js` clamps every run; `scripts/relay.js` rejects xhigh/max for it.
 
 `xhigh` is valid on the 5-family and on Opus 4.8 / 4.7 only. Sending it elsewhere causes a CLI error.
 An empty model means no `--model` flag at all — the Claude CLI picks, and that pick changes between
