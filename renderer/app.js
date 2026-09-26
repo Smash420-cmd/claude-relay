@@ -63,18 +63,27 @@ function barClass(pct) {
 // without warning between CLI releases. Don't label it with a model name.
 const MODELS = [
   { id: '',                          label: 'Default · no --model (CLI decides)', group: null, effort: ['low','medium','high','max'] },
-  { id: 'claude-opus-5',             label: 'Opus 5',                group: 'Current',  effort: ['low','medium','high','xhigh','max'] },
-  { id: 'claude-sonnet-5',           label: 'Sonnet 5',              group: 'Current',  effort: ['low','medium','high','xhigh','max'] },
-  { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5',             group: 'Current',  effort: null },
-  { id: 'claude-fable-5',            label: 'Fable 5 (Max plan only)', group: 'Max plan', effort: ['low','medium','high','xhigh','max'] },
+  { id: 'claude-opus-5-5',            label: 'Opus 5.5',                  group: 'Current', effort: ['low','medium','high','xhigh','max'] },
+  { id: 'claude-sonnet-5',            label: 'Sonnet 5',                  group: 'Current', effort: ['low','medium','high','xhigh','max'] },
+  { id: 'claude-haiku-4-5-20251001',  label: 'Haiku 4.5',                 group: 'Current', effort: null },
+  { id: 'claude-fable-5-1',           label: 'Fable 5.1 (Max plan only)', group: 'Max plan', effort: ['low','medium','high','xhigh','max'] },
+  { id: 'claude-fable-5',             label: 'Fable 5 (Max plan only)',   group: 'Max plan', effort: ['low','medium','high','xhigh','max'] },
+  { id: 'gpt-6-astra',                label: 'GPT-6 Astra',               group: 'Codex (OpenAI)', effort: ['low','medium','high','xhigh','max','ultra'] },
+  { id: 'gpt-6-sol',                  label: 'GPT-6 Sol',                 group: 'Codex (OpenAI)', effort: ['low','medium','high','xhigh','max','ultra'] },
+  { id: 'gpt-6-luna',                 label: 'GPT-6 Luna',                group: 'Codex (OpenAI)', effort: ['low','medium','high','xhigh','max'] },
+  { id: 'gpt-5.6-sol',                label: 'GPT-5.6 Sol',               group: 'Codex (OpenAI)', effort: ['low','medium','high','xhigh','max','ultra'] },
+  { id: 'gpt-5.6-terra',              label: 'GPT-5.6 Terra',             group: 'Codex (OpenAI)', effort: ['low','medium','high','xhigh','max','ultra'] },
+  { id: 'gpt-5.6-luna',               label: 'GPT-5.6 Luna',              group: 'Codex (OpenAI)', effort: ['low','medium','high','xhigh','max'] },
+  { id: 'gpt-5.5',                    label: 'GPT-5.5',                   group: 'Codex (OpenAI)', effort: ['low','medium','high','xhigh'] },
+  { id: 'claude-opus-5',              label: 'Opus 5',                    group: 'Legacy', effort: ['low','medium','high','xhigh','max'] },
   { id: 'claude-opus-4-8',           label: 'Opus 4.8',              group: 'Legacy',  effort: ['low','medium','high','xhigh','max'] },
   { id: 'claude-opus-4-7',           label: 'Opus 4.7',              group: 'Legacy',  effort: ['low','medium','high','xhigh','max'] },
   { id: 'claude-opus-4-6',           label: 'Opus 4.6',              group: 'Legacy',  effort: ['low','medium','high','max'] },
   { id: 'claude-sonnet-4-6',         label: 'Sonnet 4.6',            group: 'Legacy',  effort: ['low','medium','high','max'] },
   { id: 'claude-sonnet-4-5-20250929',label: 'Sonnet 4.5',            group: 'Legacy',  effort: ['low','medium','high','max'] },
 ]
-const MODEL_GROUPS = ['Current', 'Max plan', 'Legacy']
-const EFFORT_LABELS = { low: 'Low — fastest & cheapest', medium: 'Medium', high: 'High (default)', xhigh: 'xHigh — agentic / coding', max: 'Max — highest capability' }
+const MODEL_GROUPS = ['Current', 'Max plan', 'Codex (OpenAI)', 'Legacy']
+const EFFORT_LABELS = { low: 'Low — fastest & cheapest', medium: 'Medium', high: 'High (default)', xhigh: 'xHigh — agentic / coding', max: 'Max — highest capability', ultra: 'Ultra — Codex only' }
 
 function modelOptsHtml(selectedId) {
   let h = `<option value=""${!selectedId ? ' selected' : ''}>${esc(MODELS[0].label)}</option>`
@@ -90,7 +99,7 @@ function effortOptsHtml(modelId, selectedEffort) {
   const m = MODELS.find(m => m.id === modelId) || MODELS[0]
   if (!m.effort) return '<option value="">N/A</option>'
   let h = `<option value=""${!selectedEffort ? ' selected' : ''}>Default</option>`
-  for (const e of ['low','medium','high','xhigh','max']) {
+  for (const e of ['low','medium','high','xhigh','max','ultra']) {
     const avail = m.effort.includes(e)
     h += `<option value="${e}"${selectedEffort === e ? ' selected' : ''}${!avail ? ' disabled' : ''}>${esc(EFFORT_LABELS[e])}</option>`
   }

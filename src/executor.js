@@ -62,6 +62,26 @@ function buildArgs(task, opts = {}) {
   return args
 }
 
+// OpenAI Codex models run through `codex exec` instead of claude. Routing is by model id —
+// ponytail: prefix match, add a prefix here if OpenAI ships a family outside gpt-/codex-/oN.
+const isCodexModel = (model) => /^(gpt-|codex-|o\d)/i.test(model || '')
+
+// Codex equivalent of buildArgs. Prompt still goes via stdin (`-`). Codex can't pin a session id
+// up front, so fresh runs read it back from the "session id:" header (see runTask).
+// --chrome and --fork-session have no codex equivalent and are ignored.
+function buildCodexArgs(task, opts = {}) {
+  const args = ['exec']
+  if (task.mode === 'resume-full' && task.sessionId) args.push('resume', task.sessionId)
+  if (task.model) args.push('-m', task.model)
+  if (task.effort) args.push('-c', `model_reasoning_effort="${task.effort}"`)
+  args.push('--skip-git-repo-check')
+  // Same meaning as claude's --dangerously-skip-permissions: unattended runs can't answer approvals.
+  if (opts.skipPermissions) args.push('--dangerously-bypass-approvals-and-sandbox')
+  args.push('-')
+  return args
+}
+const CODEX_SESSION_RE = /session id:\s*([0-9a-f-]{36})/i
+
 // Limit detection heuristic — tuned against real limit-reached output.
 // \b after every bare "limit"/"at" — without it, "limit" substring-matches "limiting"/"limitation"
 // and "at" substring-matches "attempts"/"attaching" etc, false-triggering a stop on ordinary task
@@ -127,7 +147,8 @@ function killTree(child) {
 // Runs the task. Resolves { exitCode, status, logPath, resetHint }.
 // opts: { command, cwd, onStart(child) }
 function runTask(task, opts = {}) {
-  const command = opts.command || 'claude'
+  const codex = isCodexModel(task.model)
+  const command = codex ? 'codex' : (opts.command || 'claude')
   return new Promise((resolve) => {
     const dir = logsDir()
     fs.mkdirSync(dir, { recursive: true })
@@ -136,12 +157,13 @@ function runTask(task, opts = {}) {
     const promptText = task.prompt && task.prompt.trim() ? task.prompt : 'continue'
     // Fresh runs get a pinned session UUID so the resume chain always targets the same conversation.
     // Resume runs continue task.sessionId (claude --resume keeps the id unless --fork-session).
-    const assignSessionId = task.mode === 'resume-full' ? null : randomUUID()
-    const args = buildArgs(task, { ...opts, assignSessionId })
+    const assignSessionId = task.mode === 'resume-full' || codex ? null : randomUUID()
+    const args = codex ? buildCodexArgs(task, opts) : buildArgs(task, { ...opts, assignSessionId })
     logStream.write(`# Relay run @ ${new Date().toISOString()}\n$ ${command} ${args.join(' ')}\n# cwd: ${opts.cwd || process.cwd()}\n# prompt (via stdin): ${promptText.slice(0, 300)}\n\n`)
 
     const taskStartMs = Date.now()
     let output = ''
+    let codexSessionId = null
     let child
     try {
       const spawnEnv = scrubSecrets(process.env)
@@ -169,7 +191,11 @@ function runTask(task, opts = {}) {
     // Keep only the tail in memory — detectLimit needs the end of the output, and a chatty
     // 45-min run can produce hundreds of MB (the full text still goes to the log file).
     const OUTPUT_CAP = 65536
-    const append = (s) => { output = (output + s).slice(-OUTPUT_CAP) }
+    const append = (s) => {
+      output = (output + s).slice(-OUTPUT_CAP)
+      // The header prints first, before the tail cap can drop it.
+      if (codex && !codexSessionId) { const m = output.match(CODEX_SESSION_RE); if (m) codexSessionId = m[1] }
+    }
     child.stdout && child.stdout.on('data', d => { const s = d.toString(); append(s); logStream.write(s) })
     child.stderr && child.stderr.on('data', d => { const s = d.toString(); append(s); logStream.write(s) })
 
@@ -203,6 +229,7 @@ function runTask(task, opts = {}) {
       // writes to a NEW id only the heuristic can find. Last resort otherwise — so the
       // resume chain stays on the originating session.
       const resultSessionId = assignSessionId
+        || (codex ? codexSessionId || task.sessionId : null)
         || (task.forkSession ? findResultSession(taskStartMs) : task.sessionId)
         || findResultSession(taskStartMs)
       if (!logStream.writableEnded) {
@@ -217,4 +244,4 @@ function runTask(task, opts = {}) {
   })
 }
 
-module.exports = { runTask, buildArgs, detectLimit, isSecretEnv, scrubSecrets, killTree }
+module.exports = { runTask, buildArgs, buildCodexArgs, isCodexModel, detectLimit, isSecretEnv, scrubSecrets, killTree }

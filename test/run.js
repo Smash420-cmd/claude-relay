@@ -7,7 +7,7 @@
 const assert = require('assert')
 const { normPct, pickResetAt, isLimitFalsePositive } = require('../src/usage')
 const scheduler = require('../src/scheduler')
-const { detectLimit, isSecretEnv, scrubSecrets, buildArgs } = require('../src/executor')
+const { detectLimit, isSecretEnv, scrubSecrets, buildArgs, buildCodexArgs, isCodexModel } = require('../src/executor')
 
 let pass = 0, fail = 0
 const fails = []
@@ -250,6 +250,18 @@ check('buildArgs: skipPermissions off omits the dangerous flag', () => {
 check('buildArgs: resume-full targets the session', () => {
   const a = buildArgs({ mode: 'resume-full', sessionId: 'abc123' }, {})
   assert.strictEqual(a[a.indexOf('--resume') + 1], 'abc123')
+})
+check('isCodexModel: gpt-* routes to codex, claude-* does not', () => {
+  assert.ok(isCodexModel('gpt-6-sol')); assert.ok(isCodexModel('gpt-5.5'))
+  assert.ok(!isCodexModel('claude-opus-5-5')); assert.ok(!isCodexModel('')); assert.ok(!isCodexModel(null))
+})
+check('buildCodexArgs: fresh — model, effort, bypass, prompt from stdin', () => {
+  const a = buildCodexArgs({ mode: 'fresh', model: 'gpt-6-sol', effort: 'ultra' }, { skipPermissions: true })
+  assert.deepStrictEqual(a, ['exec', '-m', 'gpt-6-sol', '-c', 'model_reasoning_effort="ultra"', '--skip-git-repo-check', '--dangerously-bypass-approvals-and-sandbox', '-'])
+})
+check('buildCodexArgs: resume-full targets the session, no bypass when off', () => {
+  const a = buildCodexArgs({ mode: 'resume-full', sessionId: 'abc', model: 'gpt-5.5' }, { skipPermissions: false })
+  assert.deepStrictEqual(a.slice(0, 3), ['exec', 'resume', 'abc']); assert.ok(!a.includes('--dangerously-bypass-approvals-and-sandbox'))
 })
 check('buildArgs: fresh pins assigned --session-id (deterministic resume target)', () => {
   const a = buildArgs({ mode: 'fresh' }, { assignSessionId: 'uuid-1' })

@@ -189,7 +189,7 @@ function cmdSchedule(f) {
     process.exit(1)
   }
   if (!haiku && (typeof f.effort !== 'string' || !f.effort)) {
-    console.error('error: --effort is required (low|medium|high|xhigh|max). No default — state it.')
+    console.error('error: --effort is required (low|medium|high|xhigh|max, ultra on Codex). No default — state it.')
     process.exit(1)
   }
   const task = {
@@ -273,7 +273,7 @@ try {
   else if (cmd === 'log') cmdLog(pos[1])
   else {
     console.log('relay — usage:')
-    console.log('  schedule --prompt "..." --model <claude-sonnet-5|claude-opus-5|...> --effort <low|medium|high|xhigh|max — omit for Haiku> [--mode fresh|resume-full] [--resume <id|current>] [--at next-reset|+30m|<ISO>] [--every 30m|4h|1d|1w] [--cwd <path>] [--title "..."] [--chrome]')
+    console.log('  schedule --prompt "..." --model <claude-sonnet-5|claude-opus-5-5|gpt-6-sol|...> --effort <low|medium|high|xhigh|max|ultra(codex) — omit for Haiku> [--mode fresh|resume-full] [--resume <id|current>] [--at next-reset|+30m|<ISO>] [--every 30m|4h|1d|1w] [--cwd <path>] [--title "..."] [--chrome]')
   console.log('    --chrome           — give the run Claude-in-Chrome browser tools (off by default)')
     console.log('  list')
     console.log('  cancel <id>')

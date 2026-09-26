@@ -297,7 +297,10 @@ async function runDueTask(task, opts = {}) {
   // is unavailable (logged out / blip), trust the text match (a phantom there is cancelable).
   let usage = null
   let vetoed = false
-  if (res.status === 'stopped' && settings.autoResumeOnLimit) {
+  // Codex runs spend OpenAI allowance — the Claude usage API can neither veto nor time their
+  // resume, so a codex limit stop stays 'stopped' for the user to re-run.
+  const codexRun = executor.isCodexModel(task.model)
+  if (res.status === 'stopped' && settings.autoResumeOnLimit && !codexRun) {
     try { usage = await fetchClaudeUsage() } catch {}
     if (isLimitFalsePositive(usage)) {
       vetoed = true
@@ -318,7 +321,7 @@ async function runDueTask(task, opts = {}) {
     const patch = hygiene.afterRun(task, res)
     if (patch) store.updateTask(task.id, patch)
   } catch (e) { console.warn('[hygiene]', e.message) }
-  if (res.status === 'stopped' && settings.autoResumeOnLimit && !vetoed) {
+  if (res.status === 'stopped' && settings.autoResumeOnLimit && !vetoed && !codexRun) {
     if (res.resultSessionId && !task.sessionId) task = { ...task, sessionId: res.resultSessionId, mode: 'resume-full' }
     queueResume(task, pickResetAt(usage))
   }
@@ -437,15 +440,27 @@ changes without warning and can burn the 5-hour allowance on a premium model.
 
 | Model ID | Effort |
 |---|---|
-| \`claude-opus-5\` | low, medium, high, xhigh, max |
+| \`claude-opus-5-5\` | low, medium, high, xhigh, max |
 | \`claude-sonnet-5\` | low, medium, high, xhigh, max |
 | \`claude-haiku-4-5-20251001\` | **none** — omit \`--effort\` entirely, it errors on Haiku |
-| \`claude-fable-5\` | low, medium, high, xhigh, max — **Max plan only**, burns the premium weekly allowance fast. Don't pick it unless the user asks for it by name. |
+| \`claude-fable-5-1\` | low, medium, high, xhigh, max — **Max plan only**, burns the premium weekly allowance fast. Don't pick it unless the user asks for it by name. |
 
-Legacy, still accepted for tasks pinned to them: \`claude-opus-4-8\`, \`claude-opus-4-7\` (both xhigh),
+**Codex (OpenAI)** — a \`gpt-*\` model runs the task through the Codex CLI (\`codex exec\`) on the user's
+ChatGPT login instead of Claude. Only pick one when the user asks for Codex/GPT by name.
+
+| Model ID | Effort |
+|---|---|
+| \`gpt-6-astra\`, \`gpt-6-sol\`, \`gpt-5.6-sol\`, \`gpt-5.6-terra\` | low, medium, high, xhigh, max, ultra |
+| \`gpt-6-luna\`, \`gpt-5.6-luna\` | low, medium, high, xhigh, max |
+| \`gpt-5.5\` | low, medium, high, xhigh |
+
+Codex runs ignore \`--chrome\`, and a Codex usage-limit stop is NOT auto-resumed (the reset clock
+Relay tracks is Claude's).
+
+Legacy, still accepted for tasks pinned to them: \`claude-opus-5\`, \`claude-fable-5\`, \`claude-opus-4-8\`, \`claude-opus-4-7\` (both xhigh),
 \`claude-opus-4-6\`, \`claude-sonnet-4-6\`, \`claude-sonnet-4-5-20250929\` (no xhigh).
 
-On Opus 5, disabling thinking is rejected above \`high\` effort.
+On Opus 5 / 5.5, disabling thinking is rejected above \`high\` effort.
 
 ## Schedule it
 
