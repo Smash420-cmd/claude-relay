@@ -47,14 +47,18 @@ playbook disagree, follow the playbook.
 2. **Research, then write.** Web-search the specifics before drafting, never after. If
    search is unavailable, log `research:unavailable` and write only what needs no source.
    Load the `unslop` skill before drafting.
-3. **Be your own worst critic** (social-voice.md): numbered error-list passes until one
+3. **Pick the photo** per the playbook's photo rules (Pexels API or, for Japan, Patrick's
+   own frames). View every candidate before choosing, no repeats across `G` lines, and
+   add the Pexels credit line to the post.
+4. **Be your own worst critic** (social-voice.md): numbered error-list passes until one
    finds nothing. Check especially: no Sojournly or app mention anywhere, no first-person
    travel story, the question at the end is specific, every fact has a source.
-4. **Post it** per the playbook's mechanics (one tab, `shift+Enter` for line breaks, never
-   Escape, read the text back before Post, verify in the reloaded feed, take the permalink).
-5. **Close the tab** the moment the post is verified: before the log line, before NOTES.
-6. **Log one `G` line** in `instagram-log.md` (format in the playbook).
-7. **Keep the last seven posts** in this task's `NOTES.md`, newest first: day, slot,
+5. **Post it** per the playbook's mechanics (one tab, photo attached first, `shift+Enter`
+   for line breaks, never Escape, read the text back before Post, verify in the reloaded
+   feed that the post shows its photo, take the permalink).
+6. **Close the tab** the moment the post is verified: before the log line, before NOTES.
+7. **Log one `G` line** in `instagram-log.md` (format in the playbook).
+8. **Keep the last seven posts** in this task's `NOTES.md`, newest first: day, slot,
    pillar, topic, example country, hook, sources. The next run reads it for rotation.
 
 ## Report
