@@ -61,13 +61,14 @@ function barClass(pct) {
 // ── model + effort data ───────────────────────────────────────────────────────
 // Empty id = no --model flag at all, so the Claude CLI picks — and that pick changes
 // without warning between CLI releases. Don't label it with a model name.
+// Opus + Fable are capped at high (Patrick, 2026-09-26) — src/executor.js effortPolicy enforces it.
 const MODELS = [
   { id: '',                          label: 'Default · no --model (CLI decides)', group: null, effort: ['low','medium','high','max'] },
-  { id: 'claude-opus-5-5',            label: 'Opus 5.5',                  group: 'Current', effort: ['low','medium','high'], def: 'medium' }, // capped at high — executor enforces
+  { id: 'claude-opus-5-5',            label: 'Opus 5.5',                  group: 'Current', effort: ['low','medium','high'], def: 'medium' },
   { id: 'claude-sonnet-5',            label: 'Sonnet 5',                  group: 'Current', effort: ['low','medium','high','xhigh','max'] },
   { id: 'claude-haiku-4-5-20251001',  label: 'Haiku 4.5',                 group: 'Current', effort: null },
-  { id: 'claude-fable-5-1',           label: 'Fable 5.1 (Max plan only)', group: 'Max plan', effort: ['low','medium','high','xhigh','max'] },
-  { id: 'claude-fable-5',             label: 'Fable 5 (Max plan only)',   group: 'Max plan', effort: ['low','medium','high','xhigh','max'] },
+  { id: 'claude-fable-5-1',           label: 'Fable 5.1 (Max plan only)', group: 'Max plan', effort: ['low','medium','high'] },
+  { id: 'claude-fable-5',             label: 'Fable 5 (Max plan only)',   group: 'Max plan', effort: ['low','medium','high'] },
   { id: 'gpt-6-astra',                label: 'GPT-6 Astra',               group: 'Codex (OpenAI)', effort: ['low','medium','high','xhigh','max','ultra'] },
   { id: 'gpt-6-sol',                  label: 'GPT-6 Sol',                 group: 'Codex (OpenAI)', effort: ['low','medium','high','xhigh','max','ultra'] },
   { id: 'gpt-6-luna',                 label: 'GPT-6 Luna',                group: 'Codex (OpenAI)', effort: ['low','medium','high','xhigh','max'] },
@@ -75,10 +76,10 @@ const MODELS = [
   { id: 'gpt-5.6-terra',              label: 'GPT-5.6 Terra',             group: 'Codex (OpenAI)', effort: ['low','medium','high','xhigh','max','ultra'] },
   { id: 'gpt-5.6-luna',               label: 'GPT-5.6 Luna',              group: 'Codex (OpenAI)', effort: ['low','medium','high','xhigh','max'] },
   { id: 'gpt-5.5',                    label: 'GPT-5.5',                   group: 'Codex (OpenAI)', effort: ['low','medium','high','xhigh'] },
-  { id: 'claude-opus-5',              label: 'Opus 5',                    group: 'Legacy', effort: ['low','medium','high','xhigh','max'] },
-  { id: 'claude-opus-4-8',           label: 'Opus 4.8',              group: 'Legacy',  effort: ['low','medium','high','xhigh','max'] },
-  { id: 'claude-opus-4-7',           label: 'Opus 4.7',              group: 'Legacy',  effort: ['low','medium','high','xhigh','max'] },
-  { id: 'claude-opus-4-6',           label: 'Opus 4.6',              group: 'Legacy',  effort: ['low','medium','high','max'] },
+  { id: 'claude-opus-5',              label: 'Opus 5',                    group: 'Legacy', effort: ['low','medium','high'] },
+  { id: 'claude-opus-4-8',           label: 'Opus 4.8',              group: 'Legacy',  effort: ['low','medium','high'] },
+  { id: 'claude-opus-4-7',           label: 'Opus 4.7',              group: 'Legacy',  effort: ['low','medium','high'] },
+  { id: 'claude-opus-4-6',           label: 'Opus 4.6',              group: 'Legacy',  effort: ['low','medium','high'] },
   { id: 'claude-sonnet-4-6',         label: 'Sonnet 4.6',            group: 'Legacy',  effort: ['low','medium','high','max'] },
   { id: 'claude-sonnet-4-5-20250929',label: 'Sonnet 4.5',            group: 'Legacy',  effort: ['low','medium','high','max'] },
 ]

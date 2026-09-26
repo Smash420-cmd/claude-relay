@@ -319,19 +319,24 @@ check('cli schedule: Haiku + --effort → exits 1 (the Claude CLI rejects effort
   const r = cli('--model', 'claude-haiku-4-5-20251001', '--effort', 'high')
   assert.strictEqual(r.status, 1); assert.match(r.stderr, /not supported on Haiku/)
 })
-check('cli schedule: Opus 5.5 above high → exits 1; high → accepted', () => {
-  for (const e of ['xhigh', 'max']) {
-    const r = cli('--model', 'claude-opus-5-5', '--effort', e)
-    assert.strictEqual(r.status, 1); assert.match(r.stderr, /capped at --effort high/)
-  }
-  assert.strictEqual(cli('--model', 'claude-opus-5-5', '--effort', 'high').status, 0)
+check('cli schedule: every Opus/Fable above high → exits 1; high → accepted', () => {
+  for (const m of ['claude-opus-5-5', 'claude-opus-4-8', 'claude-fable-5-1', 'claude-fable-5'])
+    for (const e of ['xhigh', 'max']) {
+      const r = cli('--model', m, '--effort', e)
+      assert.strictEqual(r.status, 1, m + ' ' + e); assert.match(r.stderr, /capped at --effort high/)
+    }
+  assert.strictEqual(cli('--model', 'claude-fable-5-1', '--effort', 'high').status, 0)
+  assert.strictEqual(cli('--model', 'claude-sonnet-5', '--effort', 'max').status, 0)
 })
-check('buildArgs: Opus 5.5 effort clamps to high, unset → medium; other models untouched', () => {
+check('buildArgs: Opus/Fable effort clamps to high, Opus 5.5 unset → medium; others untouched', () => {
   const eff = (t) => { const a = buildArgs(t, {}); return a.includes('--effort') ? a[a.indexOf('--effort') + 1] : null }
   assert.strictEqual(eff({ model: 'claude-opus-5-5', effort: 'max' }), 'high')
   assert.strictEqual(eff({ model: 'claude-opus-5-5', effort: 'xhigh' }), 'high')
   assert.strictEqual(eff({ model: 'claude-opus-5-5', effort: 'low' }), 'low')
   assert.strictEqual(eff({ model: 'claude-opus-5-5' }), 'medium')
+  assert.strictEqual(eff({ model: 'claude-fable-5-1', effort: 'max' }), 'high')
+  assert.strictEqual(eff({ model: 'claude-opus-4-7', effort: 'xhigh' }), 'high')
+  assert.strictEqual(eff({ model: 'claude-fable-5-1' }), null)
   assert.strictEqual(eff({ model: 'claude-sonnet-5', effort: 'max' }), 'max')
   assert.strictEqual(eff({ model: 'claude-sonnet-5' }), null)
 })

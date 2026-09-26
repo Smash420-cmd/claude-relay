@@ -440,10 +440,13 @@ changes without warning and can burn the 5-hour allowance on a premium model.
 
 | Model ID | Effort |
 |---|---|
-| \`claude-opus-5-5\` | low, **medium** (default), high — **never above high**; the CLI rejects xhigh/max for it |
+| \`claude-opus-5-5\` | low, **medium** (default), high |
 | \`claude-sonnet-5\` | low, medium, high, xhigh, max |
+
+**Opus and Fable (every version) are capped at \`high\`** — the CLI rejects xhigh/max for them.
+Don't set high unless the task needs it.
 | \`claude-haiku-4-5-20251001\` | **none** — omit \`--effort\` entirely, it errors on Haiku |
-| \`claude-fable-5-1\` | low, medium, high, xhigh, max — **Max plan only**, burns the premium weekly allowance fast. Don't pick it unless the user asks for it by name. |
+| \`claude-fable-5-1\` | low, medium, high — **Max plan only**, burns the premium weekly allowance fast. Don't pick it unless the user asks for it by name. |
 
 **Codex (OpenAI)** — a \`gpt-*\` model runs the task through the Codex CLI (\`codex exec\`) on the user's
 ChatGPT login instead of Claude. Only pick one when the user asks for Codex/GPT by name.
@@ -457,8 +460,8 @@ ChatGPT login instead of Claude. Only pick one when the user asks for Codex/GPT 
 Codex runs ignore \`--chrome\`, and a Codex usage-limit stop is NOT auto-resumed (the reset clock
 Relay tracks is Claude's).
 
-Legacy, still accepted for tasks pinned to them: \`claude-opus-5\`, \`claude-fable-5\`, \`claude-opus-4-8\`, \`claude-opus-4-7\` (both xhigh),
-\`claude-opus-4-6\`, \`claude-sonnet-4-6\`, \`claude-sonnet-4-5-20250929\` (no xhigh).
+Legacy, still accepted for tasks pinned to them: \`claude-opus-5\`, \`claude-fable-5\`, \`claude-opus-4-8\`,
+\`claude-opus-4-7\`, \`claude-opus-4-6\` (all capped at high), \`claude-sonnet-4-6\`, \`claude-sonnet-4-5-20250929\` (no xhigh).
 
 On Opus 5 / 5.5, disabling thinking is rejected above \`high\` effort.
 

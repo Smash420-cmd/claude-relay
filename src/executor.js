@@ -30,13 +30,18 @@ function findResultSession(taskStartMs) {
   return best ? best.uuid : null
 }
 
-// Per-model effort policy (Patrick, 2026-09-26): Opus 5.5 never runs past high, and an
-// unset effort means medium (not the CLI's own default). Enforced here so no path — UI, CLI,
-// /relay skill, tasks stored before the cap — can get around it.
+// Effort policy (Patrick, 2026-09-26): every Opus and Fable model is capped at high — xhigh/max
+// burn the premium allowance. Opus 5.5 also defaults to medium when effort is unset. Enforced
+// here so no path — UI, CLI, /relay skill, tasks stored before the cap — can get around it.
+// ponytail: name-pattern match, so future opus/fable ids are capped without a list update.
 const EFFORT_ORDER = ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']
-const EFFORT_POLICY = { 'claude-opus-5-5': { def: 'medium', max: 'high' } }
+function effortPolicy(model) {
+  if (model === 'claude-opus-5-5') return { def: 'medium', max: 'high' }
+  if (/opus|fable/i.test(model || '')) return { def: null, max: 'high' }
+  return null
+}
 function effortFor(model, effort) {
-  const p = EFFORT_POLICY[model]
+  const p = effortPolicy(model)
   if (!p) return effort || null
   if (!effort) return p.def
   return EFFORT_ORDER.indexOf(effort) > EFFORT_ORDER.indexOf(p.max) ? p.max : effort
@@ -257,4 +262,4 @@ function runTask(task, opts = {}) {
   })
 }
 
-module.exports = { runTask, buildArgs, effortFor, EFFORT_POLICY, EFFORT_ORDER, buildCodexArgs, isCodexModel, detectLimit, isSecretEnv, scrubSecrets, killTree }
+module.exports = { runTask, buildArgs, effortFor, effortPolicy, EFFORT_ORDER, buildCodexArgs, isCodexModel, detectLimit, isSecretEnv, scrubSecrets, killTree }
