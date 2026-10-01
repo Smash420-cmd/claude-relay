@@ -780,10 +780,19 @@ function registerIpc() {
   ipcMain.handle('relay:claude-login', () => {
     const loginWin = new BrowserWindow({ width: 960, height: 700, title: 'Log in to Claude' })
     loginWin.loadURL('https://claude.ai/login')
-    // Close once the user lands back on claude.ai (login complete)
-    loginWin.webContents.on('did-navigate', (_e, url) => {
-      if (url.startsWith('https://claude.ai') && !url.includes('/login') && !url.includes('/auth')) loginWin.close()
-    })
+    // Close as soon as the sessionKey cookie lands. claude.ai finishes login with in-page (SPA)
+    // navigation, so a did-navigate URL check never fired and the window sat on claude.ai.
+    const cookies = session.defaultSession.cookies
+    const onCookie = (_e, cookie, _cause, removed) => {
+      if (!removed && cookie.name === 'sessionKey' && cookie.domain.endsWith('claude.ai') && !loginWin.isDestroyed()) loginWin.close()
+    }
+    cookies.on('changed', onCookie)
+    return new Promise(resolve => loginWin.on('closed', () => {
+      cookies.removeListener('changed', onCookie)
+      cachedOrgId = null // new login may be a different account/org
+      if (win && !win.isDestroyed()) { win.show(); win.focus() }
+      resolve()
+    }))
   })
 
   ipcMain.handle('relay:login-item:get', () => app.getLoginItemSettings().openAtLogin)
