@@ -441,19 +441,19 @@ changes without warning and can burn the 5-hour allowance on a premium model.
 | Model ID | Effort |
 |---|---|
 | \`claude-opus-5-5\` | low, **medium** (default), high |
-| \`claude-sonnet-5\` | low, medium, high, xhigh, max |
+| \`claude-sonnet-5-5\` | low, medium, high, xhigh, max |
+| \`claude-haiku-4-5-20251001\` | **none** — omit \`--effort\` entirely, it errors on Haiku |
+| \`claude-fable-5-1\` | low, medium, high — **Max plan only**, burns the premium weekly allowance fast. Don't pick it unless the user asks for it by name. |
 
 **Opus and Fable (every version) are capped at \`high\`** — the CLI rejects xhigh/max for them.
 Don't set high unless the task needs it.
-| \`claude-haiku-4-5-20251001\` | **none** — omit \`--effort\` entirely, it errors on Haiku |
-| \`claude-fable-5-1\` | low, medium, high — **Max plan only**, burns the premium weekly allowance fast. Don't pick it unless the user asks for it by name. |
 
 **Codex (OpenAI)** — a \`gpt-*\` model runs the task through the Codex CLI (\`codex exec\`) on the user's
 ChatGPT login instead of Claude. Only pick one when the user asks for Codex/GPT by name.
 
 | Model ID | Effort |
 |---|---|
-| \`gpt-6-astra\`, \`gpt-6-sol\`, \`gpt-5.6-sol\`, \`gpt-5.6-terra\` | low, medium, high, xhigh, max, ultra |
+| \`gpt-6.1-sol\`, \`gpt-6-astra\`, \`gpt-6-sol\`, \`gpt-5.6-sol\`, \`gpt-5.6-terra\` | low, medium, high, xhigh, max, ultra |
 | \`gpt-6-luna\`, \`gpt-5.6-luna\` | low, medium, high, xhigh, max |
 | \`gpt-5.5\` | low, medium, high, xhigh |
 
@@ -461,7 +461,7 @@ Codex runs ignore \`--chrome\`, and a Codex usage-limit stop is NOT auto-resumed
 Relay tracks is Claude's).
 
 Legacy, still accepted for tasks pinned to them: \`claude-opus-5\`, \`claude-fable-5\`, \`claude-opus-4-8\`,
-\`claude-opus-4-7\`, \`claude-opus-4-6\` (all capped at high), \`claude-sonnet-4-6\`, \`claude-sonnet-4-5-20250929\` (no xhigh).
+\`claude-opus-4-7\`, \`claude-opus-4-6\` (all capped at high), \`claude-sonnet-5\` (xhigh ok), \`claude-sonnet-4-6\`, \`claude-sonnet-4-5-20250929\` (no xhigh).
 
 On Opus 5 / 5.5, disabling thinking is rejected above \`high\` effort.
 
@@ -469,7 +469,7 @@ On Opus 5 / 5.5, disabling thinking is rejected above \`high\` effort.
 
 \`\`\`bash
 node ${relayJs} schedule \\
-  --title "TITLE" --model claude-sonnet-5 --effort high \\
+  --title "TITLE" --model claude-sonnet-5-5 --effort high \\
   --cwd "PROJECT_PATH" --at "ISO_DATETIME" \\
   --prompt "PROMPT"
 \`\`\`
@@ -507,7 +507,7 @@ that doesn't need a browser shouldn't get one. \`chrome-devtools\` MCP is not a 
 a fresh automation profile with no logged-in session.
 
 \`\`\`bash
-node ${relayJs} schedule --title "Post the story" --model claude-sonnet-5 --effort high \\
+node ${relayJs} schedule --title "Post the story" --model claude-sonnet-5-5 --effort high \\
   --chrome --at "+2h" --prompt "..."
 \`\`\`
 
@@ -517,7 +517,7 @@ Relay records the session UUID in the task log. To schedule a follow-up in the s
 
 \`\`\`bash
 node ${relayJs} log TASK_ID       # last line: "# session: <uuid>"
-node ${relayJs} schedule --title "TITLE" --model claude-sonnet-5 --effort high \\
+node ${relayJs} schedule --title "TITLE" --model claude-sonnet-5-5 --effort high \\
   --mode resume-full --resume SESSION_UUID --cwd "PROJECT_PATH" --at "ISO_DATETIME" \\
   --prompt "PROMPT"
 \`\`\`

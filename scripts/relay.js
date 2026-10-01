@@ -180,7 +180,7 @@ function cmdSchedule(f) {
   // interactive default, which changes without warning and can burn the 5hr
   // allowance on a premium model.
   if (typeof f.model !== 'string' || !f.model) {
-    console.error('error: --model is required (e.g. --model claude-sonnet-5). No default — state it.')
+    console.error('error: --model is required (e.g. --model claude-sonnet-5-5). No default — state it.')
     process.exit(1)
   }
   const haiku = /haiku/i.test(f.model) // Haiku has no effort levels — the Claude CLI errors on --effort
@@ -279,7 +279,7 @@ try {
   else if (cmd === 'log') cmdLog(pos[1])
   else {
     console.log('relay — usage:')
-    console.log('  schedule --prompt "..." --model <claude-sonnet-5|claude-opus-5-5|gpt-6-sol|...> --effort <low|medium|high|xhigh|max|ultra(codex) — omit for Haiku> [--mode fresh|resume-full] [--resume <id|current>] [--at next-reset|+30m|<ISO>] [--every 30m|4h|1d|1w] [--cwd <path>] [--title "..."] [--chrome]')
+    console.log('  schedule --prompt "..." --model <claude-sonnet-5-5|claude-opus-5-5|gpt-6.1-sol|...> --effort <low|medium|high|xhigh|max|ultra(codex) — omit for Haiku> [--mode fresh|resume-full] [--resume <id|current>] [--at next-reset|+30m|<ISO>] [--every 30m|4h|1d|1w] [--cwd <path>] [--title "..."] [--chrome]')
   console.log('    --chrome           — give the run Claude-in-Chrome browser tools (off by default)')
     console.log('  list')
     console.log('  cancel <id>')

@@ -10,10 +10,12 @@ const { buildArgs, buildCodexArgs, isCodexModel, scrubSecrets } = require('../sr
 const MODELS = [
   { id: '',                           label: 'Default (no --model)', effort: ['low','medium','high','max'] },
   { id: 'claude-opus-5-5',             label: 'Opus 5.5',                  effort: ['low','medium','high'] },
+  { id: 'claude-sonnet-5-5',           label: 'Sonnet 5.5',                effort: ['low','medium','high','xhigh','max'] },
   { id: 'claude-sonnet-5',             label: 'Sonnet 5',                  effort: ['low','medium','high','xhigh','max'] },
   { id: 'claude-haiku-4-5-20251001',   label: 'Haiku 4.5',                 effort: null },
   { id: 'claude-fable-5-1',            label: 'Fable 5.1 (Max plan only)', effort: ['low','medium','high'] },
   { id: 'claude-fable-5',              label: 'Fable 5 (Max plan only)',   effort: ['low','medium','high'] },
+  { id: 'gpt-6.1-sol',                 label: 'GPT-6.1 Sol',               effort: ['low','medium','high','xhigh','max','ultra'] },
   { id: 'gpt-6-astra',                 label: 'GPT-6 Astra',               effort: ['low','medium','high','xhigh','max','ultra'] },
   { id: 'gpt-6-sol',                   label: 'GPT-6 Sol',                 effort: ['low','medium','high','xhigh','max','ultra'] },
   { id: 'gpt-6-luna',                  label: 'GPT-6 Luna',                effort: ['low','medium','high','xhigh','max'] },

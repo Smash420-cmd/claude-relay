@@ -152,22 +152,24 @@ $distDir = "C:\Users\pmdse\Documents\relay\dist"
 
 ## Model + Effort
 
-### Available models (as of 2026-07-28)
+### Available models (as of 2026-10-01)
 
 | Model ID | Label | Group | Effort support |
 |----------|-------|-------|---------------|
 | *(empty)* | Default · no `--model` (CLI decides) | — | low / medium / high / max |
 | `claude-opus-5-5` | Opus 5.5 | Current | low / **medium** (default) / high — **capped at high** |
-| `claude-sonnet-5` | Sonnet 5 | Current | low / medium / high / **xhigh** / max |
+| `claude-sonnet-5-5` | Sonnet 5.5 | Current | low / medium / high / **xhigh** / max |
 | `claude-haiku-4-5-20251001` | Haiku 4.5 | Current | **none** — effort flag must be omitted |
 | `claude-fable-5-1` | Fable 5.1 (Max plan only) | Max plan | low / medium / high — **capped at high** |
 | `claude-fable-5` | Fable 5 (Max plan only) | Max plan | low / medium / high — **capped at high** |
+| `gpt-6.1-sol` | GPT-6.1 Sol | Codex (OpenAI) | low … max / **ultra** |
 | `gpt-6-astra` / `gpt-6-sol` | GPT-6 Astra / Sol | Codex (OpenAI) | low … max / **ultra** |
 | `gpt-6-luna` | GPT-6 Luna | Codex (OpenAI) | low … max |
 | `gpt-5.6-sol` / `gpt-5.6-terra` | GPT-5.6 Sol / Terra | Codex (OpenAI) | low … max / **ultra** |
 | `gpt-5.6-luna` | GPT-5.6 Luna | Codex (OpenAI) | low … max |
 | `gpt-5.5` | GPT-5.5 | Codex (OpenAI) | low … xhigh |
 | `claude-opus-5` | Opus 5 | Legacy | low / medium / high — **capped at high** |
+| `claude-sonnet-5` | Sonnet 5 | Legacy | low / medium / high / **xhigh** / max |
 | `claude-opus-4-8` | Opus 4.8 | Legacy | low / medium / high — **capped at high** |
 | `claude-opus-4-7` | Opus 4.7 | Legacy | low / medium / high — **capped at high** |
 | `claude-opus-4-6` | Opus 4.6 | Legacy | low / medium / high — **capped at high** |
