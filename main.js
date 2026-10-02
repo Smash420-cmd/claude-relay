@@ -217,7 +217,10 @@ async function runDueTask(task, opts = {}) {
   // firing (rolling rotation, ephemeral cleanup, manual deletion) — `claude --resume` on a gone id
   // just dies with "No conversation found with session ID …" and strands the task as a failure.
   // Fall back to a fresh session instead of hard-failing.
-  if (task.mode === 'resume-full' && task.sessionId && sessions.transcriptMtime(task.sessionId) == null) {
+  // Codex sessions live in ~/.codex, not ~/.claude — these Claude-transcript checks would never find
+  // them and silently turned every Codex resume into a fresh run (2026-10-02). Skip them for Codex.
+  const codexTask = executor.isCodexModel(task.model)
+  if (!codexTask && task.mode === 'resume-full' && task.sessionId && sessions.transcriptMtime(task.sessionId) == null) {
     console.log(`[hygiene] resume target ${task.sessionId.slice(0, 8)}… has no transcript on disk — falling back to fresh`)
     task = { ...task, mode: 'fresh', sessionId: null, forkSession: false }
   }
@@ -239,7 +242,7 @@ async function runDueTask(task, opts = {}) {
   //     resuming is redundant as well as doomed. Skip quietly, say why.
   //   • open but idle (left open overnight) → --fork-session: same history, new
   //     session id, no lock — the work still gets done.
-  if (task.mode === 'resume-full' && task.sessionId) {
+  if (!codexTask && task.mode === 'resume-full' && task.sessionId) {
     try {
       if (sessions.activeSessionIds().has(task.sessionId)) {
         const mt = sessions.transcriptMtime(task.sessionId)
@@ -268,7 +271,7 @@ async function runDueTask(task, opts = {}) {
   // Silent-collision straggler net: the pre-check reads the registry, but a session can be
   // opened mid-run or leave a stale registry entry. The signature — a resume that failed
   // having printed NOTHING — never means a real work failure. One retry, forked.
-  if (task.mode === 'resume-full' && !task.forkSession && res.status === 'failed' && res.outputLen === 0) {
+  if (!codexTask && task.mode === 'resume-full' && !task.forkSession && res.status === 'failed' && res.outputLen === 0) {
     const still = store.getTask(task.id)
     if (still && still.status !== 'cancelled') {
       console.log(`[collision] ${task.id}: silent resume failure — retrying with --fork-session`)
@@ -285,6 +288,16 @@ async function runDueTask(task, opts = {}) {
   // status is left alone — otherwise its "Running: ..." card is orphaned forever.
   const stored = store.getTask(task.id)
   if (!stored || stored.status === 'cancelled') {
+    // Cancel/finish race: a run that completed cleanly before the kill landed DID its work (2026-10-02:
+    // a CLI-cancelled Codex run posted the pin, then showed "cancelled"). Record the truth for a
+    // one-off; a cancelled repeat stays cancelled (that's the recurrence being stopped) but keeps its log.
+    if (stored && res.status === 'succeeded') {
+      store.updateTask(task.id, { lastLogPath: res.logPath, lastExitCode: res.exitCode,
+        ...((stored.schedule || {}).kind !== 'repeat' ? { status: 'succeeded' } : {}) })
+      interlinked.taskFinished(ilCardId, task, res).catch(() => {})
+      notifyChange()
+      return
+    }
     interlinked.taskFinished(ilCardId, task, { status: 'cancelled', exitCode: null, logPath: null }).catch(() => {})
     notifyChange()
     return
