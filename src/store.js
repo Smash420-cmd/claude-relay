@@ -17,6 +17,9 @@ const DEFAULT_SETTINGS = {
   sessionStartTime: '02:00',    // local HH:MM — when you typically START a Claude session; reset = this + 5h
   weeklyStartDay: 'Monday',     // day of week your 7d window started
   weeklyStartTime: '02:00',     // local HH:MM on that day; used as fallback weekly reset when API unavailable
+  fallbackOnLimit: true,        // ON: a limit stop retries once on the other provider (Claude ↔ Codex) before pausing
+  fallbackClaudeModel: 'claude-sonnet-5-5', // model a Codex-limited task falls back to
+  fallbackCodexModel: 'gpt-6.1-sol',        // model a Claude-limited task falls back to
   autoResumeOnLimit: true,      // ON: re-schedule stopped tasks at the exact moment the limit resets
   schedulerIntervalSec: 20,     // how often the due-task loop ticks
   allowExtendedUsage: false,    // OFF by default — don't auto-run past the free limit and spend credits

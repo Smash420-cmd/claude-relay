@@ -183,6 +183,14 @@ the session id is read back from codex's `session id:` header, and resume uses `
 Codex list comes from `~/.codex/models_cache.json` (visibility `list`). `OPENAI_API_KEY` is scrubbed
 like every `*_KEY`, so Codex runs on the ChatGPT login. A Codex limit stop is not auto-resumed.
 
+**Limit fallback** (Patrick, 2026-10-02): a run stopped on a usage limit retries ONCE on the other
+provider before pausing — Claude → `fallbackCodexModel` (default `gpt-6.1-sol`), Codex →
+`fallbackClaudeModel` (default `claude-sonnet-5-5`). `fallbackFor` in `src/executor.js` builds the
+fallback task: fresh session, same cwd, same effort (ultra→max for Claude, none for Haiku), prompt
+prefixed with a "continue the partial work" note. Only if the fallback also stops does the normal
+resume-at-reset run (on the original model, at Claude's reset — also for Codex originals, which
+otherwise stay stopped). Toggle + both models are in Settings; the task card shows "ran on X".
+
 **Opus + Fable effort cap** (Patrick, 2026-09-26): every model matching `/opus|fable/` runs at most
 `high`; Opus 5.5 with unset effort = `medium`. `effortPolicy` in `src/executor.js` clamps every run;
 `scripts/relay.js` rejects xhigh/max for them so scheduling agents can't set it.

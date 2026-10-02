@@ -98,6 +98,11 @@ function modelOptsHtml(selectedId) {
   }
   return h
 }
+// Limit-fallback pickers: Claude models only, or Codex models only (no "Default" — must be explicit).
+function providerOptsHtml(codex, selectedId) {
+  return MODELS.filter(m => m.id && (m.group === 'Codex (OpenAI)') === codex)
+    .map(m => `<option value="${esc(m.id)}"${selectedId === m.id ? ' selected' : ''}>${esc(m.label)}</option>`).join('')
+}
 function effortOptsHtml(modelId, selectedEffort) {
   const m = MODELS.find(m => m.id === modelId) || MODELS[0]
   if (!m.effort) return '<option value="">N/A</option>'
@@ -261,7 +266,8 @@ function taskRow(t) {
   const lastRun = (t.status === 'scheduled' && t.lastRunAt && t.lastExitCode != null)
     ? `last run ${t.lastExitCode === 0 ? '✓' : '✕'} exit ${t.lastExitCode} · ${fmtWhen(t.lastRunAt)}`
     : ''
-  const extras = [modeText(t), folder, ranAt, lastRun, exit, t.resetHint ? `resets ${esc(t.resetHint)}` : ''].filter(Boolean).join(' · ')
+  const fallback = t.lastFallbackModel ? `${t.status === 'running' ? 'falling back to' : 'ran on'} ${esc((MODELS.find(m => m.id === t.lastFallbackModel) || { label: t.lastFallbackModel }).label)} (limit fallback)` : ''
+  const extras = [modeText(t), folder, ranAt, lastRun, exit, fallback, t.resetHint ? `resets ${esc(t.resetHint)}` : ''].filter(Boolean).join(' · ')
 
   return `<div class="task" data-id="${esc(t.id)}">
     <div class="task-main">
@@ -679,6 +685,20 @@ async function openSettings() {
       <div class="note">When a running task is stopped by a session or weekly usage limit, Relay automatically re-schedules it to resume at the exact moment that limit resets — no action needed.</div>
     </div>
     <div class="field">
+      <label class="toggle"><input type="checkbox" id="s-fallback" ${s.fallbackOnLimit !== false ? 'checked' : ''}/> Fall back to the other subscription on a limit</label>
+      <div class="note">Claude on cooldown → the task retries on Codex; Codex on cooldown → it retries on Claude. Only if both are limited does Relay pause it until the reset. The fallback starts a fresh session in the same folder and is told to continue the partial work.</div>
+      <div class="row" style="margin-top:8px">
+        <div class="field" style="margin-bottom:0;flex:1">
+          <label style="font-size:11.5px">Claude limited → run on</label>
+          <select id="s-fb-codex">${providerOptsHtml(true, s.fallbackCodexModel || 'gpt-6.1-sol')}</select>
+        </div>
+        <div class="field" style="margin-bottom:0;flex:1">
+          <label style="font-size:11.5px">Codex limited → run on</label>
+          <select id="s-fb-claude">${providerOptsHtml(false, s.fallbackClaudeModel || 'claude-sonnet-5-5')}</select>
+        </div>
+      </div>
+    </div>
+    <div class="field">
       <label class="toggle"><input type="checkbox" id="s-ext" ${s.allowExtendedUsage ? 'checked' : ''}/> Allow extended (paid) usage</label>
       <div class="note">ON: tasks run past your free limit and may spend credits. OFF: Relay pauses auto-runs at the threshold below and waits for the reset.</div>
       <div class="note" style="border-left-color:#e3b341;margin-top:6px">⚠ For this to prevent credit spending you must also disable <b>Extended usage</b> in your Claude.ai account settings — Relay cannot enforce this on its own.</div>
@@ -753,6 +773,9 @@ async function openSettings() {
       weeklyStartTime: modalEl.querySelector('#s-weekly-time').value || '02:00',
       schedulerIntervalSec: Math.max(5, num('#s-interval', 20)),
       autoResumeOnLimit: modalEl.querySelector('#s-auto').checked,
+      fallbackOnLimit: modalEl.querySelector('#s-fallback').checked,
+      fallbackCodexModel: modalEl.querySelector('#s-fb-codex').value,
+      fallbackClaudeModel: modalEl.querySelector('#s-fb-claude').value,
       allowExtendedUsage: modalEl.querySelector('#s-ext').checked,
       pauseAtPct: Math.min(100, Math.max(1, num('#s-pause', 100))),
       skipPermissions: modalEl.querySelector('#s-skip').checked,

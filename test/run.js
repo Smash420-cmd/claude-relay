@@ -7,7 +7,7 @@
 const assert = require('assert')
 const { normPct, pickResetAt, isLimitFalsePositive } = require('../src/usage')
 const scheduler = require('../src/scheduler')
-const { detectLimit, isSecretEnv, scrubSecrets, buildArgs, buildCodexArgs, isCodexModel } = require('../src/executor')
+const { detectLimit, isSecretEnv, scrubSecrets, buildArgs, buildCodexArgs, isCodexModel, fallbackFor } = require('../src/executor')
 
 let pass = 0, fail = 0
 const fails = []
@@ -254,6 +254,27 @@ check('buildArgs: resume-full targets the session', () => {
 check('isCodexModel: gpt-* routes to codex, claude-* does not', () => {
   assert.ok(isCodexModel('gpt-6-sol')); assert.ok(isCodexModel('gpt-5.5'))
   assert.ok(!isCodexModel('claude-opus-5-5')); assert.ok(!isCodexModel('')); assert.ok(!isCodexModel(null))
+})
+const FB = { fallbackClaudeModel: 'claude-sonnet-5-5', fallbackCodexModel: 'gpt-6.1-sol' }
+check('fallbackFor: Claude limit → Codex, fresh session, same effort, continue-note prompt', () => {
+  const f = fallbackFor({ model: 'claude-opus-5-5', effort: 'high', mode: 'resume-full', sessionId: 's1', prompt: 'build X' }, FB)
+  assert.strictEqual(f.model, 'gpt-6.1-sol'); assert.strictEqual(f.effort, 'high')
+  assert.strictEqual(f.mode, 'fresh'); assert.strictEqual(f.sessionId, null)
+  assert.ok(f.prompt.endsWith('build X')); assert.ok(/partial work/.test(f.prompt))
+})
+check('fallbackFor: default (no model) counts as Claude → Codex', () => {
+  assert.strictEqual(fallbackFor({ model: '' }, FB).model, 'gpt-6.1-sol')
+})
+check('fallbackFor: Codex limit → Claude, ultra maps to max', () => {
+  const f = fallbackFor({ model: 'gpt-6-sol', effort: 'ultra' }, FB)
+  assert.strictEqual(f.model, 'claude-sonnet-5-5'); assert.strictEqual(f.effort, 'max')
+})
+check('fallbackFor: Haiku fallback drops effort', () => {
+  assert.strictEqual(fallbackFor({ model: 'gpt-5.5', effort: 'high' }, { fallbackClaudeModel: 'claude-haiku-4-5-20251001' }).effort, null)
+})
+check('fallbackFor: off or unconfigured → null', () => {
+  assert.strictEqual(fallbackFor({ model: 'claude-sonnet-5-5' }, { ...FB, fallbackOnLimit: false }), null)
+  assert.strictEqual(fallbackFor({ model: 'claude-sonnet-5-5' }, {}), null)
 })
 check('buildCodexArgs: fresh — model, effort, bypass, prompt from stdin', () => {
   const a = buildCodexArgs({ mode: 'fresh', model: 'gpt-6-sol', effort: 'ultra' }, { skipPermissions: true })

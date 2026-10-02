@@ -84,6 +84,25 @@ function buildArgs(task, opts = {}) {
 // ponytail: prefix match, add a prefix here if OpenAI ships a family outside gpt-/codex-/oN.
 const isCodexModel = (model) => /^(gpt-|codex-|o\d)/i.test(model || '')
 
+// Limit fallback (Patrick, 2026-10-02): a run stopped by one subscription's limit gets ONE retry
+// on the other provider — Claude → Codex, Codex → Claude — before Relay pauses for the cooldown.
+// Fresh session in the same cwd (sessions don't cross providers), so the prompt says to pick up
+// the partial work. Returns the task to run, or null when the fallback is off / not configured.
+const FALLBACK_NOTE = 'Note: this task was started by another AI agent that stopped on its usage limit. ' +
+  'Any partial work is in this directory — check git status and recent files, and continue from ' +
+  'where it stopped rather than starting over.\n\nTask:\n'
+function fallbackFor(task, settings) {
+  if (settings.fallbackOnLimit === false) return null
+  const toCodex = !isCodexModel(task.model)
+  const model = toCodex ? settings.fallbackCodexModel : settings.fallbackClaudeModel
+  if (!model) return null
+  let effort = task.effort || null
+  if (!toCodex && effort === 'ultra') effort = 'max' // ultra is Codex-only
+  if (/haiku/i.test(model)) effort = null // Haiku rejects --effort
+  return { ...task, model, effort, mode: 'fresh', sessionId: null, forkSession: false,
+    prompt: FALLBACK_NOTE + (task.prompt || 'continue') }
+}
+
 // Codex equivalent of buildArgs. Prompt still goes via stdin (`-`). Codex can't pin a session id
 // up front, so fresh runs read it back from the "session id:" header (see runTask).
 // --chrome and --fork-session have no codex equivalent and are ignored.
@@ -262,4 +281,4 @@ function runTask(task, opts = {}) {
   })
 }
 
-module.exports = { runTask, buildArgs, effortFor, effortPolicy, EFFORT_ORDER, buildCodexArgs, isCodexModel, detectLimit, isSecretEnv, scrubSecrets, killTree }
+module.exports = { runTask, buildArgs, effortFor, effortPolicy, EFFORT_ORDER, buildCodexArgs, isCodexModel, fallbackFor, detectLimit, isSecretEnv, scrubSecrets, killTree }

@@ -297,10 +297,9 @@ async function runDueTask(task, opts = {}) {
   // is unavailable (logged out / blip), trust the text match (a phantom there is cancelable).
   let usage = null
   let vetoed = false
-  // Codex runs spend OpenAI allowance — the Claude usage API can neither veto nor time their
-  // resume, so a codex limit stop stays 'stopped' for the user to re-run.
+  // Codex runs spend OpenAI allowance — the Claude usage API can't veto their limit stop.
   const codexRun = executor.isCodexModel(task.model)
-  if (res.status === 'stopped' && settings.autoResumeOnLimit && !codexRun) {
+  if (res.status === 'stopped' && (settings.autoResumeOnLimit || settings.fallbackOnLimit !== false) && !codexRun) {
     try { usage = await fetchClaudeUsage() } catch {}
     if (isLimitFalsePositive(usage)) {
       vetoed = true
@@ -308,7 +307,38 @@ async function runDueTask(task, opts = {}) {
       console.log(`[autoresume] limit text matched but usage is ${usage.sessionPct}%/${usage.weeklyPct}% — false positive, not resuming`)
     }
   }
+  // Limit fallback: before pausing for a cooldown, try the other subscription once (Claude limit →
+  // Codex, Codex limit → Claude). Only when that ALSO stops does the resume-at-reset path below run,
+  // on the original model. resultSessionId stays the original's — hygiene and resume track it.
+  let fallbackModel = null, bothLimited = false
+  const fb = res.status === 'stopped' && !vetoed ? executor.fallbackFor(task, settings) : null
+  if (fb) {
+    console.log(`[fallback] ${task.id}: ${task.model || 'default'} hit its limit — trying ${fb.model}`)
+    store.updateTask(task.id, { lastFallbackModel: fb.model })
+    notifyChange()
+    let fbRes = await executor.runTask(fb, runOpts) // same cwd — that's where the partial work is
+    running.delete(task.id)
+    const now = store.getTask(task.id)
+    if (!now || now.status === 'cancelled') {
+      interlinked.taskFinished(ilCardId, task, { status: 'cancelled', exitCode: null, logPath: null }).catch(() => {})
+      notifyChange()
+      return
+    }
+    // A Claude fallback's "stopped" is text-matched too — same usage-API veto as the main run.
+    if (fbRes.status === 'stopped' && !executor.isCodexModel(fb.model)) {
+      try { usage = await fetchClaudeUsage() } catch {}
+      if (isLimitFalsePositive(usage)) fbRes = { ...fbRes, status: fbRes.exitCode === 0 ? 'succeeded' : 'failed' }
+    }
+    if (fbRes.status === 'stopped') {
+      bothLimited = true
+      console.log(`[fallback] ${fb.model} is limited too — pausing until the reset`)
+    } else {
+      fallbackModel = fb.model
+      res = { ...fbRes, resultSessionId: res.resultSessionId }
+    }
+  }
   store.updateTask(task.id, {
+    lastFallbackModel: fallbackModel,
     status: res.status,
     lastLogPath: res.logPath,
     lastExitCode: res.exitCode,
@@ -321,7 +351,10 @@ async function runDueTask(task, opts = {}) {
     const patch = hygiene.afterRun(task, res)
     if (patch) store.updateTask(task.id, patch)
   } catch (e) { console.warn('[hygiene]', e.message) }
-  if (res.status === 'stopped' && settings.autoResumeOnLimit && !vetoed && !codexRun) {
+  // A Codex-only stop has no reset clock Relay can read, so it stays stopped — unless the Claude
+  // fallback was limited too; then Claude's reset is when the retry (Codex, else Claude) can run.
+  if (res.status === 'stopped' && settings.autoResumeOnLimit && !vetoed && (!codexRun || bothLimited)) {
+    if (!usage) try { usage = await fetchClaudeUsage() } catch {}
     if (res.resultSessionId && !task.sessionId) task = { ...task, sessionId: res.resultSessionId, mode: 'resume-full' }
     queueResume(task, pickResetAt(usage))
   }
