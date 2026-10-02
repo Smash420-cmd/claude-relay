@@ -969,6 +969,15 @@ function main() {
     })
     watchRelayDir()
     setInterval(checkAutoResumeArm, 30 * 1000)
+    // `relay.js cancel` (CLI) can only flip the stored status; it has no handle on the child.
+    // Kill any running task whose stored status became 'cancelled' (2026-10-02: a CLI-cancelled
+    // Codex run kept going and its result was then discarded).
+    setInterval(() => {
+      for (const [id, child] of running) {
+        const t = store.getTask(id)
+        if (!t || t.status === 'cancelled') { executor.killTree(child); running.delete(id) }
+      }
+    }, 10 * 1000)
     // Interlinked: consume phone verdicts → enqueue tasks (no-op without the key)
     interlinked.startIntentPoller({ addTask: store.addTask, notifyChange, getTasks: store.getTasks })
     // Usage mirror: push the SAME live API the Relay UI shows. usage.json is a statusline

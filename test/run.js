@@ -17,6 +17,20 @@ function check(name, fn) {
 }
 const DAY = 86400000
 
+// ── codex phasing — Codex runs start >= 5h apart (one run can eat the 5h allowance) ──
+{
+  const H = 3600e3, now = Date.parse('2026-10-02T12:00:00Z')
+  const tasks = [{ model: 'gpt-6.1-sol', lastRunAt: new Date(now - 2 * H).toISOString() },
+                 { model: 'claude-sonnet-5-5', lastRunAt: new Date(now - 0.1 * H).toISOString() }]
+  const last = scheduler.lastCodexStart(tasks)
+  check('codex gap: last start ignores claude runs', () => assert.strictEqual(last, now - 2 * H))
+  check('codex gap: codex task 2h after a codex run is held', () => assert.strictEqual(scheduler.codexHeld({ model: 'gpt-6.1-sol' }, last, {}, now), true))
+  check('codex gap: claude task never held', () => assert.strictEqual(scheduler.codexHeld({ model: 'claude-sonnet-5-5' }, last, {}, now), false))
+  check('codex gap: released after 5h', () => assert.strictEqual(scheduler.codexHeld({ model: 'gpt-6.1-sol' }, last, {}, now + 3.1 * H), false))
+  check('codex gap: codexGapHours setting respected', () => assert.strictEqual(scheduler.codexHeld({ model: 'gpt-6.1-sol' }, last, { codexGapHours: 1 }, now), false))
+  check('codex gap: no previous codex run → not held', () => assert.strictEqual(scheduler.codexHeld({ model: 'gpt-6.1-sol' }, 0, {}, now), false))
+}
+
 // ── normPct — the field that pinned both gauges to 100% twice ─────────────────
 check('normPct: used_percentage 25 → 25', () => assert.strictEqual(normPct({ used_percentage: 25 }), 25))
 check('normPct: utilization 25 → 25', () => assert.strictEqual(normPct({ utilization: 25 }), 25))

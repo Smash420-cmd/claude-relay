@@ -52,6 +52,20 @@ function nextRepeat(s, from = new Date()) {
 }
 
 // start({ intervalMs, getState, runDueTask }) -> stop()
+// Codex phasing (Patrick, 2026-10-02): one Sol/high posting run ate ~90% of the 5h Codex
+// allowance, so Codex tasks start at least `codexGapHours` (default 5) after the last Codex
+// start. Claude tasks are unaffected. A held Codex task just stays due and runs once the gap ends.
+const isCodexModel = (m) => /^(gpt-|codex-|o\d)/i.test(m || '')  // same rule as executor.js
+function lastCodexStart(tasks) {
+  let last = 0
+  for (const t of tasks) if (isCodexModel(t.model) && t.lastRunAt) last = Math.max(last, new Date(t.lastRunAt).getTime() || 0)
+  return last
+}
+function codexHeld(task, lastStart, settings, now = Date.now()) {
+  const gapMs = (settings.codexGapHours ?? 5) * 3600e3
+  return isCodexModel(task.model) && lastStart > 0 && now - lastStart < gapMs
+}
+
 function start({ intervalMs, getState, runDueTask }) {
   let ticking = false
   const tick = async () => {
@@ -73,9 +87,15 @@ function start({ intervalMs, getState, runDueTask }) {
       tick.heldLogged = false
       // Due tasks run SEQUENTIALLY on purpose: parallel claude runs would race each other into the
       // session limit. Consequence: one long run delays everything behind it (incl. repeat slots).
+      let lastCodex = lastCodexStart(tasks)
       for (const t of tasks) {
         if (t.status !== 'scheduled') continue
         if (dueTime(t, settings) <= now) {
+          if (codexHeld(t, lastCodex, settings, now)) {
+            if (!tick.codexLogged) { console.log(`[scheduler] codex task ${t.id} held until ${new Date(lastCodex + (settings.codexGapHours ?? 5) * 3600e3).toLocaleString()} (codex gap)`); tick.codexLogged = true }
+            continue
+          }
+          if (isCodexModel(t.model)) { lastCodex = Date.now(); tick.codexLogged = false }
           await runDueTask(t)
         }
       }
@@ -92,4 +112,4 @@ function start({ intervalMs, getState, runDueTask }) {
   return () => clearInterval(handle)
 }
 
-module.exports = { start, nextSessionReset, nextWeeklyReset, dueTime, nextRepeat }
+module.exports = { start, nextSessionReset, nextWeeklyReset, dueTime, nextRepeat, lastCodexStart, codexHeld }
