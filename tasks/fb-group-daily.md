@@ -1,6 +1,6 @@
 # Facebook group daily post: World Travel Planning (by Sojournly.au)
 
-**cwd:** `C:/Users/pmdse/Projects/sojournly-social` · **model:** claude-sonnet-5 · **effort:** high
+**cwd:** `C:/Users/pmdse/Projects/sojournly-social` · **model:** claude-sonnet-5-5 · **effort:** high
 
 One post a day to the group, to give new members something to find and get existing
 members talking. **Trip-planning advice and discussion prompts only. No brand, no app,

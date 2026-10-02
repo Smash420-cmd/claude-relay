@@ -1,6 +1,6 @@
 # Pinterest daily pin — sojournly.au
 
-**cwd:** `C:/Users/pmdse/Projects/sojournly-social` · **model:** opus · **effort:** high
+**cwd:** `C:/Users/pmdse/Projects/sojournly-social` · **model:** claude-sonnet-5-5 · **effort:** high
 **Browser:** required — this task must run with browser access enabled.
 
 ## STEP 00 — CHECK THE RULES HAVEN'T CHANGED UNDER YOU

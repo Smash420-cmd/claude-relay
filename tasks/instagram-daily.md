@@ -1,6 +1,6 @@
 # Instagram daily post — @sojournly.au
 
-**cwd:** `C:/Users/pmdse/Projects/sojournly-social` · **model:** opus · **effort:** high
+**cwd:** `C:/Users/pmdse/Projects/sojournly-social` · **model:** claude-sonnet-5-5 · **effort:** high
 
 ## STEP 00 — CHECK THE RULES HAVEN'T CHANGED UNDER YOU
 
