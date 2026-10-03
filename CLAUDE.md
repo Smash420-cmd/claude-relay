@@ -190,6 +190,8 @@ fallback task: fresh session, same cwd, same effort (ultra→max for Claude, non
 prefixed with a "continue the partial work" note. Only if the fallback also stops does the normal
 resume-at-reset run (on the original model, at Claude's reset — also for Codex originals, which
 otherwise stay stopped). Toggle + both models are in Settings; the task card shows "ran on X".
+A task with `noFallback: true` (CLI `--no-fallback`) never falls back and just waits for the reset —
+set on the Hidden Examiner weekly test, which must only run on Claude (Patrick, 2026-10-03).
 
 **Opus + Fable effort cap** (Patrick, 2026-09-26): every model matching `/opus|fable/` runs at most
 `high`; Opus 5.5 with unset effort = `medium`. `effortPolicy` in `src/executor.js` clamps every run;

@@ -286,6 +286,9 @@ check('fallbackFor: Codex limit → Claude, ultra maps to max', () => {
 check('fallbackFor: Haiku fallback drops effort', () => {
   assert.strictEqual(fallbackFor({ model: 'gpt-5.5', effort: 'high' }, { fallbackClaudeModel: 'claude-haiku-4-5-20251001' }).effort, null)
 })
+check('fallbackFor: task.noFallback keeps the task on its provider', () => {
+  assert.strictEqual(fallbackFor({ model: 'opus', noFallback: true }, FB), null)
+})
 check('fallbackFor: off or unconfigured → null', () => {
   assert.strictEqual(fallbackFor({ model: 'claude-sonnet-5-5' }, { ...FB, fallbackOnLimit: false }), null)
   assert.strictEqual(fallbackFor({ model: 'claude-sonnet-5-5' }, {}), null)

@@ -210,6 +210,8 @@ function cmdSchedule(f) {
     // Browser access is opt-in per task (executor turns this into --chrome). Same box the
     // app's task modal ticks — without it a headless run gets no Claude-in-Chrome tools.
     chrome: f.chrome === true || f.chrome === 'true',
+    // Per-task opt-out of the Claude <-> Codex limit fallback (e.g. tests that must run on Claude).
+    noFallback: f['no-fallback'] === true || f['no-fallback'] === 'true',
     sessionPolicy,
     schedule: repeat ? { kind: 'repeat', ...repeat, at } : { kind: 'once', at },
     status: 'scheduled',
@@ -279,8 +281,9 @@ try {
   else if (cmd === 'log') cmdLog(pos[1])
   else {
     console.log('relay — usage:')
-    console.log('  schedule --prompt "..." --model <claude-sonnet-5-5|claude-opus-5-5|gpt-6.1-sol|...> --effort <low|medium|high|xhigh|max|ultra(codex) — omit for Haiku> [--mode fresh|resume-full] [--resume <id|current>] [--at next-reset|+30m|<ISO>] [--every 30m|4h|1d|1w] [--cwd <path>] [--title "..."] [--chrome]')
+    console.log('  schedule --prompt "..." --model <claude-sonnet-5-5|claude-opus-5-5|gpt-6.1-sol|...> --effort <low|medium|high|xhigh|max|ultra(codex) — omit for Haiku> [--mode fresh|resume-full] [--resume <id|current>] [--at next-reset|+30m|<ISO>] [--every 30m|4h|1d|1w] [--cwd <path>] [--title "..."] [--chrome] [--no-fallback]')
   console.log('    --chrome           — give the run Claude-in-Chrome browser tools (off by default)')
+  console.log('    --no-fallback      — on a usage limit, wait for the reset instead of retrying on the other provider')
     console.log('  list')
     console.log('  cancel <id>')
     console.log('  retime <id> --at <ISO|+30m|next-reset>  — move a task\'s next fire (repeats keep their interval)')

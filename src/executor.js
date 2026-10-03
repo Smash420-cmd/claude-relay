@@ -92,7 +92,7 @@ const FALLBACK_NOTE = 'Note: this task was started by another AI agent that stop
   'Any partial work is in this directory — check git status and recent files, and continue from ' +
   'where it stopped rather than starting over.\n\nTask:\n'
 function fallbackFor(task, settings) {
-  if (settings.fallbackOnLimit === false) return null
+  if (settings.fallbackOnLimit === false || task.noFallback) return null // noFallback: task must stay on its provider
   const toCodex = !isCodexModel(task.model)
   const model = toCodex ? settings.fallbackCodexModel : settings.fallbackClaudeModel
   if (!model) return null
