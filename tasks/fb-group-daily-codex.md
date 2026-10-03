@@ -83,6 +83,57 @@ on the dedicated profile `C:/Users/pmdse/.sojournly-agent-browser`). Relay's nor
 - PowerShell stdin mangles em dashes; use Python with `\u2014` escapes when editing NOTES.md
   by script.
 
+- **2026-10-03 Facebook dry run: use UTF-8 from the first read.** A plain PowerShell
+  `Get-Content` rendered the runbook's punctuation as mojibake. Re-read with
+  `-Encoding UTF8`; do not infer rule changes from an incorrectly decoded file.
+- Printing all complete browser-tool descriptions alongside the existing findings
+  produced truncated output. Discover the exact prefix first, print only the tool
+  schemas needed next, and read long files separately with adequate output limits.
+- Facebook showed a **Push notifications request** alert on first arrival and again
+  after reload. Dismiss its fresh **Close** uid, leaving notification settings alone.
+  `wait_for` can match the underlying feed while this alert still hides the group;
+  inspect the fresh snapshot for modal alerts before interacting or taking evidence.
+- The official Sagrada Família URL `/en/sagrada-familia` was inaccessible through web
+  open. Search found the working official standard-ticket page at
+  `https://sagradafamilia.org/en/web/guest/sagrada-familia-ticket`. Keep research on
+  verified operator URLs rather than guessing a replacement or using reseller claims.
+- The accessibility snapshot calls the group content "main", but the DOM node is
+  `<div role="main" aria-label="Group content">`, not a `<main>` element.
+  `main[aria-label="Group content"]` returned null twice; use
+  `[role="main"][aria-label="Group content"]` for scoped feed reads.
+- The first **Write something...** click reported success without opening the
+  composer; a 15-second Create post wait timed out. A fresh snapshot/screenshot proved
+  it stayed closed; a second composer click opened it. Never type until the actual
+  Create post dialog and its textbox are present.
+- The dialog's file input was hidden from even the verbose accessibility snapshot.
+  A scoped read confirmed one `input[type="file"]` inside Create post. The supported
+  `upload_file` call on that dialog's **Photo/video** uid selected this input and
+  uploaded the temp file successfully. Do not use the separate page-level Choose
+  Files input. Confirm the image and filename in the composer afterward.
+- Typing the Pexels credit triggered **mention suggestions**, despite there being
+  no hashtag or @ in the credit. Do not select a suggestion or press plain Enter or
+  Escape. The exact read-back preserved the plain-text credit without a mention.
+- **X does not necessarily offer Discard post.** In this profile on this run, X
+  immediately closed Create post and reopening restored both text and photo. A
+  second X behaved the same; no visible discard/draft controls or dialog existed.
+  The More post options panel contained only attachment/post-type options, not
+  Discard. For this expressly authorized dry run, cleared the editor using click,
+  Control+A, Backspace, removed the attachment with its own Remove post attachment
+  button, clicked X, reloaded, and reopened to confirm an empty composer with Post
+  disabled. Never report this as a tested Discard click: that part of the requested
+  dry run failed. Ordinary publication runs must keep the existing never-Discard rule.
+- Facebook loads feed posts lazily: the baseline DOM had two post IDs, while the
+  first reloaded DOM had one. Unequal loaded totals do not prove a new or missing
+  publication. For the no-publication check, selected **New posts**, recorded the
+  newest existing post ID and hook before/after, and verified the dry-run hook and
+  example absent after reload. New posts sorting navigates to
+  `?sorting_setting=CHRONOLOGICAL`; wait for the feed to render after navigation.
+- Reopening the cleared composer initially exposed a transient dialog without a
+  textbox; an immediate DOM read returned null. The next snapshot had the completed
+  empty form and different dialog uids. A screenshot using the earlier dialog uid
+  was rejected once. Re-snapshot and use the newest uid after composer re-rendering;
+  do not reuse the loading dialog's uid.
+
 ## Log, report, failure
 
 - `G` line exactly per `facebook-group.md`, plus `browser: sojournly-browser MCP` and
