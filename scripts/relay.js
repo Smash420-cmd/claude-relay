@@ -192,7 +192,7 @@ function cmdSchedule(f) {
     console.error('error: --effort is required (low|medium|high|xhigh|max, ultra on Codex). No default — state it.')
     process.exit(1)
   }
-  const { effortPolicy, EFFORT_ORDER } = require('../src/executor')
+  const { effortPolicy, EFFORT_ORDER } = require('./effort')
   const cap = effortPolicy(f.model)
   if (cap && EFFORT_ORDER.indexOf(f.effort) > EFFORT_ORDER.indexOf(cap.max)) {
     console.error(`error: ${f.model} is capped at --effort ${cap.max} — Opus and Fable never run above high.`)
