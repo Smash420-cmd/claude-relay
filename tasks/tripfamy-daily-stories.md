@@ -49,6 +49,36 @@ so; it binds every writer and the editor).
 6. **LOOK** — own-run smoke ONLY (one screenshot per story; the nightly sweep
    does the deep pass)
 
+## Video pick (pick days only, after the 2 stories; Oracle 6910/6941/6947)
+
+A pick is 2-3 paragraphs reviewing one YouTube travel video, like a short promo
+review: never a first-person trip. All commands run in the travel-blog repo.
+
+P0. `node scripts/video-pick.mjs pick-day`: `no` = skip this whole section.
+P1. `node scripts/video-pick.mjs find 14` lists recent uploads from the vetted
+    channels (`scripts/video-channels.json`), already-picked videos removed.
+    Choose one that is about a place in a country on the COUNTRIES list, is
+    upbeat, and isn't about crime, accidents, warnings, politics or deals.
+    Never search YouTube any other way, and never use yt-dlp.
+P2. `node scripts/video-pick.mjs check <id>`: not embeddable = choose another.
+    Its `hero` is the card and hero image; never save it to the photo pool.
+P3. `node scripts/video-pick.mjs notes <id> <workdir>/facts.json`: Gemini
+    watches the video (free tier). Zero facts or an error = skip the pick and
+    say so on the card. Never print or copy the key.
+P4. WRITE: one fresh `model: "sonnet"` subagent with `STYLE.md` and that
+    facts.json only. blocks = the video block `{type:"video", id, title,
+    channel, channel_url}` from P2, then 2-3 paragraphs. dek is ONE sentence:
+    `Video by <channel, full stops removed>: <blurb>.`, 90-160 chars.
+    `persona_username: "tripfamy-picks"`, `hero` from P2, the country as
+    `region`. No first person, nothing disparaging about the creator or any
+    business, no scores; the people rule applies.
+P5. EDITOR: fresh `model: "opus"` subagent cuts every claim it can't tie to
+    a timestamp in facts.json, fixes the prose itself, then runs
+    `node scripts/generate-stories.mjs lint <file>` until it passes (max 3
+    passes, then skip).
+P6. `node scripts/generate-stories.mjs insert <file>`. Log the video id, the
+    channel and the Gemini token count in NOTES.md.
+
 ## Cards
 
 No card for clean runs. Card with `NEEDS YOU:` for unfixable defects.
