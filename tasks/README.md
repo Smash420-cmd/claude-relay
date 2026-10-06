@@ -38,8 +38,8 @@ takes effect on the next run with no rescheduling.
 | `weekly-review.md` | Interlinked weekly review | Sun 18:00 |
 | `email-digest.md` | Daily email triage | daily 12:00 |
 | `gmail-hygiene-monthly.md` | Gmail hygiene, 4-week buffer | every 4 weeks |
-| `farflung-daily-stories.md` | Farflung AI story engine | daily 19:41 |
-| `farflung-nightly-qa.md` | Farflung visual QA sweep | daily 21:50 |
-| `farflung-roster-weekly.md` | Farflung writer pool | weekly |
-| `farflung-story-of-week.md` | Farflung Story of the Week | weekly |
+| `farflung-daily-stories.md` | Tripfamy daily stories (rename at reinstatement) | daily 19:41 |
+| `farflung-nightly-qa.md` | Tripfamy visual QA sweep | daily 21:50 |
+| `farflung-roster-weekly.md` | Tripfamy writer pool (paused) | weekly |
+| `farflung-story-of-week.md` | Tripfamy Story of the Week (off until windowed) | weekly |
 | `hidden-examiner-weekly.md` | Find-me-harness exam run | weekly |
