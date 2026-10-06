@@ -54,7 +54,8 @@ so; it binds every writer and the editor).
 A pick is 2-3 paragraphs reviewing one YouTube travel video, like a short promo
 review: never a first-person trip. All commands run in the travel-blog repo.
 
-P0. `node scripts/video-pick.mjs pick-day`: `no` = skip this whole section.
+P0. `node scripts/video-pick.mjs pick-day`: `no`, or no such file yet (picks
+    not merged), = skip this whole section.
 P1. `node scripts/video-pick.mjs find 14` lists recent uploads from the vetted
     channels (`scripts/video-channels.json`), already-picked videos removed.
     Choose one that is about a place in a country on the COUNTRIES list, is

@@ -134,6 +134,20 @@ on the dedicated profile `C:/Users/pmdse/.sojournly-agent-browser`). Relay's nor
   was rejected once. Re-snapshot and use the newest uid after composer re-rendering;
   do not reuse the loading dialog's uid.
 
+- **2026-10-04 publication: file inputs clear after upload.** The dialog file input
+  had an empty files list after a successful upload; the named attachment in the snapshot
+  and the composer screenshot confirmed the photo. Do not treat an empty files list as
+  failure when the attachment is visible.
+- **Permalink title can update before the post finishes rendering.** The timestamp click
+  opened the correct permalink immediately, but the first screenshot showed a loading
+  skeleton. A subsequent focused DOM read confirmed the hook, credit and loaded image.
+  Wait for the rendered post before taking final screenshot evidence.
+
+- **PowerShell stdin also mangles accented letters.** On 2026-10-04, a Python
+  here-string wrote `Fam?lia` to the log and notes despite UTF-8 file writes.
+  Corrected to `Família` with `\u00ed` in the Python source and verified the files.
+  Use Unicode escapes or direct apply_patch for all non-ASCII text, not just em dashes.
+
 ## Log, report, failure
 
 - `G` line exactly per `facebook-group.md`, plus `browser: sojournly-browser MCP` and
