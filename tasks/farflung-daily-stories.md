@@ -21,7 +21,7 @@ so; it binds every writer and the editor).
 
 ## Boxes
 
-1. **PREMISE** — `node scripts/generate-stories.mjs assignment`
+1. **PREMISE** — `node scripts/generate-stories.mjs assignment` (one story a day, Patrick 6769)
 1c. **RESEARCH** — 5-10 sourced facts per story into its `facts.json`; no source, no claim
 2. **PHOTOS** — `src.medium` only, sequential, first plausible wins, max 3 views per beat
 3. **STORY** — one persona subagent each, pinned `model: "sonnet"`,
@@ -30,8 +30,9 @@ so; it binds every writer and the editor).
    unsourced facts, nothing after the publish date, no AI wording)
 3b. **SUBEDIT** — `card_title` ≤ 6 words / 40 chars — the insert REQUIRES it
 4. **GATE** — reader-sim, max 3 attempts then skip
-4a. **EDITOR** — fresh `model: "opus"` subagent, fact + slop passes until one
-   finds nothing (max 3, then skip); every pass goes in NOTES.md
+4a. **EDITOR** — fresh `model: "opus"` subagent; it fixes every problem it
+   lists itself (no hand-back to the writer), then re-reads until a pass finds
+   nothing (max 3, then skip); every pass goes in NOTES.md
 5. **INSERT** — `insert <tempfile>`; a `lintStory` failure means fix the prose
    (rewrite, never just delete a dash), not the validator. A `region` failure: set the
    country the story is set in, or skip that story with `NEEDS YOU:` on the card.
