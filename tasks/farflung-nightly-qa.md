@@ -1,5 +1,7 @@
 # Tripfamy: nightly visual QA sweep (new content)
 
+**RETIRED (Oracle 6777).** Replaced by `tripfamy-weekly-spotcheck.md`; its guards moved into the validator and the box-4a editor. Do not reschedule.
+
 **cwd:** `C:/Users/pmdse/Projects/travel-blog` · **model:** claude-sonnet-5-5 · **effort:** high
 
 NEW content only, deep pass. Read `EDITORIAL_PIPELINE.md` box 6 (LOOK),
