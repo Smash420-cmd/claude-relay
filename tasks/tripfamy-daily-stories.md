@@ -79,6 +79,35 @@ P5. EDITOR: fresh `model: "opus"` subagent cuts every claim it can't tie to
 P6. `node scripts/generate-stories.mjs insert <file>`. Log the video id, the
     channel and the Gemini token count in NOTES.md.
 
+## News (every weekday run, after the 2 stories and any pick; NEWS-DESIGN.md, Oracle 6950)
+
+One short upbeat news item in our own words: a new route, an opening, a reopening, a
+festival. Nothing about crime, deaths, disasters, warnings, politics or deals. All
+commands run in the travel-blog repo.
+
+N1. `node scripts/news.mjs find 72` lists filtered items from the vetted outlets
+    (`scripts/news-feeds.json`) plus `pairs`: the same event in two outlets. Choose
+    one event reported on 2+ different domains, about one country on the COUNTRIES
+    list. Nothing fits = skip news and say so in NOTES.md (no card). Never use Google
+    News, the Guardian or a paywalled outlet.
+N2. `node scripts/news.mjs page <url>` for each source: exit 1 (a wall, an error) =
+    drop that source. Fewer than 2 left = choose another event.
+N3. facts.json: `{claim, source_url, quote}` per fact, the quote copied exactly from
+    the page text. No quote, no claim.
+N4. Hero: `photos <query>` as in box 2 (our licensed pool), never the source's image.
+N5. WRITE: one fresh `model: "sonnet"` subagent with `STYLE.md` and that facts.json
+    only. blocks = `{type:"news", sources:[{name, url}, ...]}` (each outlet named as it
+    names itself), then 3-4 paragraphs. dek is ONE sentence, 90-160 chars.
+    `persona_username: "tripfamy-news"`, the country as `region`. No first person,
+    nothing copied: our own words.
+N6. EDITOR: fresh `model: "opus"` subagent cuts every claim it can't match to a
+    quote, checks every date against today (the Time rule), applies the people rule,
+    fixes the prose itself, then runs `node scripts/generate-stories.mjs lint <file>`
+    and `node scripts/news.mjs copy <file> <facts.json>` until both pass (max 3
+    passes, then skip).
+N7. `node scripts/generate-stories.mjs insert <file>`. Log the source URLs and the
+    token count in NOTES.md.
+
 ## Cards
 
 No card for clean runs. Card with `NEEDS YOU:` for unfixable defects.
