@@ -6,6 +6,12 @@ Tripfamy daily story run. Full protocol in `EDITORIAL_PIPELINE.md` — read it
 first, and note the token-economy rules in PHOTOS and LOOK. The site is live:
 an insert is public within 5 minutes and flows into the Sojournly app via RSS.
 
+## STEP 000 — weekdays only (Oracle 6910)
+
+Relay has no weekday schedule, so this task fires daily. If today in
+Australia/Sydney is Saturday or Sunday, stop now: no card, no NOTES.md edit,
+no other tool call.
+
 ## STEP 00 — check the rules haven't changed under you
 
 ```bash
@@ -21,7 +27,7 @@ so; it binds every writer and the editor).
 
 ## Boxes
 
-1. **PREMISE** — `node scripts/generate-stories.mjs assignment` (one story a day, Patrick 6769)
+1. **PREMISE** — `node scripts/generate-stories.mjs assignment 2` (two stories a weekday, Patrick 6907 / Oracle 6910); each story runs boxes 1c to 6 on its own
 1c. **RESEARCH** — 5-10 sourced facts per story into its `facts.json`; no source, no claim
 2. **PHOTOS** — `src.medium` only, sequential, first plausible wins, max 3 views per beat
 3. **STORY** — one persona subagent each, pinned `model: "sonnet"`,
