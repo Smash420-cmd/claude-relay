@@ -1,8 +1,8 @@
-# Farflung: weekly Story of the Week
+# Tripfamy: weekly Story of the Week
 
-**cwd:** `C:/Users/pmdse/Projects/travel-blog` · **model:** sonnet · **effort:** medium
+**cwd:** `C:/Users/pmdse/Projects/travel-blog` · **model:** claude-sonnet-5-5 · **effort:** medium
 
-Run `node scripts/story-of-week.mjs` in the Farflung repo — it crowns the
+Run `node scripts/story-of-week.mjs` in the Tripfamy repo (travel-blog) — it crowns the
 top-engagement published post as this week's accolade.
 
 Read its output, then send one short card naming the winning story, its author,
