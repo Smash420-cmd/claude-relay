@@ -26,8 +26,10 @@ so; it binds every writer and the editor).
 2. **PHOTOS** — `src.medium` only, sequential, first plausible wins, max 3 views per beat
 3. **STORY** — one persona subagent each, pinned `model: "sonnet"`,
    `personas/<username>.md` + that story's `facts.json` only, `STYLE.md` rules
-   (its believability section is absolute: no named people, no quotes, no
-   unsourced facts, nothing after the publish date, no AI wording)
+   (its believability section is absolute: invented characters may have names
+   and dialogue but are never tied to a real business, nothing disparaging
+   about a real business, no unsourced facts, nothing after the publish date,
+   no AI wording)
 3b. **SUBEDIT** — `card_title` ≤ 6 words / 40 chars — the insert REQUIRES it
 4. **GATE** — reader-sim, max 3 attempts then skip
 4a. **EDITOR** — fresh `model: "opus"` subagent; it fixes every problem it
