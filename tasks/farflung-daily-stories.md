@@ -33,7 +33,9 @@ so; it binds every writer and the editor).
 4a. **EDITOR** — fresh `model: "opus"` subagent, fact + slop passes until one
    finds nothing (max 3, then skip); every pass goes in NOTES.md
 5. **INSERT** — `insert <tempfile>`; a `lintStory` failure means fix the prose
-   (rewrite, never just delete a dash), not the validator
+   (rewrite, never just delete a dash), not the validator. A `region` failure: set the
+   country the story is set in, or skip that story with `NEEDS YOU:` on the card.
+   **Never edit `generate-stories.mjs`** or any other code
 6. **LOOK** — own-run smoke ONLY (one screenshot per story; the nightly sweep
    does the deep pass)
 
