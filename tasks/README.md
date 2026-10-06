@@ -39,7 +39,8 @@ takes effect on the next run with no rescheduling.
 | `email-digest.md` | Daily email triage | daily 12:00 |
 | `gmail-hygiene-monthly.md` | Gmail hygiene, 4-week buffer | every 4 weeks |
 | `farflung-daily-stories.md` | Tripfamy daily stories (rename at reinstatement) | daily 19:41 |
-| `farflung-nightly-qa.md` | Tripfamy visual QA sweep | daily 21:50 |
+| `farflung-nightly-qa.md` | RETIRED, see weekly spot check | daily 21:50 |
 | `farflung-roster-weekly.md` | Tripfamy writer pool (paused) | weekly |
+| `tripfamy-weekly-spotcheck.md` | Tripfamy weekly spot check + dead images (to schedule) | weekly |
 | `farflung-story-of-week.md` | Tripfamy Story of the Week (off until windowed) | weekly |
 | `hidden-examiner-weekly.md` | Find-me-harness exam run | weekly |

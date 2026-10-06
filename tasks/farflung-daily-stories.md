@@ -31,7 +31,8 @@ so; it binds every writer and the editor).
 3b. **SUBEDIT** — `card_title` ≤ 6 words / 40 chars — the insert REQUIRES it
 4. **GATE** — reader-sim, max 3 attempts then skip
 4a. **EDITOR** — fresh `model: "opus"` subagent; it fixes every problem it
-   lists itself (no hand-back to the writer), then re-reads until a pass finds
+   lists itself (no hand-back to the writer), views every figure against its
+   text and the country (photo pass), then re-reads until a pass finds
    nothing (max 3, then skip); every pass goes in NOTES.md
 5. **INSERT** — `insert <tempfile>`; a `lintStory` failure means fix the prose
    (rewrite, never just delete a dash), not the validator. A `region` failure: set the
