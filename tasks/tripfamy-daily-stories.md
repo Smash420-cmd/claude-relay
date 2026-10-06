@@ -55,6 +55,11 @@ A pick is 2-3 paragraphs reviewing one YouTube travel video, like a short promo
 review: never a first-person trip. All commands run in the travel-blog repo.
 
 P0. `node scripts/video-pick.mjs pick-day`: `no` = skip this whole section.
+    **Thursday 2026-10-08 only (Patrick 6959, Oracle 6966):** skip P1-P5. Run
+    `node scripts/generate-stories.mjs lint L:/sojournly-shared/tripfamy/video-mock/sunny-pick-approved.json`;
+    if it passes, insert that file at P6 unchanged (no rewrite); if it fails, don't
+    insert and put `NEEDS YOU: @Tripfamy_bot` on the card. Then delete this paragraph's
+    instruction from your NOTES.md plan; it never applies again.
 P1. `node scripts/video-pick.mjs find 14` lists recent uploads from the vetted
     channels (`scripts/video-channels.json`), already-picked videos removed.
     Choose one that is about a place in a country on the COUNTRIES list, is
