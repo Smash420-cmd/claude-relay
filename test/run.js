@@ -533,6 +533,31 @@ checkAsync('loop: a Codex task deferred by the cost guard does not take the Code
   assert.deepStrictEqual(runs.map(r => r[1]), ['Y'])
 })
 
+checkAsync('loop: a limit hit mid-tick holds the rest of the queue (no back-to-back fallbacks)', async () => {
+  const settings = {}
+  const tasks = [
+    { id: 'C1', model: 'claude-sonnet-5-5', status: 'scheduled', schedule: { kind: 'once', at: AT0 } },
+    { id: 'C2', model: 'claude-sonnet-5-5', status: 'scheduled', schedule: { kind: 'once', at: AT0 } },
+  ]
+  // Both due in the same tick. C1 hits the limit and holds the queue for 2h (as holdQueueUntil does in main.js)
+  const runs = await simLoop(tasks, settings, 3 * 60, { onRun: (t, T) => { if (t.id === 'C1') settings.holdUntil = new Date(T + 2 * 3600e3).toISOString() } })
+  assert.deepStrictEqual(runs.map(r => r[1]), ['C1', 'C2'])
+  assert.ok(runs[1][0] >= 120, `C2 ran inside the hold at minute ${runs[1][0]}`)
+})
+
+checkAsync('loop: a Claude task that fell back to Codex counts toward the Codex gap', async () => {
+  const tasks = [
+    { id: 'CL', model: 'claude-sonnet-5-5', status: 'scheduled', schedule: { kind: 'once', at: AT0 } },
+    { id: 'CX', model: 'gpt-6.1-sol', status: 'scheduled', schedule: { kind: 'once', at: '2026-10-02T00:00:01.000Z' } },
+  ]
+  const runs = await simLoop(tasks, {}, 6 * 60, { onRun: (t, T) => { if (t.id === 'CL') t.lastCodexRunAt = new Date(T).toISOString() } })
+  const cx = runs.find(r => r[1] === 'CX')
+  assert.ok(cx && cx[0] >= 300, `Codex task started ${cx && cx[0]} min after a fallback Codex run`)
+})
+check('codex gap: lastCodexStart counts a fallback Codex run on a Claude task', () => {
+  assert.strictEqual(scheduler.lastCodexStart([{ model: 'claude-sonnet-5-5', lastRunAt: '2026-10-02T00:00:00.000Z', lastCodexRunAt: '2026-10-02T01:00:00.000Z' }]), Date.parse('2026-10-02T01:00:00.000Z'))
+})
+
 // ── report ────────────────────────────────────────────────────────────────────
 ;(async () => {
   for (const [name, fn] of asyncChecks) {

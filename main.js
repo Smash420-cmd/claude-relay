@@ -342,10 +342,13 @@ async function runDueTask(task, opts = {}) {
   // Codex, Codex limit → Claude). Only when that ALSO stops does the resume-at-reset path below run,
   // on the original model. resultSessionId stays the original's — hygiene and resume track it.
   let fallbackModel = null, bothLimited = false
-  const fb = res.status === 'stopped' && !vetoed ? executor.fallbackFor(task, settings) : null
+  const limitHit = res.status === 'stopped' && !vetoed
+  const fb = limitHit ? executor.fallbackFor(task, settings) : null
   if (fb) {
     console.log(`[fallback] ${task.id}: ${task.model || 'default'} hit its limit — trying ${fb.model}`)
-    store.updateTask(task.id, { lastFallbackModel: fb.model })
+    // A fallback onto Codex counts toward the Codex gap like any Codex start.
+    store.updateTask(task.id, { lastFallbackModel: fb.model,
+      ...(executor.isCodexModel(fb.model) ? { lastCodexRunAt: new Date().toISOString() } : {}) })
     notifyChange()
     let fbRes = await executor.runTask(fb, runOpts) // same cwd — that's where the partial work is
     running.delete(task.id)
@@ -367,6 +370,12 @@ async function runDueTask(task, opts = {}) {
       fallbackModel = fb.model
       res = { ...fbRes, resultSessionId: res.resultSessionId }
     }
+  }
+  // The first Claude limit holds the whole queue until the reset, even when this task's fallback
+  // succeeded: otherwise every other due Claude task would fail on Claude and run on Codex in turn.
+  if (limitHit && !codexRun) {
+    if (!usage) try { usage = await fetchClaudeUsage() } catch {}
+    holdQueueUntil(pickResetAt(usage))
   }
   store.updateTask(task.id, {
     lastFallbackModel: fallbackModel,

@@ -58,7 +58,11 @@ function nextRepeat(s, from = new Date()) {
 const isCodexModel = (m) => /^(gpt-|codex-|o\d)/i.test(m || '')  // same rule as executor.js
 function lastCodexStart(tasks) {
   let last = 0
-  for (const t of tasks) if (isCodexModel(t.model) && t.lastRunAt) last = Math.max(last, new Date(t.lastRunAt).getTime() || 0)
+  for (const t of tasks) {
+    if (isCodexModel(t.model) && t.lastRunAt) last = Math.max(last, new Date(t.lastRunAt).getTime() || 0)
+    // A Claude task that fell back to Codex spent Codex allowance too (lastCodexRunAt, set by main.js)
+    if (t.lastCodexRunAt) last = Math.max(last, new Date(t.lastCodexRunAt).getTime() || 0)
+  }
   return last
 }
 function codexHeld(task, lastStart, settings, now = Date.now()) {
@@ -99,6 +103,10 @@ function start({ intervalMs, getState, runDueTask, getTask }) {
         }
         // The loop walks a snapshot, and runs are sequential: a task cancelled, deleted or edited
         // while an earlier one ran must not start from its stale copy. Re-read it first.
+        // A run earlier in this tick can hit a usage limit and hold the queue: stop here, not after
+        // every remaining due task has also tried (and fallen back) one by one.
+        const hold = new Date(getState().settings.holdUntil || 0).getTime() || 0
+        if (hold > Date.now()) break
         const cur = getTask ? getTask(t.id) : t
         if (!cur || cur.status !== 'scheduled' || dueTime(cur, settings) > Date.now()) continue
         // runDueTask returns false when it deferred without starting (cost guard): that must not
