@@ -69,8 +69,26 @@ const running = new Map() // taskId -> child process (for cancel)
 // The CLI (scripts/relay.js) writes to %APPDATA%\relay — keep them in sync.
 app.setPath('userData', path.join(app.getPath('appData'), 'relay'))
 
+// Startup trace (Patrick 7117, Oracle 7119): one line per launch and per exit cause, so a Relay that
+// closes or never starts leaves a reason. Append-only; rotateLogs keeps it since every launch touches it.
+const startupLog = (msg) => {
+  const dir = path.join(app.getPath('userData'), 'logs')
+  try { fs.mkdirSync(dir, { recursive: true }); fs.appendFileSync(path.join(dir, 'startup.log'), `${new Date().toISOString()} pid=${process.pid} ${msg}\n`) } catch {}
+}
+// A handler replaces Electron's default (error box, app keeps running), so show the same box after logging.
+process.on('uncaughtException', (e) => {
+  startupLog(`uncaughtException ${e && e.stack || e}`)
+  dialog.showErrorBox('A JavaScript error occurred in the main process', String(e && e.stack || e))
+})
+process.on('exit', (code) => startupLog(`exit code=${code}`))
+app.on('render-process-gone', (_e, _wc, d) => startupLog(`render-process-gone reason=${d.reason} code=${d.exitCode}`))
+app.on('child-process-gone', (_e, d) => startupLog(`child-process-gone type=${d.type} reason=${d.reason} code=${d.exitCode}`))
+app.on('before-quit', () => startupLog('before-quit'))
+
 // Single instance: a scheduler running twice would double-fire tasks.
-if (!app.requestSingleInstanceLock()) {
+const gotLock = app.requestSingleInstanceLock()
+startupLog(`launch v${app.getVersion()} lock=${gotLock} argv=${JSON.stringify(process.argv.slice(1))}`)
+if (!gotLock) {
   app.quit()
 } else {
   app.on('second-instance', () => { if (win) { win.show(); win.focus() } })
