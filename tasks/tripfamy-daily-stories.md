@@ -6,7 +6,7 @@ Tripfamy daily story run. Full protocol in `EDITORIAL_PIPELINE.md` — read it
 first, and note the token-economy rules in PHOTOS and LOOK. The site is live:
 an insert is public within 5 minutes and flows into the Sojournly app via RSS.
 
-## STEP 000 — weekdays only (Oracle 6910)
+## STEP 000 — weekdays only
 
 Relay has no weekday schedule, so this task fires daily. If today in
 Australia/Sydney is Saturday or Sunday, stop now: no card, no NOTES.md edit,
@@ -27,7 +27,7 @@ so; it binds every writer and the editor).
 
 ## Boxes
 
-1. **PREMISE** — `node scripts/generate-stories.mjs assignment 2` (two stories a weekday, Patrick 6907 / Oracle 6910); each story runs boxes 1c to 6 on its own
+1. **PREMISE** — `node scripts/generate-stories.mjs assignment 2` (two stories a weekday); each story runs boxes 1c to 6 on its own
 1c. **RESEARCH** — 5-10 sourced facts per story into its `facts.json`; no source, no claim
 2. **PHOTOS** — `src.medium` only, sequential, first plausible wins, max 3 views per beat
 3. **STORY** — one persona subagent each, pinned `model: "sonnet"`,
@@ -49,7 +49,7 @@ so; it binds every writer and the editor).
 6. **LOOK** — own-run smoke ONLY (one screenshot per story; the nightly sweep
    does the deep pass)
 
-## Video pick (pick days only, after the 2 stories; Oracle 6910/6941/6947)
+## Video pick (pick days only, after the 2 stories)
 
 A pick is 2-3 paragraphs reviewing one YouTube travel video, like a short promo
 review: never a first-person trip. All commands run in the travel-blog repo.
@@ -79,7 +79,7 @@ P5. EDITOR: fresh `model: "opus"` subagent cuts every claim it can't tie to
 P6. `node scripts/generate-stories.mjs insert <file>`. Log the video id, the
     channel and the Gemini token count in NOTES.md.
 
-## News (every weekday run, after the 2 stories and any pick; NEWS-DESIGN.md, Oracle 6950)
+## News (every weekday run, after the 2 stories and any pick)
 
 One short upbeat news item in our own words: a new route, an opening, a reopening, a
 festival. Nothing about crime, deaths, disasters, warnings, politics or deals. All
