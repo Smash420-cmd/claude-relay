@@ -23,7 +23,7 @@ and Hiroki Tanaka are stalwarts; never retire a stalwart or the EIC.
 - Every new writer must differ from every existing author (`scripts/personas.mjs`
   + `personas/*.md`) on 3+ of: home region / occupation / what they notice /
   blind spot / sentence rhythm.
-- Mechanical-constraint persona files and a FLUX.1 schnell portrait per new writer (never
+- Mechanical-constraint persona files and a Flux Krea dev portrait per new writer (never
   Pexels; EDITORIAL_PIPELINE ROSTER step 3: `avatar_url: null` and a card until it exists),
   registered in `scripts/personas.mjs` including `type`/`stalwart` and 4 themes.
 - Check the persona's home country has a keyword in `lib/regions.ts` —
