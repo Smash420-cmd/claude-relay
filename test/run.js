@@ -500,6 +500,26 @@ checkAsync('loop: a task cancelled while an earlier one runs does not start from
   assert.deepStrictEqual(runs.map(r => r[1]), ['A'])
 })
 
+checkAsync('loop: an hourly Codex repeat does not starve an older Codex task behind it', async () => {
+  const tasks = [ // store order is newest first: the hourly repeat sits ahead of the once task
+    { id: 'A', model: 'gpt-6.1-sol', status: 'scheduled', schedule: { kind: 'repeat', at: AT0, n: 1, unit: 'hours' } },
+    { id: 'B', model: 'gpt-6.1-sol', status: 'scheduled', schedule: { kind: 'once', at: AT0 } },
+  ]
+  const runs = await simLoop(tasks, {}, 30 * 60)
+  assert.ok(runs.some(r => r[1] === 'B'), `B never ran: ${JSON.stringify(runs)}`)
+  const codexStarts = runs.map(r => r[0])
+  for (let i = 1; i < codexStarts.length; i++) assert.ok(codexStarts[i] - codexStarts[i - 1] >= 300, 'codex gap kept')
+})
+
+checkAsync('loop: a Codex task deferred by the cost guard does not take the Codex slot', async () => {
+  const tasks = [
+    { id: 'X', model: 'gpt-6.1-sol', status: 'scheduled', schedule: { kind: 'repeat', at: AT0, n: 1, unit: 'days' } },
+    { id: 'Y', model: 'gpt-6.1-sol', status: 'scheduled', schedule: { kind: 'once', at: AT0 } },
+  ]
+  const runs = await simLoop(tasks, {}, 5, { defer: (t) => t.id === 'X' })
+  assert.deepStrictEqual(runs.map(r => r[1]), ['Y'])
+})
+
 // ── report ────────────────────────────────────────────────────────────────────
 ;(async () => {
   for (const [name, fn] of asyncChecks) {

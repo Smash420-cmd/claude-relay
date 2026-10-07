@@ -219,7 +219,7 @@ async function runDueTask(task, opts = {}) {
     try {
       const snap = tracker.snapshot(settings)
       if (snap.source === 'live' && snap.session && snap.session.pct != null && snap.session.pct >= (settings.pauseAtPct || 100)) {
-        return // deferred until usage resets
+        return false // deferred until usage resets (not started: the scheduler must not count it)
       }
     } catch {}
   }

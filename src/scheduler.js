@@ -88,20 +88,24 @@ function start({ intervalMs, getState, runDueTask, getTask }) {
       // Due tasks run SEQUENTIALLY on purpose: parallel claude runs would race each other into the
       // session limit. Consequence: one long run delays everything behind it (incl. repeat slots).
       let lastCodex = lastCodexStart(tasks)
-      for (const t of tasks) {
-        if (t.status !== 'scheduled') continue
-        if (dueTime(t, settings) <= now) {
-          if (codexHeld(t, lastCodex, settings, now)) {
-            if (!tick.codexLogged) { console.log(`[scheduler] codex task ${t.id} held until ${new Date(lastCodex + (settings.codexGapHours ?? 5) * 3600e3).toLocaleString()} (codex gap)`); tick.codexLogged = true }
-            continue
-          }
-          // The loop walks a snapshot, and runs are sequential: a task cancelled, deleted or edited
-          // while an earlier one ran must not start from its stale copy. Re-read it first.
-          const cur = getTask ? getTask(t.id) : t
-          if (!cur || cur.status !== 'scheduled' || dueTime(cur, settings) > Date.now()) continue
-          if (isCodexModel(cur.model)) { lastCodex = Date.now(); tick.codexLogged = false }
-          await runDueTask(cur)
+      // Oldest due first (stable). In store order (newest first) a Codex task that re-armed inside
+      // the gap was always ahead of an older one, and the older one was held at every gap expiry.
+      const due = tasks.filter(t => t.status === 'scheduled' && dueTime(t, settings) <= now)
+        .sort((a, b) => dueTime(a, settings) - dueTime(b, settings))
+      for (const t of due) {
+        if (codexHeld(t, lastCodex, settings, now)) {
+          if (!tick.codexLogged) { console.log(`[scheduler] codex task ${t.id} held until ${new Date(lastCodex + (settings.codexGapHours ?? 5) * 3600e3).toLocaleString()} (codex gap)`); tick.codexLogged = true }
+          continue
         }
+        // The loop walks a snapshot, and runs are sequential: a task cancelled, deleted or edited
+        // while an earlier one ran must not start from its stale copy. Re-read it first.
+        const cur = getTask ? getTask(t.id) : t
+        if (!cur || cur.status !== 'scheduled' || dueTime(cur, settings) > Date.now()) continue
+        // runDueTask returns false when it deferred without starting (cost guard): that must not
+        // take the Codex slot, or the deferred task holds every other Codex task back.
+        const runAt = Date.now()
+        const started = await runDueTask(cur)
+        if (isCodexModel(cur.model) && started !== false) { lastCodex = runAt; tick.codexLogged = false }
       }
     } catch (e) {
       console.error('[scheduler] tick error:', e && e.message)
