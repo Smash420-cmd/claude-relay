@@ -85,6 +85,7 @@ const FALLBACK_NOTE = 'Note: this task was started by another AI agent that stop
 function fallbackFor(task, settings) {
   if (settings.fallbackOnLimit === false || task.noFallback) return null // noFallback: task must stay on its provider
   const toCodex = !isCodexModel(task.model)
+  if (toCodex && task.chrome) return null // Codex has no Chrome tools: a browser task waits for the Claude reset
   const model = toCodex ? settings.fallbackCodexModel : settings.fallbackClaudeModel
   if (!model) return null
   let effort = task.effort || null
@@ -92,6 +93,28 @@ function fallbackFor(task, settings) {
   if (/haiku/i.test(model)) effort = null // Haiku rejects --effort
   return { ...task, model, effort, mode: 'fresh', sessionId: null, forkSession: false,
     prompt: FALLBACK_NOTE + (task.prompt || 'continue') }
+}
+
+// The one-shot task that resumes `task` at `at` after a limit stop. Carries every per-task setting
+// that changes how it runs (a dropped noFallback or chrome let the resume behave differently).
+function resumeTaskFor(task, at, resumeCount, id, nowIso) {
+  return {
+    id,
+    title: `Resume: ${task.title}`,
+    prompt: task.prompt || 'continue',
+    mode: task.mode === 'fresh' ? 'fresh' : (task.mode || 'resume-full'),
+    sessionId: task.sessionId || null,
+    projectPath: task.projectPath || '',
+    model: task.model || null,
+    effort: task.effort || null,
+    noFallback: !!task.noFallback,
+    chrome: !!task.chrome,
+    schedule: { kind: 'once', at },
+    status: 'scheduled',
+    createdAt: nowIso,
+    resumeOf: task.id,
+    resumeCount,
+  }
 }
 
 // Codex equivalent of buildArgs. Prompt still goes via stdin (`-`). Codex can't pin a session id
@@ -272,4 +295,4 @@ function runTask(task, opts = {}) {
   })
 }
 
-module.exports = { runTask, buildArgs, effortFor, effortPolicy, EFFORT_ORDER, buildCodexArgs, isCodexModel, fallbackFor, detectLimit, isSecretEnv, scrubSecrets, killTree }
+module.exports = { runTask, buildArgs, effortFor, effortPolicy, EFFORT_ORDER, buildCodexArgs, isCodexModel, fallbackFor, resumeTaskFor, detectLimit, isSecretEnv, scrubSecrets, killTree }

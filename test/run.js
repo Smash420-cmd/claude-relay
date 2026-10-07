@@ -7,7 +7,7 @@
 const assert = require('assert')
 const { normPct, pickResetAt, isLimitFalsePositive } = require('../src/usage')
 const scheduler = require('../src/scheduler')
-const { detectLimit, isSecretEnv, scrubSecrets, buildArgs, buildCodexArgs, isCodexModel, fallbackFor } = require('../src/executor')
+const { detectLimit, isSecretEnv, scrubSecrets, buildArgs, buildCodexArgs, isCodexModel, fallbackFor, resumeTaskFor } = require('../src/executor')
 
 let pass = 0, fail = 0
 const fails = []
@@ -288,6 +288,19 @@ check('fallbackFor: Haiku fallback drops effort', () => {
 })
 check('fallbackFor: task.noFallback keeps the task on its provider', () => {
   assert.strictEqual(fallbackFor({ model: 'opus', noFallback: true }, FB), null)
+})
+check('fallbackFor: a Chrome task never falls back to Codex (Codex has no Chrome tools)', () => {
+  assert.strictEqual(fallbackFor({ model: 'claude-sonnet-5-5', chrome: true }, FB), null)
+  assert.strictEqual(fallbackFor({ model: 'gpt-6.1-sol', chrome: true }, FB).model, 'claude-sonnet-5-5')
+})
+check('resumeTaskFor: the resume keeps noFallback and chrome, so it falls back no more than the original', () => {
+  const orig = { id: 'o1', title: 'T', model: 'claude-sonnet-5-5', noFallback: true, chrome: true, mode: 'resume-full', sessionId: 's1' }
+  const r = resumeTaskFor(orig, '2026-10-02T05:00:00.000Z', 1, 'r1', '2026-10-02T00:00:00.000Z')
+  assert.strictEqual(r.noFallback, true); assert.strictEqual(r.chrome, true)
+  assert.deepStrictEqual(r.schedule, { kind: 'once', at: '2026-10-02T05:00:00.000Z' })
+  assert.strictEqual(r.resumeOf, 'o1'); assert.strictEqual(r.sessionId, 's1')
+  assert.strictEqual(fallbackFor(r, FB), null)
+  assert.strictEqual(fallbackFor(resumeTaskFor({ id: 'o2', title: 'U', model: 'claude-sonnet-5-5', chrome: true }, 'x', 1, 'r2', 'y'), FB), null)
 })
 check('fallbackFor: off or unconfigured → null', () => {
   assert.strictEqual(fallbackFor({ model: 'claude-sonnet-5-5' }, { ...FB, fallbackOnLimit: false }), null)

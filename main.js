@@ -433,21 +433,7 @@ function queueResume(task, resetAt) {
     holdQueueUntil(at)
   }
 
-  store.addTask({
-    id: uid(),
-    title: `Resume: ${task.title}`,
-    prompt: task.prompt || 'continue',
-    mode: task.mode === 'fresh' ? 'fresh' : (task.mode || 'resume-full'),
-    sessionId: task.sessionId || null,
-    projectPath: task.projectPath || '',
-    model: task.model || null,
-    effort: task.effort || null,
-    schedule: { kind: 'once', at },
-    status: 'scheduled',
-    createdAt: new Date().toISOString(),
-    resumeOf: task.id,
-    resumeCount,
-  })
+  store.addTask(executor.resumeTaskFor(task, at, resumeCount, uid(), new Date().toISOString()))
 }
 
 // Write a Claude Code skill file (~/.claude/commands/<filename>). Called at startup so skills
