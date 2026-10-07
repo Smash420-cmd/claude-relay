@@ -959,9 +959,13 @@ function cleanupOrphanedTasks() {
     interlinked.closeOrphanedCard(t.id, 'interrupted').catch(() => {})
     // A repeat task orphaned mid-run must keep its recurrence — re-arm at the next occurrence
     // instead of stranding it as 'interrupted' (which would silently end the daily/weekly job).
+    // The interrupted run is not redone (it may have half-posted), so say so: a lost run must leave a trace.
     if (t.schedule && t.schedule.kind === 'repeat') {
-      store.updateTask(t.id, { status: 'scheduled', schedule: { ...t.schedule, at: scheduler.nextRepeat(t.schedule).toISOString() } })
+      const next = scheduler.nextRepeat(t.schedule).toISOString()
+      store.updateTask(t.id, { status: 'scheduled', schedule: { ...t.schedule, at: next } })
+      startupLog(`orphan task=${t.id} was running when Relay stopped; run not redone, re-armed to ${next}`)
     } else {
+      startupLog(`orphan task=${t.id} was running when Relay stopped; marked interrupted`)
       store.updateTask(t.id, { status: 'interrupted' })
     }
   }
@@ -997,6 +1001,7 @@ function main() {
       intervalMs: Math.max(5, settings.schedulerIntervalSec || 20) * 1000,
       getState: () => ({ tasks: store.getTasks(), settings: store.getSettings() }),
       runDueTask,
+      getTask: store.getTask,
     })
     watchRelayDir()
     setInterval(checkAutoResumeArm, 30 * 1000)

@@ -456,7 +456,56 @@ try { fs.rmSync(SANDBOX, { recursive: true, force: true }) } catch {}
   }
 }
 
+// ── scheduler loop — the real scheduler.start on a virtual clock ──────────────
+// `tasks` is the store; runDueTask is a fake run that stamps lastRunAt and re-arms like main.js.
+// Returns [[minute, id], ...] for every run that actually started.
+async function simLoop(tasks, settings, minutes, { onRun, defer } = {}) {
+  const H0 = Date.parse('2026-10-02T00:00:00Z')
+  let T = H0, tickFn = null
+  const realNow = Date.now, realSI = global.setInterval, realCI = global.clearInterval
+  Date.now = () => T
+  global.setInterval = (f) => { tickFn = f; return 1 }
+  global.clearInterval = () => {}
+  const runs = []
+  try {
+    const stop = scheduler.start({
+      intervalMs: 60e3,
+      getState: () => ({ tasks: JSON.parse(JSON.stringify(tasks)), settings }),
+      getTask: (id) => { const t = tasks.find(x => x.id === id); return t ? JSON.parse(JSON.stringify(t)) : null },
+      runDueTask: async (snap) => {
+        const t = tasks.find(x => x.id === snap.id)
+        if (defer && defer(t)) return false
+        t.lastRunAt = new Date(T).toISOString()
+        runs.push([(T - H0) / 60e3, t.id])
+        if (onRun) onRun(t, T)
+        const s = t.schedule
+        if (s.kind === 'repeat') s.at = scheduler.nextRepeat(s, new Date(T)).toISOString(); else t.status = 'succeeded'
+      },
+    })
+    for (let m = 0; m < minutes; m++) { await tickFn(); T += 60e3 }
+    stop()
+  } finally { Date.now = realNow; global.setInterval = realSI; global.clearInterval = realCI }
+  return runs
+}
+const AT0 = '2026-10-02T00:00:00.000Z'
+const asyncChecks = []
+function checkAsync(name, fn) { asyncChecks.push([name, fn]) }
+
+checkAsync('loop: a task cancelled while an earlier one runs does not start from the stale snapshot', async () => {
+  const tasks = [
+    { id: 'A', model: 'claude-sonnet-5-5', status: 'scheduled', schedule: { kind: 'once', at: AT0 } },
+    { id: 'B', model: 'claude-sonnet-5-5', status: 'scheduled', schedule: { kind: 'once', at: AT0 } },
+  ]
+  const runs = await simLoop(tasks, {}, 3, { onRun: (t) => { if (t.id === 'A') tasks.find(x => x.id === 'B').status = 'cancelled' } })
+  assert.deepStrictEqual(runs.map(r => r[1]), ['A'])
+})
+
 // ── report ────────────────────────────────────────────────────────────────────
-console.log(`\nrelay tests: ${pass} passed, ${fail} failed`)
-if (fail) { console.log('\nFAILURES:\n' + fails.join('\n')); process.exit(1) }
-console.log('✓ all load-bearing + security logic verified\n')
+;(async () => {
+  for (const [name, fn] of asyncChecks) {
+    try { await fn(); pass++ } catch (e) { fail++; fails.push(`  ✗ ${name}\n      ${e.message}`) }
+  }
+  console.log(`\nrelay tests: ${pass} passed, ${fail} failed`)
+  if (fail) { console.log('\nFAILURES:\n' + fails.join('\n')); process.exit(1) }
+  console.log('✓ all load-bearing + security logic verified\n')
+})()

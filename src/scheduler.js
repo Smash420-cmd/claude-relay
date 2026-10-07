@@ -66,7 +66,7 @@ function codexHeld(task, lastStart, settings, now = Date.now()) {
   return isCodexModel(task.model) && lastStart > 0 && now - lastStart < gapMs
 }
 
-function start({ intervalMs, getState, runDueTask }) {
+function start({ intervalMs, getState, runDueTask, getTask }) {
   let ticking = false
   const tick = async () => {
     if (ticking) return
@@ -95,8 +95,12 @@ function start({ intervalMs, getState, runDueTask }) {
             if (!tick.codexLogged) { console.log(`[scheduler] codex task ${t.id} held until ${new Date(lastCodex + (settings.codexGapHours ?? 5) * 3600e3).toLocaleString()} (codex gap)`); tick.codexLogged = true }
             continue
           }
-          if (isCodexModel(t.model)) { lastCodex = Date.now(); tick.codexLogged = false }
-          await runDueTask(t)
+          // The loop walks a snapshot, and runs are sequential: a task cancelled, deleted or edited
+          // while an earlier one ran must not start from its stale copy. Re-read it first.
+          const cur = getTask ? getTask(t.id) : t
+          if (!cur || cur.status !== 'scheduled' || dueTime(cur, settings) > Date.now()) continue
+          if (isCodexModel(cur.model)) { lastCodex = Date.now(); tick.codexLogged = false }
+          await runDueTask(cur)
         }
       }
     } catch (e) {
