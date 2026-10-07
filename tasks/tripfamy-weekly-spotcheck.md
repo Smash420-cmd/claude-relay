@@ -1,4 +1,4 @@
-# Tripfamy: weekly spot check (replaces the nightly QA sweep, Oracle 6777)
+# Tripfamy: weekly spot check (replaces the nightly QA sweep)
 
 **cwd:** `C:/Users/pmdse/Projects/travel-blog` · **model:** claude-sonnet-5-5 · **effort:** medium
 
