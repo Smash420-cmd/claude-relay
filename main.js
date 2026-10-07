@@ -69,7 +69,7 @@ const running = new Map() // taskId -> child process (for cancel)
 // The CLI (scripts/relay.js) writes to %APPDATA%\relay — keep them in sync.
 app.setPath('userData', path.join(app.getPath('appData'), 'relay'))
 
-// Startup trace (Patrick 7117, Oracle 7119): one line per launch and per exit cause, so a Relay that
+// Startup trace: one line per launch and per exit cause, so a Relay that
 // closes or never starts leaves a reason. Append-only; rotateLogs keeps it since every launch touches it.
 const startupLog = (msg) => {
   const dir = path.join(app.getPath('userData'), 'logs')

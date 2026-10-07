@@ -229,7 +229,10 @@ usageEl.addEventListener('click', async (e) => {
 
 // ── data ──────────────────────────────────────────────────────────────────
 async function refresh() {
-  TASKS = await window.relay.list()
+  // Running first, then overdue scheduled, rest in store order (sort is stable), so a running task
+  // is never buried below older finished ones in a long list.
+  const rank = (t) => t.status === 'running' ? 0 : t.status === 'scheduled' && t.schedule?.at && new Date(t.schedule.at) <= Date.now() ? 1 : 2
+  TASKS = (await window.relay.list()).sort((a, b) => rank(a) - rank(b))
   SETTINGS = await window.relay.getSettings()
   render()
   refreshUsage()
