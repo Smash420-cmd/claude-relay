@@ -354,6 +354,13 @@ const SANDBOX = fs.mkdtempSync(path.join(os.tmpdir(), 'relay-test-')) // store p
 const cli = (...args) => spawnSync(process.execPath, [CLI, 'schedule', '--at', '+5m', '--prompt', 'x', ...args],
   { encoding: 'utf8', env: { ...process.env, APPDATA: SANDBOX, HOME: SANDBOX, USERPROFILE: SANDBOX, XDG_CONFIG_HOME: SANDBOX } })
 
+check('cli schedule: the synced store write lands a parseable store with the task, no .tmp left', () => {
+  const r = cli('--model', 'claude-sonnet-5-5', '--effort', 'high', '--title', 'sync-write')
+  assert.strictEqual(r.status, 0, r.stderr)
+  const file = path.join(SANDBOX, 'relay', 'relay-data.json')
+  assert.ok(JSON.parse(fs.readFileSync(file, 'utf8')).tasks.some(t => t.title === 'sync-write'))
+  assert.ok(!fs.existsSync(file + '.tmp'))
+})
 check('cli schedule: no --model → exits 1', () => {
   const r = cli()
   assert.strictEqual(r.status, 1); assert.match(r.stderr, /--model is required/)
