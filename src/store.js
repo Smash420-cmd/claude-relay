@@ -70,13 +70,20 @@ function load() {
   }
 }
 
+// Written and flushed to disk before the rename: after a power cut NTFS can keep the rename but not
+// the data, leaving an empty store. fsync closes that gap.
+function writeSynced(file, text) {
+  const fd = fs.openSync(file, 'w')
+  try { fs.writeFileSync(fd, text); fs.fsyncSync(fd) } finally { fs.closeSync(fd) }
+}
+
 function save(db) {
   const file = tasksFile()
   fs.mkdirSync(path.dirname(file), { recursive: true })
   // One-generation backup of the outgoing state — the corruption fallback in load()
   try { if (fs.existsSync(file)) fs.copyFileSync(file, file + '.bak') } catch {}
   const tmp = file + '.tmp'
-  fs.writeFileSync(tmp, JSON.stringify(db, null, 2))
+  writeSynced(tmp, JSON.stringify(db, null, 2))
   fs.renameSync(tmp, file) // atomic-ish replace
 }
 

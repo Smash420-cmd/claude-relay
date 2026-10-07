@@ -7,7 +7,7 @@
 const assert = require('assert')
 const { normPct, pickResetAt, isLimitFalsePositive } = require('../src/usage')
 const scheduler = require('../src/scheduler')
-const { detectLimit, isSecretEnv, scrubSecrets, buildArgs, buildCodexArgs, isCodexModel, fallbackFor } = require('../src/executor')
+const { detectLimit, isSecretEnv, scrubSecrets, buildArgs, buildCodexArgs, isCodexModel, fallbackFor, resumeTaskFor } = require('../src/executor')
 
 let pass = 0, fail = 0
 const fails = []
@@ -289,6 +289,19 @@ check('fallbackFor: Haiku fallback drops effort', () => {
 check('fallbackFor: task.noFallback keeps the task on its provider', () => {
   assert.strictEqual(fallbackFor({ model: 'opus', noFallback: true }, FB), null)
 })
+check('fallbackFor: a Chrome task never falls back to Codex (Codex has no Chrome tools)', () => {
+  assert.strictEqual(fallbackFor({ model: 'claude-sonnet-5-5', chrome: true }, FB), null)
+  assert.strictEqual(fallbackFor({ model: 'gpt-6.1-sol', chrome: true }, FB).model, 'claude-sonnet-5-5')
+})
+check('resumeTaskFor: the resume keeps noFallback and chrome, so it falls back no more than the original', () => {
+  const orig = { id: 'o1', title: 'T', model: 'claude-sonnet-5-5', noFallback: true, chrome: true, mode: 'resume-full', sessionId: 's1' }
+  const r = resumeTaskFor(orig, '2026-10-02T05:00:00.000Z', 1, 'r1', '2026-10-02T00:00:00.000Z')
+  assert.strictEqual(r.noFallback, true); assert.strictEqual(r.chrome, true)
+  assert.deepStrictEqual(r.schedule, { kind: 'once', at: '2026-10-02T05:00:00.000Z' })
+  assert.strictEqual(r.resumeOf, 'o1'); assert.strictEqual(r.sessionId, 's1')
+  assert.strictEqual(fallbackFor(r, FB), null)
+  assert.strictEqual(fallbackFor(resumeTaskFor({ id: 'o2', title: 'U', model: 'claude-sonnet-5-5', chrome: true }, 'x', 1, 'r2', 'y'), FB), null)
+})
 check('fallbackFor: off or unconfigured → null', () => {
   assert.strictEqual(fallbackFor({ model: 'claude-sonnet-5-5' }, { ...FB, fallbackOnLimit: false }), null)
   assert.strictEqual(fallbackFor({ model: 'claude-sonnet-5-5' }, {}), null)
@@ -341,6 +354,13 @@ const SANDBOX = fs.mkdtempSync(path.join(os.tmpdir(), 'relay-test-')) // store p
 const cli = (...args) => spawnSync(process.execPath, [CLI, 'schedule', '--at', '+5m', '--prompt', 'x', ...args],
   { encoding: 'utf8', env: { ...process.env, APPDATA: SANDBOX, HOME: SANDBOX, USERPROFILE: SANDBOX, XDG_CONFIG_HOME: SANDBOX } })
 
+check('cli schedule: the synced store write lands a parseable store with the task, no .tmp left', () => {
+  const r = cli('--model', 'claude-sonnet-5-5', '--effort', 'high', '--title', 'sync-write')
+  assert.strictEqual(r.status, 0, r.stderr)
+  const file = path.join(SANDBOX, 'relay', 'relay-data.json')
+  assert.ok(JSON.parse(fs.readFileSync(file, 'utf8')).tasks.some(t => t.title === 'sync-write'))
+  assert.ok(!fs.existsSync(file + '.tmp'))
+})
 check('cli schedule: no --model → exits 1', () => {
   const r = cli()
   assert.strictEqual(r.status, 1); assert.match(r.stderr, /--model is required/)
@@ -456,7 +476,101 @@ try { fs.rmSync(SANDBOX, { recursive: true, force: true }) } catch {}
   }
 }
 
+// ── scheduler loop — the real scheduler.start on a virtual clock ──────────────
+// `tasks` is the store; runDueTask is a fake run that stamps lastRunAt and re-arms like main.js.
+// Returns [[minute, id], ...] for every run that actually started.
+async function simLoop(tasks, settings, minutes, { onRun, defer } = {}) {
+  const H0 = Date.parse('2026-10-02T00:00:00Z')
+  let T = H0, tickFn = null
+  const realNow = Date.now, realSI = global.setInterval, realCI = global.clearInterval
+  Date.now = () => T
+  global.setInterval = (f) => { tickFn = f; return 1 }
+  global.clearInterval = () => {}
+  const runs = []
+  try {
+    const stop = scheduler.start({
+      intervalMs: 60e3,
+      getState: () => ({ tasks: JSON.parse(JSON.stringify(tasks)), settings }),
+      getTask: (id) => { const t = tasks.find(x => x.id === id); return t ? JSON.parse(JSON.stringify(t)) : null },
+      runDueTask: async (snap) => {
+        const t = tasks.find(x => x.id === snap.id)
+        if (defer && defer(t)) return false
+        t.lastRunAt = new Date(T).toISOString()
+        runs.push([(T - H0) / 60e3, t.id])
+        if (onRun) onRun(t, T)
+        const s = t.schedule
+        if (s.kind === 'repeat') s.at = scheduler.nextRepeat(s, new Date(T)).toISOString(); else t.status = 'succeeded'
+      },
+    })
+    for (let m = 0; m < minutes; m++) { await tickFn(); T += 60e3 }
+    stop()
+  } finally { Date.now = realNow; global.setInterval = realSI; global.clearInterval = realCI }
+  return runs
+}
+const AT0 = '2026-10-02T00:00:00.000Z'
+const asyncChecks = []
+function checkAsync(name, fn) { asyncChecks.push([name, fn]) }
+
+checkAsync('loop: a task cancelled while an earlier one runs does not start from the stale snapshot', async () => {
+  const tasks = [
+    { id: 'A', model: 'claude-sonnet-5-5', status: 'scheduled', schedule: { kind: 'once', at: AT0 } },
+    { id: 'B', model: 'claude-sonnet-5-5', status: 'scheduled', schedule: { kind: 'once', at: AT0 } },
+  ]
+  const runs = await simLoop(tasks, {}, 3, { onRun: (t) => { if (t.id === 'A') tasks.find(x => x.id === 'B').status = 'cancelled' } })
+  assert.deepStrictEqual(runs.map(r => r[1]), ['A'])
+})
+
+checkAsync('loop: an hourly Codex repeat does not starve an older Codex task behind it', async () => {
+  const tasks = [ // store order is newest first: the hourly repeat sits ahead of the once task
+    { id: 'A', model: 'gpt-6.1-sol', status: 'scheduled', schedule: { kind: 'repeat', at: AT0, n: 1, unit: 'hours' } },
+    { id: 'B', model: 'gpt-6.1-sol', status: 'scheduled', schedule: { kind: 'once', at: AT0 } },
+  ]
+  const runs = await simLoop(tasks, {}, 30 * 60)
+  assert.ok(runs.some(r => r[1] === 'B'), `B never ran: ${JSON.stringify(runs)}`)
+  const codexStarts = runs.map(r => r[0])
+  for (let i = 1; i < codexStarts.length; i++) assert.ok(codexStarts[i] - codexStarts[i - 1] >= 300, 'codex gap kept')
+})
+
+checkAsync('loop: a Codex task deferred by the cost guard does not take the Codex slot', async () => {
+  const tasks = [
+    { id: 'X', model: 'gpt-6.1-sol', status: 'scheduled', schedule: { kind: 'repeat', at: AT0, n: 1, unit: 'days' } },
+    { id: 'Y', model: 'gpt-6.1-sol', status: 'scheduled', schedule: { kind: 'once', at: AT0 } },
+  ]
+  const runs = await simLoop(tasks, {}, 5, { defer: (t) => t.id === 'X' })
+  assert.deepStrictEqual(runs.map(r => r[1]), ['Y'])
+})
+
+checkAsync('loop: a limit hit mid-tick holds the rest of the queue (no back-to-back fallbacks)', async () => {
+  const settings = {}
+  const tasks = [
+    { id: 'C1', model: 'claude-sonnet-5-5', status: 'scheduled', schedule: { kind: 'once', at: AT0 } },
+    { id: 'C2', model: 'claude-sonnet-5-5', status: 'scheduled', schedule: { kind: 'once', at: AT0 } },
+  ]
+  // Both due in the same tick. C1 hits the limit and holds the queue for 2h (as holdQueueUntil does in main.js)
+  const runs = await simLoop(tasks, settings, 3 * 60, { onRun: (t, T) => { if (t.id === 'C1') settings.holdUntil = new Date(T + 2 * 3600e3).toISOString() } })
+  assert.deepStrictEqual(runs.map(r => r[1]), ['C1', 'C2'])
+  assert.ok(runs[1][0] >= 120, `C2 ran inside the hold at minute ${runs[1][0]}`)
+})
+
+checkAsync('loop: a Claude task that fell back to Codex counts toward the Codex gap', async () => {
+  const tasks = [
+    { id: 'CL', model: 'claude-sonnet-5-5', status: 'scheduled', schedule: { kind: 'once', at: AT0 } },
+    { id: 'CX', model: 'gpt-6.1-sol', status: 'scheduled', schedule: { kind: 'once', at: '2026-10-02T00:00:01.000Z' } },
+  ]
+  const runs = await simLoop(tasks, {}, 6 * 60, { onRun: (t, T) => { if (t.id === 'CL') t.lastCodexRunAt = new Date(T).toISOString() } })
+  const cx = runs.find(r => r[1] === 'CX')
+  assert.ok(cx && cx[0] >= 300, `Codex task started ${cx && cx[0]} min after a fallback Codex run`)
+})
+check('codex gap: lastCodexStart counts a fallback Codex run on a Claude task', () => {
+  assert.strictEqual(scheduler.lastCodexStart([{ model: 'claude-sonnet-5-5', lastRunAt: '2026-10-02T00:00:00.000Z', lastCodexRunAt: '2026-10-02T01:00:00.000Z' }]), Date.parse('2026-10-02T01:00:00.000Z'))
+})
+
 // ── report ────────────────────────────────────────────────────────────────────
-console.log(`\nrelay tests: ${pass} passed, ${fail} failed`)
-if (fail) { console.log('\nFAILURES:\n' + fails.join('\n')); process.exit(1) }
-console.log('✓ all load-bearing + security logic verified\n')
+;(async () => {
+  for (const [name, fn] of asyncChecks) {
+    try { await fn(); pass++ } catch (e) { fail++; fails.push(`  ✗ ${name}\n      ${e.message}`) }
+  }
+  console.log(`\nrelay tests: ${pass} passed, ${fail} failed`)
+  if (fail) { console.log('\nFAILURES:\n' + fails.join('\n')); process.exit(1) }
+  console.log('✓ all load-bearing + security logic verified\n')
+})()

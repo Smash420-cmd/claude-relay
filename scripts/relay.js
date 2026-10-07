@@ -45,7 +45,10 @@ function loadStore() {
 function saveStore(db) {
   fs.mkdirSync(path.dirname(STORE), { recursive: true })
   try { if (fs.existsSync(STORE)) fs.copyFileSync(STORE, STORE + '.bak') } catch {}
-  const tmp = STORE + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(db, null, 2)); fs.renameSync(tmp, STORE)
+  // fsync before the rename: after a power cut the rename can land before the data (empty store)
+  const tmp = STORE + '.tmp', fd = fs.openSync(tmp, 'w')
+  try { fs.writeFileSync(fd, JSON.stringify(db, null, 2)); fs.fsyncSync(fd) } finally { fs.closeSync(fd) }
+  fs.renameSync(tmp, STORE)
 }
 // Mutation lock shared with the app (src/store.js withLock) — prevents a CLI load→save pair from
 // erasing a task the app wrote in between (and vice versa). Same lock path, same 5s stale-break.

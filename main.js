@@ -219,7 +219,7 @@ async function runDueTask(task, opts = {}) {
     try {
       const snap = tracker.snapshot(settings)
       if (snap.source === 'live' && snap.session && snap.session.pct != null && snap.session.pct >= (settings.pauseAtPct || 100)) {
-        return // deferred until usage resets
+        return false // deferred until usage resets (not started: the scheduler must not count it)
       }
     } catch {}
   }
@@ -342,10 +342,13 @@ async function runDueTask(task, opts = {}) {
   // Codex, Codex limit → Claude). Only when that ALSO stops does the resume-at-reset path below run,
   // on the original model. resultSessionId stays the original's — hygiene and resume track it.
   let fallbackModel = null, bothLimited = false
-  const fb = res.status === 'stopped' && !vetoed ? executor.fallbackFor(task, settings) : null
+  const limitHit = res.status === 'stopped' && !vetoed
+  const fb = limitHit ? executor.fallbackFor(task, settings) : null
   if (fb) {
     console.log(`[fallback] ${task.id}: ${task.model || 'default'} hit its limit — trying ${fb.model}`)
-    store.updateTask(task.id, { lastFallbackModel: fb.model })
+    // A fallback onto Codex counts toward the Codex gap like any Codex start.
+    store.updateTask(task.id, { lastFallbackModel: fb.model,
+      ...(executor.isCodexModel(fb.model) ? { lastCodexRunAt: new Date().toISOString() } : {}) })
     notifyChange()
     let fbRes = await executor.runTask(fb, runOpts) // same cwd — that's where the partial work is
     running.delete(task.id)
@@ -367,6 +370,14 @@ async function runDueTask(task, opts = {}) {
       fallbackModel = fb.model
       res = { ...fbRes, resultSessionId: res.resultSessionId }
     }
+  }
+  // The first Claude limit holds the whole queue until the reset, even when this task's fallback
+  // succeeded: otherwise every other due Claude task would fail on Claude and run on Codex in turn.
+  if (limitHit && !codexRun) {
+    if (!usage) try { usage = await fetchClaudeUsage() } catch {}
+    // Same veto as above for the path where it did not run (auto-resume and fallback both off): a
+    // text match the usage API contradicts must not hold the queue. No usage data -> no reset -> no hold.
+    if (!isLimitFalsePositive(usage)) holdQueueUntil(pickResetAt(usage))
   }
   store.updateTask(task.id, {
     lastFallbackModel: fallbackModel,
@@ -433,21 +444,7 @@ function queueResume(task, resetAt) {
     holdQueueUntil(at)
   }
 
-  store.addTask({
-    id: uid(),
-    title: `Resume: ${task.title}`,
-    prompt: task.prompt || 'continue',
-    mode: task.mode === 'fresh' ? 'fresh' : (task.mode || 'resume-full'),
-    sessionId: task.sessionId || null,
-    projectPath: task.projectPath || '',
-    model: task.model || null,
-    effort: task.effort || null,
-    schedule: { kind: 'once', at },
-    status: 'scheduled',
-    createdAt: new Date().toISOString(),
-    resumeOf: task.id,
-    resumeCount,
-  })
+  store.addTask(executor.resumeTaskFor(task, at, resumeCount, uid(), new Date().toISOString()))
 }
 
 // Write a Claude Code skill file (~/.claude/commands/<filename>). Called at startup so skills
@@ -959,9 +956,13 @@ function cleanupOrphanedTasks() {
     interlinked.closeOrphanedCard(t.id, 'interrupted').catch(() => {})
     // A repeat task orphaned mid-run must keep its recurrence — re-arm at the next occurrence
     // instead of stranding it as 'interrupted' (which would silently end the daily/weekly job).
+    // The interrupted run is not redone (it may have half-posted), so say so: a lost run must leave a trace.
     if (t.schedule && t.schedule.kind === 'repeat') {
-      store.updateTask(t.id, { status: 'scheduled', schedule: { ...t.schedule, at: scheduler.nextRepeat(t.schedule).toISOString() } })
+      const next = scheduler.nextRepeat(t.schedule).toISOString()
+      store.updateTask(t.id, { status: 'scheduled', schedule: { ...t.schedule, at: next } })
+      startupLog(`orphan task=${t.id} was running when Relay stopped; run not redone, re-armed to ${next}`)
     } else {
+      startupLog(`orphan task=${t.id} was running when Relay stopped; marked interrupted`)
       store.updateTask(t.id, { status: 'interrupted' })
     }
   }
@@ -997,6 +998,7 @@ function main() {
       intervalMs: Math.max(5, settings.schedulerIntervalSec || 20) * 1000,
       getState: () => ({ tasks: store.getTasks(), settings: store.getSettings() }),
       runDueTask,
+      getTask: store.getTask,
     })
     watchRelayDir()
     setInterval(checkAutoResumeArm, 30 * 1000)
