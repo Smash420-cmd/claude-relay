@@ -375,7 +375,9 @@ async function runDueTask(task, opts = {}) {
   // succeeded: otherwise every other due Claude task would fail on Claude and run on Codex in turn.
   if (limitHit && !codexRun) {
     if (!usage) try { usage = await fetchClaudeUsage() } catch {}
-    holdQueueUntil(pickResetAt(usage))
+    // Same veto as above for the path where it did not run (auto-resume and fallback both off): a
+    // text match the usage API contradicts must not hold the queue. No usage data -> no reset -> no hold.
+    if (!isLimitFalsePositive(usage)) holdQueueUntil(pickResetAt(usage))
   }
   store.updateTask(task.id, {
     lastFallbackModel: fallbackModel,
