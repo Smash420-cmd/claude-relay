@@ -37,7 +37,8 @@ so; it binds every writer and the editor).
    about a real business, no unsourced facts, nothing after the publish date,
    no AI wording)
 3b. **SUBEDIT** — `card_title` ≤ 6 words / 40 chars — the insert REQUIRES it
-4. **GATE** — reader-sim, max 3 attempts then skip
+4. **GATE** — reader-sim run by a separate, fresh subagent: never your own read and
+   never the editor. Max 3 attempts, then skip
 4a. **EDITOR** — fresh `model: "opus"` subagent; it fixes every problem it
    lists itself (no hand-back to the writer), views every figure against its
    text and the country (photo pass), then re-reads until a pass finds
@@ -88,7 +89,8 @@ commands run in the travel-blog repo.
 N1. `node scripts/news.mjs find 72` lists filtered items from the vetted outlets
     (`scripts/news-feeds.json`) plus `pairs`: the same event in two outlets. Choose
     one event reported on 2+ different domains, about one country on the COUNTRIES
-    list. Nothing fits = skip news and say so in NOTES.md (no card). Never use Google
+    list, with a date travellers can act on (it opens, starts, first flight). Plans
+    with no date do not count. Nothing fits = skip news and say so in NOTES.md (no card). Never use Google
     News, the Guardian or a paywalled outlet.
 N2. `node scripts/news.mjs page <url>` for each source: exit 1 (a wall, an error) =
     drop that source. Fewer than 2 left = choose another event.
@@ -105,8 +107,8 @@ N6. EDITOR: fresh `model: "opus"` subagent cuts every claim it can't match to a
     fixes the prose itself, then runs `node scripts/generate-stories.mjs lint <file>`
     and `node scripts/news.mjs copy <file> <facts.json>` until both pass (max 3
     passes, then skip).
-N7. `node scripts/generate-stories.mjs insert <file>`. Log the source URLs and the
-    token count in NOTES.md.
+N7. `node scripts/generate-stories.mjs insert <file>`. Log the source URLs in NOTES.md, and
+    the token count if the CLI reports it (else write "not measured").
 
 ## Cards
 
