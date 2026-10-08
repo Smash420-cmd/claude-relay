@@ -467,6 +467,60 @@ try { fs.rmSync(SANDBOX, { recursive: true, force: true }) } catch {}
     check('collectTurns: window filter still applies to cached turns', () => {
       assert.strictEqual(tracker.collectTurns(Date.now() - 5 * 60e3).length, 1) // only the 1-min-old turn
     })
+    // Incremental reads (8 Oct: a 1 GB transcript re-read whole on every refresh, ~2 GB per call).
+    check('collectTurns: a half-written last line is picked up once it is finished', () => {
+      const line = turn(2, 'claude-haiku-4-5', 7)
+      fs.appendFileSync(file, line.slice(0, 40))                 // the writer is mid-line
+      assert.strictEqual(tracker.collectTurns(Date.now() - 3600e3).length, 2)
+      fs.appendFileSync(file, line.slice(40) + '\n')
+      const t = tracker.collectTurns(Date.now() - 3600e3)
+      assert.strictEqual(t.length, 3); assert.ok(t.some(x => /haiku/.test(x.model)))
+    })
+    check('collectTurns: a huge transcript is read from its last 64 MB only, and only new bytes after', () => {
+      const big = path.join(projDir, '99999999-0000-0000-0000-000000000000.jsonl')
+      const pad = 'p'.repeat(1024 * 1024)
+      const fd = fs.openSync(big, 'w')
+      fs.writeSync(fd, turn(30, 'old-beyond-tail', 1) + '\n')            // more than 64 MB before the end
+      for (let i = 0; i < 70; i++) fs.writeSync(fd, pad + '\n')
+      fs.writeSync(fd, turn(20, 'inside-tail', 1) + '\n')
+      fs.closeSync(fd)
+      const t1 = tracker.collectTurns(Date.now() - 3600e3).map(x => x.model)
+      assert.ok(t1.includes('inside-tail'), 'turn inside the tail missing')
+      assert.ok(!t1.includes('old-beyond-tail'), 'read further back than the tail')
+      const rssBefore = process.memoryUsage().rss
+      fs.appendFileSync(big, turn(1, 'appended', 1) + '\n')
+      const t2 = tracker.collectTurns(Date.now() - 3600e3).map(x => x.model)
+      assert.ok(t2.includes('appended') && t2.includes('inside-tail'), 'append lost earlier or new turns')
+      assert.ok(process.memoryUsage().rss - rssBefore < 32 * 1024 * 1024, 'second read was not incremental')
+      fs.unlinkSync(big)
+    })
+    check('collectTurns: a tail that starts inside a multi-byte character loses nothing on the next append (Astra 7664)', () => {
+      const f2 = path.join(projDir, '88888888-0000-0000-0000-000000000000.jsonl')
+      const first = turn(5, 'mb-one', 1) + '\n'
+      // The tail is the LAST 64 MiB, so its first byte is size - 64 MiB. Fill the region it lands in with
+      // 'é' (2 bytes each) and make sure it lands on the second byte of one.
+      const TAIL = 64 * 1024 * 1024
+      const L = Buffer.byteLength(first)
+      const fd = fs.openSync(f2, 'w')
+      fs.writeSync(fd, first)
+      const chunk = Buffer.from('é'.repeat(512 * 1024))                     // 1 MiB of 2-byte chars
+      for (let i = 0; i < 66; i++) fs.writeSync(fd, chunk)
+      fs.writeSync(fd, '\n' + turn(4, 'mb-two', 1) + '\n')
+      fs.closeSync(fd)
+      if ((fs.statSync(f2).size - TAIL - L) % 2 === 0) fs.appendFileSync(f2, ' ')  // odd offset into the 'é' run = mid-character
+      assert.strictEqual((fs.statSync(f2).size - TAIL - L) % 2, 1, 'fixture: tail does not start mid-character')
+      const t1 = tracker.collectTurns(Date.now() - 3600e3).map(x => x.model)
+      assert.ok(t1.includes('mb-two'), 'turn inside the tail missing')
+      fs.appendFileSync(f2, turn(1, 'mb-three', 1) + '\n')
+      const t2 = tracker.collectTurns(Date.now() - 3600e3).map(x => x.model)
+      fs.unlinkSync(f2)
+      assert.ok(t2.includes('mb-three'), 'appended turn lost after a mid-character tail start')
+    })
+    check('collectTurns: a transcript that shrinks is read afresh', () => {
+      fs.writeFileSync(file, turn(3, 'rewritten', 1) + '\n')
+      const t = tracker.collectTurns(Date.now() - 3600e3).map(x => x.model)
+      assert.deepStrictEqual(t, ['rewritten'])
+    })
   } finally {
     if (prevHome === undefined) delete process.env.HOME; else process.env.HOME = prevHome
     if (prevProfile === undefined) delete process.env.USERPROFILE; else process.env.USERPROFILE = prevProfile

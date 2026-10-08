@@ -45,11 +45,49 @@ function turnLoad(u) {
   return (u.input_tokens || 0) + (u.output_tokens || 0) + (u.cache_creation_input_tokens || 0)
 }
 
-// Transcripts are append-only, so a re-parse only earns anything when mtime/size moved. Without
-// this the 30s gauge refresh re-read ~90MB (5h window) or ~840MB (7d estimate) of JSONL on the main
-// process every time, blocking every other IPC while it ran.
-// ponytail: whole-file re-parse when a file changes — tail-only if that ever shows in a profile.
-const fileCache = new Map() // path -> { mtimeMs, size, turns }
+// Transcripts are append-only, so each file is read once and then only its NEW bytes. The old code
+// re-read the whole file on every change; with sessions past 1 GB that meant ~2 GB of buffers in
+// the main process per gauge refresh, the likely cause of Relay vanishing with no log (8 Oct).
+// A file's first read starts at most TAIL_MAX from its end (older turns can't sit in a 7-day
+// window of a live session, and the gauge is an estimate anyway); a later read that finds more
+// than TAIL_MAX of new bytes also skips to the last TAIL_MAX. A shrunk file is read afresh.
+const TAIL_MAX = 64 * 1024 * 1024
+const KEEP_MS = 8 * DAY   // turns older than this are dropped from the cache: no window looks that far back
+const fileCache = new Map() // path -> { offset, turns } — offset = byte after the last complete line read
+
+// Read [start, end) of a file and return complete lines. midLine: start isn't a known line boundary
+// (a tail skip), so the first, possibly cut, line is dropped. A trailing line without '\n' is left
+// for the next read.
+function readLines(full, start, end, midLine) {
+  const fd = fs.openSync(full, 'r')
+  try {
+    const buf = Buffer.alloc(end - start)
+    const n = fs.readSync(fd, buf, 0, buf.length, start)
+    const raw = buf.subarray(0, n)
+    // Find line ends in the raw BYTES and decode only whole lines. A tail can start inside a multi-byte
+    // UTF-8 character; decoding that first turns it into U+FFFD and throws byte counts off, which lost
+    // the next appended turn (Astra 7664). 0x0A never occurs inside a UTF-8 sequence, so it's a safe cut.
+    let from = 0
+    if (midLine) { from = raw.indexOf(0x0a) + 1; if (from === 0) return { lines: [], consumed: 0 } }
+    const last = raw.lastIndexOf(0x0a)
+    if (last < from) return { lines: [], consumed: from }
+    return { lines: raw.subarray(from, last).toString('utf8').split('\n'), consumed: last + 1 }
+  } finally { fs.closeSync(fd) }
+}
+
+function parseTurns(lines, f) {
+  const out = []
+  for (const line of lines) {
+    if (line.indexOf('"output_tokens"') === -1) continue // fast filter before JSON.parse
+    let o; try { o = JSON.parse(line) } catch { continue }
+    const u = o.message && o.message.usage
+    if (!u || u.output_tokens == null) continue
+    const ts = Date.parse(o.timestamp)
+    if (!ts) continue
+    out.push({ ts, model: (o.message && o.message.model) || '', load: turnLoad(u), sessionId: o.sessionId || f.replace(/\.jsonl$/, '') })
+  }
+  return out
+}
 
 // Read every assistant turn (with usage) across all project transcripts touched within the window.
 function collectTurns(sinceMs) {
@@ -65,29 +103,18 @@ function collectTurns(sinceMs) {
       const full = path.join(dir, f)
       let stat; try { stat = fs.statSync(full) } catch { continue }
       if (stat.mtimeMs < sinceMs) continue // file untouched in window — skip whole file
-      const hit = fileCache.get(full)
-      let fileTurns
-      if (hit && hit.mtimeMs === stat.mtimeMs && hit.size === stat.size) fileTurns = hit.turns
-      else {
-        let data; try { data = fs.readFileSync(full, 'utf8') } catch { continue }
-        fileTurns = []
-        for (const line of data.split('\n')) {
-          if (line.indexOf('"output_tokens"') === -1) continue // fast filter before JSON.parse
-          let o; try { o = JSON.parse(line) } catch { continue }
-          const u = o.message && o.message.usage
-          if (!u || u.output_tokens == null) continue
-          const ts = Date.parse(o.timestamp)
-          if (!ts) continue
-          fileTurns.push({
-            ts,
-            model: (o.message && o.message.model) || '',
-            load: turnLoad(u),
-            sessionId: o.sessionId || f.replace(/\.jsonl$/, ''),
-          })
-        }
-        fileCache.set(full, { mtimeMs: stat.mtimeMs, size: stat.size, turns: fileTurns })
+      let hit = fileCache.get(full)
+      if (hit && stat.size < hit.offset) hit = null   // shrunk or replaced: start over
+      const offset = hit ? hit.offset : 0
+      if (stat.size > offset) {
+        const start = Math.max(offset, stat.size - TAIL_MAX)
+        let r; try { r = readLines(full, start, stat.size, start > offset) } catch { continue }
+        const cutoff = Date.now() - KEEP_MS
+        const kept = (start > offset ? [] : (hit ? hit.turns : [])).filter(t => t.ts >= cutoff)
+        hit = { offset: start + r.consumed, turns: kept.concat(parseTurns(r.lines, f)) }
+        fileCache.set(full, hit)
       }
-      for (const t of fileTurns) if (t.ts >= sinceMs) turns.push(t)
+      if (hit) for (const t of hit.turns) if (t.ts >= sinceMs) turns.push(t)
     }
   }
   turns.sort((a, b) => a.ts - b.ts)
