@@ -130,6 +130,7 @@ function watchRelayDir() {
     fs.watch(relayDir, (_event, filename) => {
       if (filename === 'restart.signal' && fs.existsSync(signalPath)) {
         try { fs.unlinkSync(signalPath) } catch {}
+        startupLog('relaunch (restart.signal)')
         app.relaunch()
         app.exit(0)
       }
@@ -859,7 +860,7 @@ function registerIpc() {
   ipcMain.handle('relay:login-item:get', () => app.getLoginItemSettings().openAtLogin)
   ipcMain.handle('relay:login-item:set', (_e, val) => app.setLoginItemSettings({ openAtLogin: !!val }))
   ipcMain.handle('relay:version', () => app.getVersion())
-  ipcMain.handle('relay:install-update', () => autoUpdater.quitAndInstall(false, true))
+  ipcMain.handle('relay:install-update', () => { startupLog('quitAndInstall (update)'); autoUpdater.quitAndInstall(false, true) })
 
   ipcMain.handle('relay:statusline-path', () => {
     const base = app.isPackaged
@@ -925,7 +926,7 @@ function makeTray() {
     tray.setContextMenu(Menu.buildFromTemplate([
       { label: 'Open /relay', click: () => { if (win) { win.show(); win.focus() } else createWindow() } },
       { type: 'separator' },
-      { label: 'Restart', click: () => { app.relaunch(); app.exit(0) } },
+      { label: 'Restart', click: () => { startupLog('relaunch (tray Restart)'); app.relaunch(); app.exit(0) } },
       { label: 'Quit', click: () => { app.isQuitting = true; app.quit() } },
     ]))
     tray.on('click', () => { if (win) { win.isVisible() ? win.focus() : win.show() } else createWindow() })
