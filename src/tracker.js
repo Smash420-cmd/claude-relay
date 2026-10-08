@@ -63,13 +63,15 @@ function readLines(full, start, end, midLine) {
   try {
     const buf = Buffer.alloc(end - start)
     const n = fs.readSync(fd, buf, 0, buf.length, start)
-    let text = buf.subarray(0, n).toString('utf8')
+    const raw = buf.subarray(0, n)
+    // Find line ends in the raw BYTES and decode only whole lines. A tail can start inside a multi-byte
+    // UTF-8 character; decoding that first turns it into U+FFFD and throws byte counts off, which lost
+    // the next appended turn (Astra 7664). 0x0A never occurs inside a UTF-8 sequence, so it's a safe cut.
     let from = 0
-    if (midLine) { from = text.indexOf('\n') + 1; if (from === 0) return { lines: [], consumed: 0 } }
-    const last = text.lastIndexOf('\n')
-    if (last < from) return { lines: [], consumed: Buffer.byteLength(text.slice(0, from), 'utf8') }   // bytes, not chars
-    const consumed = Buffer.byteLength(text.slice(0, last + 1), 'utf8')
-    return { lines: text.slice(from, last).split('\n'), consumed }
+    if (midLine) { from = raw.indexOf(0x0a) + 1; if (from === 0) return { lines: [], consumed: 0 } }
+    const last = raw.lastIndexOf(0x0a)
+    if (last < from) return { lines: [], consumed: from }
+    return { lines: raw.subarray(from, last).toString('utf8').split('\n'), consumed: last + 1 }
   } finally { fs.closeSync(fd) }
 }
 
