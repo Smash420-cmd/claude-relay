@@ -65,6 +65,15 @@ let hasTray = false
 let stopScheduler = null
 const running = new Map() // taskId -> child process (for cancel)
 
+// Stop the scheduler and kill every running child tree so claude sessions don't outlive Relay.
+// before-quit calls it, and so does each restart exit path, because app.exit skips before-quit.
+function stopAll() {
+  app.isQuitting = true
+  if (stopScheduler) stopScheduler()
+  running.forEach((child) => executor.killTree(child))
+  running.clear()
+}
+
 // Force a stable userData path regardless of productName / Electron default.
 // The CLI (scripts/relay.js) writes to %APPDATA%\relay — keep them in sync.
 app.setPath('userData', path.join(app.getPath('appData'), 'relay'))
@@ -131,6 +140,7 @@ function watchRelayDir() {
       if (filename === 'restart.signal' && fs.existsSync(signalPath)) {
         try { fs.unlinkSync(signalPath) } catch {}
         startupLog('relaunch (restart.signal)')
+        stopAll()
         app.relaunch()
         app.exit(0)
       }
@@ -926,7 +936,7 @@ function makeTray() {
     tray.setContextMenu(Menu.buildFromTemplate([
       { label: 'Open /relay', click: () => { if (win) { win.show(); win.focus() } else createWindow() } },
       { type: 'separator' },
-      { label: 'Restart', click: () => { startupLog('relaunch (tray Restart)'); app.relaunch(); app.exit(0) } },
+      { label: 'Restart', click: () => { startupLog('relaunch (tray Restart)'); stopAll(); app.relaunch(); app.exit(0) } },
       { label: 'Quit', click: () => { app.isQuitting = true; app.quit() } },
     ]))
     tray.on('click', () => { if (win) { win.isVisible() ? win.focus() : win.show() } else createWindow() })
@@ -1037,13 +1047,7 @@ function main() {
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
   })
 
-  app.on('before-quit', () => {
-    app.isQuitting = true
-    if (stopScheduler) stopScheduler()
-    // Kill every running child process (whole tree) so claude sessions don't outlive Relay
-    running.forEach((child) => executor.killTree(child))
-    running.clear()
-  })
+  app.on('before-quit', stopAll)
 
   // Stay alive in the tray so the scheduler keeps running. Only quit on all-windows-closed if
   // there is NO tray to keep the app reachable.
