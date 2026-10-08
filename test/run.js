@@ -565,6 +565,19 @@ check('codex gap: lastCodexStart counts a fallback Codex run on a Claude task', 
   assert.strictEqual(scheduler.lastCodexStart([{ model: 'claude-sonnet-5-5', lastRunAt: '2026-10-02T00:00:00.000Z', lastCodexRunAt: '2026-10-02T01:00:00.000Z' }]), Date.parse('2026-10-02T01:00:00.000Z'))
 })
 
+// ── exit paths — app.exit skips before-quit, so every app.exit must log and stop children first ──
+check('exit paths: each app.exit( is preceded by startupLog, then app.relaunch, then stopAll()', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'main.js'), 'utf8')
+  const exits = [...src.matchAll(/app\.exit\(/g)]
+  assert.ok(exits.length >= 2, `expected the restart exits, found ${exits.length}`)
+  for (const m of exits) {
+    const before = src.slice(Math.max(0, m.index - 200), m.index)
+    // relaunch before stopAll: if relaunch throws, Relay stays up with its scheduler still running (Astra)
+    assert.ok(/startupLog\([\s\S]*app\.relaunch\(\)[\s\S]*stopAll\(\)/.test(before), `unguarded app.exit near: ${before.slice(-80)}`)
+  }
+  assert.ok(/app\.on\('before-quit', stopAll\)/.test(src), 'before-quit no longer calls stopAll')
+})
+
 // ── report ────────────────────────────────────────────────────────────────────
 ;(async () => {
   for (const [name, fn] of asyncChecks) {
