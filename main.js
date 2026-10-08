@@ -140,8 +140,8 @@ function watchRelayDir() {
       if (filename === 'restart.signal' && fs.existsSync(signalPath)) {
         try { fs.unlinkSync(signalPath) } catch {}
         startupLog('relaunch (restart.signal)')
-        stopAll()
         app.relaunch()
+        stopAll()
         app.exit(0)
       }
       if (filename === 'usage.json') {
@@ -936,7 +936,7 @@ function makeTray() {
     tray.setContextMenu(Menu.buildFromTemplate([
       { label: 'Open /relay', click: () => { if (win) { win.show(); win.focus() } else createWindow() } },
       { type: 'separator' },
-      { label: 'Restart', click: () => { startupLog('relaunch (tray Restart)'); stopAll(); app.relaunch(); app.exit(0) } },
+      { label: 'Restart', click: () => { startupLog('relaunch (tray Restart)'); app.relaunch(); stopAll(); app.exit(0) } },
       { label: 'Quit', click: () => { app.isQuitting = true; app.quit() } },
     ]))
     tray.on('click', () => { if (win) { win.isVisible() ? win.focus() : win.show() } else createWindow() })
