@@ -67,7 +67,7 @@ function readLines(full, start, end, midLine) {
     let from = 0
     if (midLine) { from = text.indexOf('\n') + 1; if (from === 0) return { lines: [], consumed: 0 } }
     const last = text.lastIndexOf('\n')
-    if (last < from) return { lines: [], consumed: from }
+    if (last < from) return { lines: [], consumed: Buffer.byteLength(text.slice(0, from), 'utf8') }   // bytes, not chars
     const consumed = Buffer.byteLength(text.slice(0, last + 1), 'utf8')
     return { lines: text.slice(from, last).split('\n'), consumed }
   } finally { fs.closeSync(fd) }
