@@ -2,6 +2,8 @@
 
 **cwd:** `C:/Users/pmdse/Projects/Find-me-harness-GUI` · **model:** opus · **effort:** high
 
+> **PAUSED 2026-10-14** (Patrick's yes, router 9648/9650): this check repeated for 9 weeks while it waited on one human signature, so nothing new was being learned. It was not deleted: its next run is parked at 2027-12-31. **To restart:** once the signature is in, `node scripts/relay.js retime ms4fkxk9emekyh --at <next weekly slot>`.
+
 Autonomous weekly test for the Find-me-harness Hidden Examiner.
 Branch `006-hidden-examiner`. Run `npm run build` first.
 
