@@ -45,7 +45,10 @@ signed in. It ran clean end to end that day (`/p/Dec-35lkr2N/`), with no card an
    plain reason. Nothing waits for Patrick.
 3. Tools missing, or "R2 Bench did not answer": the window or host is down. Use the desk-Chrome fallback below and say
    so in the report as `route: chrome-fallback (<why>)`.
-4. Signed out: **never attempt a login.** Stop and report "social profile signed out".
+4. Signed out: **never attempt a login yourself.** Call `browser_signin` once with `site: "instagram"`, `profile:
+   "social"` (Patrick gets a yes/no; his yes presses the remembered login). If the answer is `signed-in`, reopen the
+   profile and carry on. Anything else (declined, timed out, needs-patrick, failed): stop and report "social profile
+   signed out: <answer>".
 
 Then follow `instagram.md` §5 (R2) for the post itself. Report `route: r2`.
 
