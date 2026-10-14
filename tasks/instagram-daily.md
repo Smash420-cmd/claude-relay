@@ -33,7 +33,25 @@ is the only thing standing between a week-old session and a week-old rule.
 
 ---
 
-## STEP 0 — PIN THE BROWSER. Nothing else happens first.
+## STEP 0 — OPEN THE R2 BROWSER. Nothing else happens first.
+
+Since 2026-10-14 the post goes through the R2 Bench browser (the `r2-browser` MCP, profile `social`), which is already
+signed in. It ran clean end to end that day (`/p/Dec-35lkr2N/`), with no card and no wait.
+
+1. `browser_open` `https://www.instagram.com/sojournly.au/` with `profile: "social"`. Look for **Edit profile** and
+   note the post count. An empty first read: read again.
+2. **Every click in the posting flow carries `job: "daily-post"`** (Create, Post, Next, Share). On instagram.com
+   and the social profile, Share counts once a day and the other steps up to 8; anything else is refused at once with a
+   plain reason. Nothing waits for Patrick.
+3. Tools missing, or "R2 Bench did not answer": the window or host is down. Use the desk-Chrome fallback below and say
+   so in the report as `route: chrome-fallback (<why>)`.
+4. Signed out: **never attempt a login.** Stop and report "social profile signed out".
+
+Then follow `instagram.md` §5 (R2) for the post itself. Report `route: r2`.
+
+## STEP 0-FALLBACK — desk Chrome (only when R2 is down; kept until 2026-10-28)
+
+### Pin the browser
 
 Two Chrome extensions are connected to Patrick's account: his **Windows** desk
 machine and his **Mac**. **Only the Windows one is signed in to @sojournly.au.**
@@ -109,9 +127,9 @@ caption to what needs no source rather than writing from memory.
 `social-voice.md` is short and governs the writing. Follow it; nothing about the
 words is repeated here.
 
-## Browser — the only supported route
+## Browser — the Chrome fallback (R2 is the route, STEP 0)
 
-Drive Instagram through the **Claude in Chrome extension**, in Claude's own tab
+In the fallback, drive Instagram through the **Claude in Chrome extension**, in Claude's own tab
 group, against Patrick's real logged-in Chrome profile:
 
 `mcp__claude-in-chrome__tabs_context_mcp` → `tabs_create_mcp` → `navigate` →
@@ -124,10 +142,10 @@ is logged out of Instagram. It cannot post. Do not launch Chrome with
 `--remote-debugging-port`, do not use a scratch `--user-data-dir`, do not quit
 Patrick's Chrome.
 
-If the `mcp__claude-in-chrome__*` tools are not available in the session, or the
+If R2 is down AND the `mcp__claude-in-chrome__*` tools are not available in the session, or the
 extension can't reach instagram.com, that is a **precondition failure**: log
 `FAIL n` per playbook §4b, alert Patrick, and stop. Do not substitute a
-different browser route.
+different browser route than R2 or this fallback.
 
 ## Cleanup - close what you opened, and say what you could not
 
