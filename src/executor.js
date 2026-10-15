@@ -184,6 +184,16 @@ function scrubSecrets(env) {
   return out
 }
 
+// Optional second Claude config dir. A one-line selector file in the home dir (~/.claude-account) holds
+// "a" or "b"; "b" runs Claude with CLAUDE_CONFIG_DIR=~/.claude-b, anything else (or no file) leaves the
+// env exactly as it was, so the default config dir is used. Read on every run, so a switch reaches the
+// next run without restarting the app. Returns a new env; never mutates the input.
+function configDirEnv(env, home = os.homedir()) {
+  let pick = ''
+  try { pick = fs.readFileSync(path.join(home, '.claude-account'), 'utf8').trim().toLowerCase() } catch { /* missing = a */ }
+  return pick === 'b' ? { ...env, CLAUDE_CONFIG_DIR: path.join(home, '.claude-b') } : env
+}
+
 // Kill the whole process tree. On Windows we spawn via cmd.exe (shell:true), so child.kill()
 // only kills the shell and leaves the claude process running headless — taskkill /T gets the tree.
 function killTree(child) {
@@ -217,7 +227,7 @@ function runTask(task, opts = {}) {
     let codexSessionId = null
     let child
     try {
-      const spawnEnv = scrubSecrets(process.env)
+      const spawnEnv = codex ? scrubSecrets(process.env) : configDirEnv(scrubSecrets(process.env))
       if (process.platform === 'win32') {
         spawnEnv.SystemRoot = spawnEnv.SystemRoot || 'C:\\Windows'
         spawnEnv.ComSpec    = spawnEnv.ComSpec    || 'C:\\Windows\\System32\\cmd.exe'
@@ -295,4 +305,4 @@ function runTask(task, opts = {}) {
   })
 }
 
-module.exports = { runTask, buildArgs, effortFor, effortPolicy, EFFORT_ORDER, buildCodexArgs, isCodexModel, fallbackFor, resumeTaskFor, detectLimit, isSecretEnv, scrubSecrets, killTree }
+module.exports = { runTask, buildArgs, effortFor, effortPolicy, EFFORT_ORDER, buildCodexArgs, isCodexModel, fallbackFor, resumeTaskFor, detectLimit, isSecretEnv, scrubSecrets, configDirEnv, killTree }
