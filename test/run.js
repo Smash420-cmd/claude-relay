@@ -7,7 +7,7 @@
 const assert = require('assert')
 const { normPct, pickResetAt, isLimitFalsePositive } = require('../src/usage')
 const scheduler = require('../src/scheduler')
-const { detectLimit, isSecretEnv, scrubSecrets, buildArgs, buildCodexArgs, isCodexModel, fallbackFor, resumeTaskFor } = require('../src/executor')
+const { detectLimit, isSecretEnv, scrubSecrets, configDirEnv, buildArgs, buildCodexArgs, isCodexModel, fallbackFor, resumeTaskFor } = require('../src/executor')
 
 let pass = 0, fail = 0
 const fails = []
@@ -252,6 +252,29 @@ check('scrubSecrets: does not mutate the input env', () => {
   scrubSecrets(env)
   assert.strictEqual(env.GH_TOKEN, 't') // original untouched
 })
+
+// ── configDirEnv: the ~/.claude-account selector picks the Claude config dir per run ──
+{
+  const cfs = require('fs'), cos = require('os'), cpath = require('path')
+  const home = cfs.mkdtempSync(cpath.join(cos.tmpdir(), 'relay-acct-'))
+  const sel = (v) => v == null ? cfs.rmSync(cpath.join(home, '.claude-account'), { force: true }) : cfs.writeFileSync(cpath.join(home, '.claude-account'), v)
+  check('configDirEnv: no selector file leaves the env as it was', () => {
+    sel(null); const env = { PATH: '/b' }
+    assert.strictEqual(configDirEnv(env, home), env); assert.strictEqual(env.CLAUDE_CONFIG_DIR, undefined)
+  })
+  check('configDirEnv: "a" leaves CLAUDE_CONFIG_DIR unset', () => {
+    sel('a\r\n'); assert.strictEqual(configDirEnv({ PATH: '/b' }, home).CLAUDE_CONFIG_DIR, undefined)
+  })
+  check('configDirEnv: "b" sets CLAUDE_CONFIG_DIR to ~/.claude-b without mutating the input', () => {
+    sel(' B\n'); const env = { PATH: '/b' }
+    const out = configDirEnv(env, home)
+    assert.strictEqual(out.CLAUDE_CONFIG_DIR, cpath.join(home, '.claude-b')); assert.strictEqual(out.PATH, '/b')
+    assert.strictEqual(env.CLAUDE_CONFIG_DIR, undefined)
+  })
+  check('configDirEnv: an unknown value is treated as the default', () => {
+    sel('c'); assert.strictEqual(configDirEnv({ PATH: '/b' }, home).CLAUDE_CONFIG_DIR, undefined)
+  })
+}
 
 // ── SECURITY/correctness: buildArgs — flags + no API key, resume targeting ────
 check('buildArgs: fresh task with skipPermissions', () => {
