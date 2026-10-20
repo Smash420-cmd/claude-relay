@@ -3,6 +3,14 @@
 **cwd:** `C:/Users/pmdse/Projects/sojournly-social` · **model:** claude-sonnet-5-5 · **effort:** high
 **Browser:** required — this task must run with browser access enabled.
 
+## STOP RULE — this task ended on 2026-10-21 (dry run passed, Oracle 12237 plan)
+
+**If today's local date is after 2026-10-21, do nothing: pin nothing, send nothing, write nothing, and end with the
+line `pinterest-daily: retired, the queue poster (pinterest-post-today.md) owns this slot`.** From Thursday 22 Oct the
+daily pin comes from `social-assets/queue/<date>/pinterest/` through `pinterest-post-today.md` on the R2 browser; a run
+of this file on the same day would pin twice. This file stays as the Chrome fallback: to use it again, an operator
+removes this rule on purpose. On 2026-10-21 itself: pin as normal.
+
 ## STEP 00 — CHECK THE RULES HAVEN'T CHANGED UNDER YOU
 
 **This session is reused for a week. Your context may contain a playbook that has

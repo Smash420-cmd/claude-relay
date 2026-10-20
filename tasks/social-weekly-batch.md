@@ -29,7 +29,8 @@ the playbooks exactly as a daily run would. Nothing is posted here. The daily po
 3. **Pinterest:** the pin's photo is one he picked for Instagram that week (Oracle 12230): an own-frame pin day takes an
    `own:` pick, a Pexels pin day a Pexels pick, preferring that day's place, `pin:` token unused (the rule is per platform,
    so the same photo on both is fine). Crop to portrait with `scripts/smart_crop.py` and open the result; nothing already
-   0.667–0.80 is cropped. No approved photo fits: no pin folder for that day. Title ≤100 chars keyword-first, description ≤500 chars ending
+   0.667–0.80 is cropped, but every `pin.jpg` is saved at long edge 2000 px at most: Pinterest refuses files over 20 MB
+   and a full Lightroom export is 25 MB (dry run 21 Oct 2026). No approved photo fits: no pin folder for that day. Title ≤100 chars keyword-first, description ≤500 chars ending
    `Plan it. Live it.` (then the Pexels credit), board by destination, link `https://sojournly.au/?utm_source=pinterest`
    (pinterest.md §2). Research first, review passes in `review.md`.
 4. **Write the folder** `social-assets/queue/<date>/instagram/` or `/pinterest/`:
