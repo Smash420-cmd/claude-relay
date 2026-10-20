@@ -2,6 +2,15 @@
 
 **cwd:** `C:/Users/pmdse/Projects/sojournly-social` · **model:** claude-sonnet-5-5 · **effort:** high
 
+## STOP RULE — this task ended on 2026-10-21 (Oracle 12237)
+
+**If today's local date is after 2026-10-21, do nothing: post nothing, send nothing, write nothing, and end with
+the line `instagram-daily: retired, the queue poster (instagram-post-today.md) owns this slot`.** From Thursday
+22 Oct the daily post comes from `social-assets/queue/<date>/instagram/` through `instagram-post-today.md`; a run of
+this file on the same day would post the same approved set twice. This file stays as the Chrome fallback: to use it
+again, an operator removes this rule on purpose. On 2026-10-21 itself: post the approved Ha Long Bay set as normal
+and send no candidates (instagram.md §1b).
+
 ## STEP 00 — CHECK THE RULES HAVEN'T CHANGED UNDER YOU
 
 **This session is reused for a week. Your context may contain a playbook that has
