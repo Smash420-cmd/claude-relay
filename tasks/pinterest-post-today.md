@@ -19,7 +19,8 @@ From Thursday 22 Oct 2026. You upload one prepared pin. You write nothing and ju
    Otherwise `browser_open` `https://au.pinterest.com/pin-builder/`; `browser_read`; an "OK" notice dialog: click OK.
 2. `browser_upload` with the "File upload" ref, `files` = the manifest's `image`, full path. Read: the preview shows it.
    "This image is too large" or "fix the highlighted issues" = Pinterest refused the file (20 MB cap): stop rule 3.
-3. `browser_click` the title field, `browser_type` the manifest's `title`.
+3. `browser_click` the title field, `browser_type` the manifest's `title` (one line: a line break in the title or the
+   link field would read as Enter; the description box is multi-line and takes `caption.txt` as it is).
 4. `browser_click` the description field, `browser_type` the whole of `caption.txt`, unchanged.
 5. `browser_click` the link field, `browser_type` the manifest's `link`.
 6. Board: the picker ("Europe Open drop-down") defaults to Europe; a Europe pin skips this step. Otherwise click the

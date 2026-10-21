@@ -31,7 +31,7 @@ the playbooks exactly as a daily run would. Nothing is posted here. The daily po
    so the same photo on both is fine). Crop to portrait with `scripts/smart_crop.py` and open the result; nothing already
    0.667–0.80 is cropped. Keep the full pixels; Pinterest refuses files over 20 MB and a full Lightroom export is 25 MB
    (dry run 21 Oct 2026), so only a `pin.jpg` over 20 MB is touched: re-saved at the same pixels with JPEG quality
-   lowered until it is just under 20 MB. Every other file is copied as is (Patrick 21 Oct). No approved photo fits: no pin folder for that day. Title ≤100 chars keyword-first, description ≤500 chars ending
+   lowered until it is just under 20 MB. Every other file is copied as is (Patrick 21 Oct). No approved photo fits: no pin folder for that day. Title ≤100 chars keyword-first on ONE line (no line break: the title and link fields are single-line), description ≤500 chars ending
    `Plan it. Live it.` (then the Pexels credit), board by destination, link `https://sojournly.au/?utm_source=pinterest`
    (pinterest.md §2). Research first, review passes in `review.md`.
 4. **Write the folder** `social-assets/queue/<date>/instagram/` or `/pinterest/`:
