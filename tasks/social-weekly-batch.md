@@ -16,7 +16,10 @@ the playbooks exactly as a daily run would. Nothing is posted here. The daily po
 `.claude/context/instagram-log.md`, and `social-assets/queue/<week-start>/plan.json` (week-start = the Wednesday; the first week is `2026-10-22`). Playbooks win over this file.
 
 ## For each day in plan.json, each platform
-1. **Approval gate.** Find the APPROVED line for that date and platform in `photo-approvals.md`. None, or REJECTED: write
+1. **Approval gate.** A **reel day** (plan.json `type: reel`, the weekly A short) needs no photo pick and has no gate:
+   always write its folder, with `approved` = `<date> | REEL | instagram | weekly A reel, no photo pick needed` (23 Oct
+   2026: the gate below skipped the Mia reel day, so nothing posted; Oracle 13091). Every other day: find the APPROVED
+   line for that date and platform in `photo-approvals.md`. None, or REJECTED: write
    nothing for that day; it is a skip, and the poster will say so. Exactly the approved numbers, in his order; never a swap.
    **His Lightroom grade wins:** if `social-assets/approvals/<week-start>-week/graded/NN.jpg` exists for a picked number,
    use it in place of the candidate (Patrick 12233); otherwise the plain candidate. Say which in `review.md`.
@@ -55,6 +58,9 @@ the playbooks exactly as a daily run would. Nothing is posted here. The daily po
 
 ## Report
 One line per day: date, platform, type, place, status. Nothing to Patrick: the posters talk to him.
+Any Instagram day left without a folder (no APPROVED line yet): also send ONE line to the agents group,
+`python C:/Users/pmdse/Projects/sojournly-v1/scripts/tg.py --agents send "Social batch: no Instagram folder for <dates>, waiting on picks"`, so the Oracle
+can chase the picks days ahead instead of the poster finding an empty day (23 Oct 2026).
 
 ## Never
 Post. Write to `instagram-log.md` or mark anything POSTED (the posters do that). Use a photo outside the APPROVED line.
