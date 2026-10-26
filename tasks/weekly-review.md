@@ -1,6 +1,6 @@
 # Interlinked: weekly review
 
-**cwd:** `C:/Users/pmdse/Projects/sojournly-v1` · **model:** sonnet · **effort:** high
+**cwd:** `C:/Users/pmdse/Projects/sojournly-social` · **model:** claude-sonnet-5-5 · **effort:** high · **Browser:** R2 (`r2-browser` MCP, profile `social`)
 
 Patrick's Sunday weekly review. ONE card. Do not edit files.
 
@@ -16,10 +16,10 @@ Patrick's Sunday weekly review. ONE card. Do not edit files.
    for signups, sales count + AUD sum (`sum(amount_total)/100.0`, cents), errors.
 3. **Queued** — `node C:/Users/pmdse/Projects/relay/scripts/relay.js list`,
    summarise what's scheduled.
-4. **Instagram week** — needs the Claude-in-Chrome extension (task must have
-   Browser access ticked in the Relay app). If `mcp__claude-in-chrome__*` tools
-   are absent, write `IG: no browser access` in the card and move on — never
-   substitute chrome-devtools. Otherwise, in Claude's own tab group:
+4. **Instagram week** - on R2 (`mcp__r2-browser__browser_*`, profile `social`; since 27 Oct 2026, the desk
+   Chrome extension was not reliable). If the R2 tools are absent, or `browser_open` shows no **Edit profile** after
+   one `browser_signin` (`site: "instagram"`, `profile: "social"`), write `IG: no browser access` in the card and
+   move on. Read only: never click Follow, Like, Share or anything that posts. Then:
    - `https://www.instagram.com/sojournly.au/` → current **followers** total
      (delta vs the number in last week's card is the follows-per-week trend).
    - For each post dated in the last 7 days in
@@ -27,7 +27,7 @@ Patrick's Sunday weekly review. ONE card. Do not edit files.
      (moved from sojournly-v1 on 2026-08-01; the v1 copy is stale):
      open it from the profile grid → View insights → **views, non-follower %,
      saves, follows**. Saves are the number that matters; likes are noise.
-   - Close every tab in the group when done.
+   - `browser_stop` when done.
 
 ## Body
 
