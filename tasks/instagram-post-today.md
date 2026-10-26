@@ -33,6 +33,7 @@ optional `graded/`), `research.md`, `caption-draft.txt`, or on a reel day `reel.
    social-voice.md) and write the caption from scratch, sources in `research.md`.
 4. Write `log-line.txt` (§7) and `manifest.json` (§9) with `"status": "ready"`.
 Reel day: `caption-draft.txt` becomes `caption.txt` after one review pass against the video (§2); slides = `reel.mp4`.
+No `caption-draft.txt` on a reel day: write it from scratch per instagram.md §2.
 
 ## Post (job `daily-post` on every click)
 1. `browser_open` `https://www.instagram.com/sojournly.au/` with `profile: "social"`; `browser_read`; note the post count.
