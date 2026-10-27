@@ -19,7 +19,7 @@ const DEFAULT_SETTINGS = {
   weeklyStartTime: '02:00',     // local HH:MM on that day; used as fallback weekly reset when API unavailable
   fallbackOnLimit: true,        // ON: a limit stop retries once on the other provider (Claude ↔ Codex) before pausing
   fallbackClaudeModel: 'claude-sonnet-5-5', // model a Codex-limited task falls back to
-  fallbackCodexModel: 'gpt-6.1-sol',        // model a Claude-limited task falls back to
+  fallbackCodexModel: 'gpt-6-luna',         // model a Claude-limited task falls back to (must be one Codex accepts on the account in use)
   autoResumeOnLimit: true,      // ON: re-schedule stopped tasks at the exact moment the limit resets
   schedulerIntervalSec: 20,     // how often the due-task loop ticks
   allowExtendedUsage: false,    // OFF by default — don't auto-run past the free limit and spend credits
