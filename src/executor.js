@@ -170,6 +170,10 @@ const SECRET_WEAK_RE = /(^|_)(KEY|PASS|PAT|DSN|AUTH)$/i
 const SECRET_PWD_RE = /_PWD$/i
 // Value-shaped secrets: connection strings carry an embedded password.
 const SECRET_CONN_RE = /(DATABASE_URL|CONNECTION_?STRING)$/i
+// The CLI's own words when its login is missing or expired. A run that fails this way did no work, so one retry
+// after a pause is safe (26 Oct: every catch-up run after a limit hold failed like this; an hour later all logged in).
+function isNotLoggedIn(text) { return /Not logged in\s*·\s*Please run \/login/i.test(String(text || '')) }
+
 function isSecretEnv(name) {
   return SECRET_STRONG_RE.test(name) || SECRET_WEAK_RE.test(name) || SECRET_PWD_RE.test(name) || SECRET_CONN_RE.test(name)
 }
@@ -300,9 +304,9 @@ function runTask(task, opts = {}) {
       }
       // outputLen: collision detector — a resume that dies having printed NOTHING is the
       // silent session-collision signature (vs a real failure, which always prints something).
-      resolve({ exitCode: code, status, logPath, resetHint: limit.resetHint, resultSessionId: resultSessionId || null, outputLen: output.trim().length })
+      resolve({ exitCode: code, status, logPath, resetHint: limit.resetHint, resultSessionId: resultSessionId || null, outputLen: output.trim().length, notLoggedIn: status === 'failed' && isNotLoggedIn(output) })
     })
   })
 }
 
-module.exports = { runTask, buildArgs, effortFor, effortPolicy, EFFORT_ORDER, buildCodexArgs, isCodexModel, fallbackFor, resumeTaskFor, detectLimit, isSecretEnv, scrubSecrets, configDirEnv, killTree }
+module.exports = { isNotLoggedIn, runTask, buildArgs, effortFor, effortPolicy, EFFORT_ORDER, buildCodexArgs, isCodexModel, fallbackFor, resumeTaskFor, detectLimit, isSecretEnv, scrubSecrets, configDirEnv, killTree }

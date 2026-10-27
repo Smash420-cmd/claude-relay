@@ -655,6 +655,33 @@ check('exit paths: each app.exit( is preceded by startupLog, then app.relaunch, 
   assert.ok(/app\.on\('before-quit', stopAll\)/.test(src), 'before-quit no longer calls stopAll')
 })
 
+// ── "Not logged in" retry + catch-up stagger (Oracle 13834; 26 Oct: every run after a limit hold failed this way) ──
+{
+  const { isNotLoggedIn } = require('../src/executor')
+  // the CLI's whole output from a 26 Oct run, as the log shows it
+  const out = '## Context (persistent across runs)\nTask dir: x\n\nNot logged in · Please run /login\n'
+  check('login: the CLI message is recognised', () => assert.strictEqual(isNotLoggedIn(out), true))
+  check('login: a limit stop is not a login failure', () => assert.strictEqual(isNotLoggedIn("You've hit your weekly limit · resets Oct 26, 1pm"), false))
+  check('login: ordinary output is not', () => assert.strictEqual(isNotLoggedIn('Done. Logged the result.'), false))
+  check('login: main.js retries ONCE after LOGIN_RETRY_MS, Claude runs only', () => {
+    const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'main.js'), 'utf8')
+    assert.ok(/const LOGIN_RETRY_MS = 60000/.test(src), 'retry delay is not 60 s')
+    const block = src.slice(src.indexOf('res.notLoggedIn'), src.indexOf('res.notLoggedIn') + 500)
+    assert.ok(/!codexTask && res\.status === 'failed' && res\.notLoggedIn/.test(src), 'retry guard changed')
+    assert.strictEqual((block.match(/executor\.runTask\(/g) || []).length, 1, 'exactly one retry run')
+    assert.ok(/setTimeout\(r, LOGIN_RETRY_MS\)/.test(block), 'retry does not wait')
+    assert.ok(block.indexOf('LOGIN_RETRY_MS') < block.indexOf('store.getTask'), 'the cancel check must come after the wait')
+    assert.ok(/still\.status !== 'cancelled'\) res = await executor\.runTask/.test(block), 'a cancelled or deleted task is not retried')
+  })
+  const { catchUpHeld, CATCHUP_GAP_MS } = scheduler
+  const rel = Date.parse('2026-10-26T02:00:00Z'), M = 60000
+  check('catch-up: the first overdue run after a hold starts at once', () => assert.strictEqual(catchUpHeld(rel - 5 * M, rel, 0, rel), false))
+  check('catch-up: the next overdue run waits a minute', () => assert.strictEqual(catchUpHeld(rel - 4 * M, rel, rel, rel + 10000), true))
+  check('catch-up: and goes once the minute is up', () => assert.strictEqual(catchUpHeld(rel - 4 * M, rel, rel, rel + CATCHUP_GAP_MS), false))
+  check('catch-up: a task due after the release is not held', () => assert.strictEqual(catchUpHeld(rel + M, rel, rel + 30000, rel + 2 * M - 1), false))
+  check('catch-up: no hold yet, nothing held', () => assert.strictEqual(catchUpHeld(rel - M, 0, 0, rel), false))
+}
+
 // ── report ────────────────────────────────────────────────────────────────────
 ;(async () => {
   for (const [name, fn] of asyncChecks) {
