@@ -670,6 +670,8 @@ check('exit paths: each app.exit( is preceded by startupLog, then app.relaunch, 
     assert.ok(/!codexTask && res\.status === 'failed' && res\.notLoggedIn/.test(src), 'retry guard changed')
     assert.strictEqual((block.match(/executor\.runTask\(/g) || []).length, 1, 'exactly one retry run')
     assert.ok(/setTimeout\(r, LOGIN_RETRY_MS\)/.test(block), 'retry does not wait')
+    assert.ok(block.indexOf('LOGIN_RETRY_MS') < block.indexOf('store.getTask'), 'the cancel check must come after the wait')
+    assert.ok(/still\.status !== 'cancelled'\) res = await executor\.runTask/.test(block), 'a cancelled or deleted task is not retried')
   })
   const { catchUpHeld, CATCHUP_GAP_MS } = scheduler
   const rel = Date.parse('2026-10-26T02:00:00Z'), M = 60000

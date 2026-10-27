@@ -311,12 +311,12 @@ async function runDueTask(task, opts = {}) {
   }
   // "Not logged in" (Oracle 13834): one retry after 60 s, then it fails as before. The failed run did nothing.
   if (!codexTask && res.status === 'failed' && res.notLoggedIn) {
+    console.log(`[login] ${task.id}: "Not logged in": one retry in 60 s`)
+    await new Promise((r) => setTimeout(r, LOGIN_RETRY_MS))
+    // checked after the wait (Oracle review): a cancel or delete during the minute means no retry
     const still = store.getTask(task.id)
-    if (still && still.status !== 'cancelled') {
-      console.log(`[login] ${task.id}: "Not logged in": one retry in 60 s`)
-      await new Promise((r) => setTimeout(r, LOGIN_RETRY_MS))
-      res = await executor.runTask(task, runOpts)
-    }
+    if (still && still.status !== 'cancelled') res = await executor.runTask(task, runOpts)
+    else console.log(`[login] ${task.id}: cancelled or deleted during the wait: no retry`)
   }
   running.delete(task.id)
   // Re-read before writing results: if the user cancelled (or deleted) the task while it ran,
