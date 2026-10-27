@@ -20,6 +20,12 @@ One combined `SELECT` with scalar subqueries; one round-trip.
 Try `execute_sql` first — it has worked directly since 2026-07-26. Fallbacks are
 in `~/.relay/context/shared/NOTES.md` under "Tooling gotchas".
 
+## Relay health: one line
+
+`node C:/Users/pmdse/Projects/relay/scripts/missed-runs.js` prints one line on the last 24 h of scheduled runs:
+failed runs, usage-limit stops, a held queue, overdue tasks, or "all ok". Put it in the card as its own bullet,
+verbatim. Anything but "all ok" is the card's first bullet: a missed day must be seen the next morning.
+
 ## Send exactly one card
 
 ```bash

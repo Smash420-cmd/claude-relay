@@ -284,7 +284,7 @@ try {
   else if (cmd === 'log') cmdLog(pos[1])
   else {
     console.log('relay — usage:')
-    console.log('  schedule --prompt "..." --model <claude-sonnet-5-5|claude-opus-5-5|gpt-6.1-sol|...> --effort <low|medium|high|xhigh|max|ultra(codex) — omit for Haiku> [--mode fresh|resume-full] [--resume <id|current>] [--at next-reset|+30m|<ISO>] [--every 30m|4h|1d|1w] [--cwd <path>] [--title "..."] [--chrome] [--no-fallback]')
+    console.log('  schedule --prompt "..." --model <claude-sonnet-5-5|claude-opus-5-5|gpt-6-luna|...> --effort <low|medium|high|xhigh|max|ultra(codex) — omit for Haiku> [--mode fresh|resume-full] [--resume <id|current>] [--at next-reset|+30m|<ISO>] [--every 30m|4h|1d|1w] [--cwd <path>] [--title "..."] [--chrome] [--no-fallback]')
   console.log('    --chrome           — give the run Claude-in-Chrome browser tools (off by default)')
   console.log('    --no-fallback      — on a usage limit, wait for the reset instead of retrying on the other provider')
     console.log('  list')
