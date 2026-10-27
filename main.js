@@ -220,6 +220,7 @@ function createWindow() {
   })
 }
 
+const LOGIN_RETRY_MS = 60000
 async function runDueTask(task, opts = {}) {
   const settings = store.getSettings()
   // Cost guard — "extended (paid) usage" off: don't AUTO-run a task while at/over the free session
@@ -305,6 +306,15 @@ async function runDueTask(task, opts = {}) {
     if (still && still.status !== 'cancelled') {
       console.log(`[collision] ${task.id}: silent resume failure — retrying with --fork-session`)
       task = { ...task, forkSession: true }
+      res = await executor.runTask(task, runOpts)
+    }
+  }
+  // "Not logged in" (Oracle 13834): one retry after 60 s, then it fails as before. The failed run did nothing.
+  if (!codexTask && res.status === 'failed' && res.notLoggedIn) {
+    const still = store.getTask(task.id)
+    if (still && still.status !== 'cancelled') {
+      console.log(`[login] ${task.id}: "Not logged in": one retry in 60 s`)
+      await new Promise((r) => setTimeout(r, LOGIN_RETRY_MS))
       res = await executor.runTask(task, runOpts)
     }
   }

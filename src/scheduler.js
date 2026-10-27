@@ -70,6 +70,14 @@ function codexHeld(task, lastStart, settings, now = Date.now()) {
   return isCodexModel(task.model) && lastStart > 0 && now - lastStart < gapMs
 }
 
+// Catch-up after a hold (Oracle 13834): tasks that came due while the queue was held start at most one per
+// CATCHUP_GAP_MS once it lifts, so a backlog does not go out in one burst (26 Oct: 11 runs in one minute at the reset).
+// Tasks that come due after the release run as normal.
+const CATCHUP_GAP_MS = 60000
+function catchUpHeld(dueAt, releasedAt, lastCatchUpStart, now = Date.now()) {
+  return releasedAt > 0 && dueAt < releasedAt && lastCatchUpStart > 0 && now - lastCatchUpStart < CATCHUP_GAP_MS
+}
+
 function start({ intervalMs, getState, runDueTask, getTask }) {
   let ticking = false
   const tick = async () => {
@@ -86,8 +94,10 @@ function start({ intervalMs, getState, runDueTask, getTask }) {
       const hold = settings.holdUntil ? new Date(settings.holdUntil).getTime() : 0
       if (hold > now) {
         if (!tick.heldLogged) { console.log(`[scheduler] queue held until ${new Date(hold).toLocaleString()} (usage limit)`); tick.heldLogged = true }
+        tick.wasHeld = true
         return
       }
+      if (tick.wasHeld) { tick.wasHeld = false; tick.releasedAt = now; tick.lastCatchUp = 0 }
       tick.heldLogged = false
       // Due tasks run SEQUENTIALLY on purpose: parallel claude runs would race each other into the
       // session limit. Consequence: one long run delays everything behind it (incl. repeat slots).
@@ -109,6 +119,8 @@ function start({ intervalMs, getState, runDueTask, getTask }) {
         if (hold > Date.now()) break
         const cur = getTask ? getTask(t.id) : t
         if (!cur || cur.status !== 'scheduled' || dueTime(cur, settings) > Date.now()) continue
+        if (catchUpHeld(dueTime(cur, settings), tick.releasedAt || 0, tick.lastCatchUp || 0)) break   // the rest wait for a later tick
+        if ((tick.releasedAt || 0) > 0 && dueTime(cur, settings) < tick.releasedAt) tick.lastCatchUp = Date.now()
         // runDueTask returns false when it deferred without starting (cost guard): that must not
         // take the Codex slot, or the deferred task holds every other Codex task back.
         const runAt = Date.now()
@@ -128,4 +140,4 @@ function start({ intervalMs, getState, runDueTask, getTask }) {
   return () => clearInterval(handle)
 }
 
-module.exports = { start, nextSessionReset, nextWeeklyReset, dueTime, nextRepeat, lastCodexStart, codexHeld }
+module.exports = { catchUpHeld, CATCHUP_GAP_MS, start, nextSessionReset, nextWeeklyReset, dueTime, nextRepeat, lastCodexStart, codexHeld }
