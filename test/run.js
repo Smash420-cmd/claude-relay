@@ -682,6 +682,41 @@ check('exit paths: each app.exit( is preceded by startupLog, then app.relaunch, 
   check('catch-up: no hold yet, nothing held', () => assert.strictEqual(catchUpHeld(rel - M, 0, 0, rel), false))
 }
 
+// ── relay pause / resume (CLI) ────────────────────────────────────────────────
+{
+  const cli = require('../scripts/relay.js')
+  const now = new Date('2026-10-31T09:00:00Z')
+  for (const s of [{ n: 1, unit: 'days', at: '2026-10-20T21:30:00Z' }, { n: 30, unit: 'minutes', at: '2026-08-01T00:05:00Z' },
+    { n: 4, unit: 'hours', at: '2026-10-30T23:00:00Z' }, { n: 1, unit: 'weeks', at: '2026-09-06T00:00:00Z' }]) {
+    check(`pause: the CLI's nextRepeat matches the scheduler's (${s.n} ${s.unit})`, () =>
+      assert.strictEqual(cli.nextRepeat(s, now).toISOString(), scheduler.nextRepeat(s, now).toISOString()))
+  }
+  check('pause: a scheduled task pauses', () => {
+    const t = { status: 'scheduled' }
+    assert.strictEqual(cli.setPaused(t, true, now), null); assert.strictEqual(t.status, 'paused')
+  })
+  check('pause: a running or finished task is left alone', () => {
+    for (const status of ['running', 'succeeded', 'cancelled', 'paused']) {
+      const t = { status }; assert.ok(cli.setPaused(t, true, now)); assert.strictEqual(t.status, status)
+    }
+  })
+  check('resume: a repeat whose slot passed moves to its next slot, never a catch-up', () => {
+    const t = { status: 'paused', schedule: { kind: 'repeat', n: 1, unit: 'days', at: '2026-10-25T21:30:00Z' } }
+    assert.strictEqual(cli.setPaused(t, false, now), null)
+    assert.strictEqual(t.status, 'scheduled'); assert.strictEqual(t.schedule.at, '2026-10-31T21:30:00.000Z')
+    assert.ok(scheduler.dueTime(t, {}) > now.getTime())
+  })
+  check('resume: a one-off keeps its time; a future repeat keeps its slot', () => {
+    const once = { status: 'paused', schedule: { kind: 'once', at: '2026-10-30T00:00:00Z' } }
+    cli.setPaused(once, false, now); assert.strictEqual(once.schedule.at, '2026-10-30T00:00:00Z')
+    const rep = { status: 'paused', schedule: { kind: 'repeat', n: 1, unit: 'days', at: '2026-11-01T00:00:00Z' } }
+    cli.setPaused(rep, false, now); assert.strictEqual(rep.schedule.at, '2026-11-01T00:00:00Z')
+  })
+  check('resume: only a paused task resumes', () => {
+    const t = { status: 'cancelled' }; assert.ok(cli.setPaused(t, false, now)); assert.strictEqual(t.status, 'cancelled')
+  })
+}
+
 // ── report ────────────────────────────────────────────────────────────────────
 ;(async () => {
   for (const [name, fn] of asyncChecks) {

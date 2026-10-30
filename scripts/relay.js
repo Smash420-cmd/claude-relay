@@ -241,6 +241,50 @@ function cmdCancel(id) {
   if (!found) { console.error('no task ' + id); process.exit(1) }
   console.log('✓ cancelled ' + id)
 }
+// Pause and resume (feedback 26 Oct: cancel was the only off switch, so a stand-down lost the task). The scheduler
+// fires only status 'scheduled', so 'paused' just sits; resume puts it back. A repeat whose slot passed while paused
+// moves to its next slot (no catch-up run); a one-off keeps its time. Only a scheduled task pauses, so a running
+// or finished one is never rewritten.
+// nextRepeat is src/scheduler.js's, kept in step by hand: this CLI runs from app.asar.unpacked and cannot load src/
+// (test/run.js checks the two agree).
+function nextRepeat(s, from = new Date()) {
+  const n = Math.max(1, parseInt(s.n, 10) || 1)
+  const d = new Date(s.at)
+  if (isNaN(d)) return new Date(from.getTime() + 60000)
+  if (s.unit === 'days' || s.unit === 'weeks') {
+    const step = s.unit === 'weeks' ? n * 7 : n
+    while (d <= from) d.setDate(d.getDate() + step)
+  } else {
+    const step = (s.unit === 'hours' ? 3600e3 : 60e3) * n
+    if (d <= from) d.setTime(d.getTime() + step * (Math.floor((from - d) / step) + 1))
+  }
+  return d
+}
+function setPaused(task, paused, now = new Date()) {
+  if (paused) {
+    if (task.status !== 'scheduled') return `only a scheduled task pauses (this one is ${task.status})`
+    task.status = 'paused'
+    return null
+  }
+  if (task.status !== 'paused') return `not paused (it is ${task.status})`
+  const s = task.schedule
+  if (s && s.kind === 'repeat' && new Date(s.at) <= now) task.schedule = { ...s, at: nextRepeat(s, now).toISOString() }
+  task.status = 'scheduled'
+  return null
+}
+function cmdPause(id, paused) {
+  if (!id) { console.error(`error: ${paused ? 'pause' : 'resume'} needs a task id`); process.exit(1) }
+  const r = withLock(() => {
+    const db = loadStore()
+    const t = db.tasks.find(x => x.id === id)
+    if (!t) return { err: 'no task ' + id }
+    const err = setPaused(t, paused)
+    if (err) return { err }
+    saveStore(db); return { t }
+  })
+  if (r.err) { console.error(r.err); process.exit(1) }
+  console.log(paused ? `✓ paused ${id} (${r.t.title})` : `✓ resumed ${id} (${r.t.title}) → ${new Date(r.t.schedule.at).toLocaleString()}`)
+}
 // Move a task's next fire time. Repeat tasks keep kind/n/unit — only `at` moves, and since
 // scheduler.nextRepeat() steps forward from `at`, the new wall-clock time becomes the standing slot.
 function cmdRetime(id, f) {
@@ -273,12 +317,16 @@ function cmdRestart() {
   console.log('✓ restart signal sent — Relay will relaunch in a moment')
 }
 
+module.exports = { nextRepeat, setPaused }
+if (require.main !== module) return
 const { f, pos } = parseFlags(process.argv.slice(2))
 const cmd = pos[0]
 try {
   if (cmd === 'schedule') cmdSchedule(f)
   else if (cmd === 'list') cmdList()
   else if (cmd === 'cancel') cmdCancel(pos[1])
+  else if (cmd === 'pause') cmdPause(pos[1], true)
+  else if (cmd === 'resume') cmdPause(pos[1], false)
   else if (cmd === 'retime') cmdRetime(pos[1], f)
   else if (cmd === 'restart') cmdRestart()
   else if (cmd === 'log') cmdLog(pos[1])
@@ -289,6 +337,8 @@ try {
   console.log('    --no-fallback      — on a usage limit, wait for the reset instead of retrying on the other provider')
     console.log('  list')
     console.log('  cancel <id>')
+    console.log('  pause <id>           — stop a scheduled task firing, keeping it (resume <id> puts it back)')
+    console.log('  resume <id>          — a repeat whose slot passed while paused moves to its next slot')
     console.log('  retime <id> --at <ISO|+30m|next-reset>  — move a task\'s next fire (repeats keep their interval)')
     console.log('  log <task-id>        — print the task log (last line: # session: <uuid> for --resume)')
     console.log('  restart              — signal the running Relay tray app to relaunch')
