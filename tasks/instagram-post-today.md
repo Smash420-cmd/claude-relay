@@ -12,6 +12,7 @@ pick's photo for the pin (below).
 optional `graded/`), `research.md`, `caption-draft.txt`, or on a reel day `reel.mp4`.
 
 ## Stop rules: post nothing, send ONE line, end
+- `.claude/context/instagram.md` opens with a STAND-DOWN note → post nothing, send `python scripts/tg.py send "Instagram: stood down, nothing posted."` and end. Check this first, before reading the day folder.
 - No folder or no `day.json` → `python scripts/tg.py send "Instagram: nothing prepared for <today>, nothing posted."`
 - Photo day (`own`/`pexels`) with no APPROVED line for `<today>` in `.claude/context/photo-approvals.md` →
   `python scripts/tg.py send "Instagram: no picks for <today> (<place>), nothing posted."`
