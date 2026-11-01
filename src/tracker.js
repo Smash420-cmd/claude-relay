@@ -152,11 +152,14 @@ function snapshot(settings, now = Date.now()) {
   // estimate-zero. Only once the window resets does the captured % become meaningless.
   const auth = readAuthoritative(now)
   const fh = auth && auth.o.rate_limits && auth.o.rate_limits.five_hour
-  const windowOpen = fh && fh.resets_at && fh.resets_at * 1000 > now
+  const sd = auth && auth.o.rate_limits && auth.o.rate_limits.seven_day
+  const isOpen = w => !!(w && w.resets_at && w.resets_at * 1000 > now)
+  // five_hour is absent on plans without a 5h window (Nov 2026): then the weekly window alone gates "live".
+  const windowOpen = fh ? isOpen(fh) : isOpen(sd)
   if (auth && windowOpen) {
     const rl = auth.o.rate_limits
     const capturedAtMs = auth.o.capturedAt * 1000
-    const capturedPct = fh.used_percentage != null ? fh.used_percentage : null
+    const capturedPct = fh && fh.used_percentage != null ? fh.used_percentage : null
 
     // Blend: live base % + transcript delta since capture.
     // delta% = (tokens_since_capture / tokens_at_capture) * captured_pct
@@ -182,7 +185,7 @@ function snapshot(settings, now = Date.now()) {
     })
     return {
       now, source: 'live', ageSec: Math.round(auth.ageSec),
-      session: Object.assign(g(rl.five_hour), { pct: sessionPct, windowHours: 5, active: true, sessionId: currentSessionId() }),
+      session: fh ? Object.assign(g(fh), { pct: sessionPct, windowHours: 5, active: true, sessionId: currentSessionId() }) : null, // null = no 5h window
       weekly: Object.assign(g(rl.seven_day), { windowDays: 7 }),
       weeklyOpus: { pct: null, used: null, limit: null },
     }
@@ -216,10 +219,10 @@ function snapshot(settings, now = Date.now()) {
     source: 'estimate',
     lastLive: auth ? {
       ageSec: Math.round(auth.ageSec),
-      session: auth.o.rate_limits.five_hour && Math.round(auth.o.rate_limits.five_hour.used_percentage),
+      session: auth.o.rate_limits.five_hour ? Math.round(auth.o.rate_limits.five_hour.used_percentage) : null,
       weekly: auth.o.rate_limits.seven_day && Math.round(auth.o.rate_limits.seven_day.used_percentage),
     } : null,
-    session: Object.assign(gauge(sessionLoad, settings.sessionLoadLimit), {
+    session: auth && !auth.o.rate_limits.five_hour && auth.o.rate_limits.seven_day ? null : Object.assign(gauge(sessionLoad, settings.sessionLoadLimit), {
       windowHours: 5,
       windowStart: sessionStart,
       resetsAt: sessionReset,

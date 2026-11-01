@@ -13,7 +13,7 @@ function normPct(w) {
 }
 
 // Pick the binding reset timestamp (ISO) from a usage reading: weekly if it's at 100% (the binding
-// constraint), else the 5h session reset. Returns null if usage is missing/errored.
+// constraint), else the 5h session reset when there is one. Returns null if usage is missing/errored.
 function pickResetAt(usage) {
   if (!usage || usage.error) return null
   if (usage.weeklyPct >= 100 && usage.weeklyResetsAt) return new Date(usage.weeklyResetsAt).toISOString()
@@ -31,8 +31,16 @@ function pickResetAt(usage) {
 function isLimitFalsePositive(usage) {
   if (!usage || usage.error) return false
   const s = usage.sessionPct, w = usage.weeklyPct
-  if (typeof s !== 'number' || typeof w !== 'number') return false // incomplete → don't veto
+  if (typeof w !== 'number') return false // incomplete → don't veto
+  if (s == null) return w < 90 // no 5h window (plan dropped it): the weekly window alone decides
+  if (typeof s !== 'number') return false
   return s < 90 && w < 90
 }
 
-module.exports = { normPct, pickResetAt, isLimitFalsePositive }
+// True when any reported window is full. A missing window (null, e.g. no 5h window) never counts.
+function isAtLimit(usage) {
+  if (!usage || usage.error) return false
+  return usage.sessionPct >= 100 || usage.weeklyPct >= 100
+}
+
+module.exports = { normPct, pickResetAt, isLimitFalsePositive, isAtLimit }

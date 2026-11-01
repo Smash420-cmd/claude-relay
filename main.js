@@ -14,7 +14,7 @@ const executor = require('./src/executor')
 const scheduler = require('./src/scheduler')
 const tracker = require('./src/tracker')
 const { logsDir, dataDir } = require('./src/paths')
-const { normPct, pickResetAt, isLimitFalsePositive } = require('./src/usage')
+const { normPct, pickResetAt, isLimitFalsePositive, isAtLimit } = require('./src/usage')
 const interlinked = require('./src/interlinked') // no-ops without INTERLINKED_SERVICE_KEY
 const hygiene = require('./src/session-hygiene') // sessionPolicy: keep | ephemeral | rolling:Nd
 
@@ -230,7 +230,9 @@ async function runDueTask(task, opts = {}) {
   if (!opts.manual && !settings.allowExtendedUsage && (task.schedule || {}).kind !== 'once') {
     try {
       const snap = tracker.snapshot(settings)
-      if (snap.source === 'live' && snap.session && snap.session.pct != null && snap.session.pct >= (settings.pauseAtPct || 100)) {
+      const cap = settings.pauseAtPct || 100
+      const full = g => g && g.pct != null && g.pct >= cap
+      if (snap.source === 'live' && (full(snap.session) || full(snap.weekly))) {
         return false // deferred until usage resets (not started: the scheduler must not count it)
       }
     } catch {}
@@ -687,7 +689,7 @@ async function checkAutoResumeArm() {
   try {
     const usage = await fetchClaudeUsage()
     if (usage.error) return
-    if (usage.sessionPct < 100 && usage.weeklyPct < 100) { autoResumeHits = 0; return }
+    if (!isAtLimit(usage)) { autoResumeHits = 0; return }
     // Require two consecutive readings at >=100% before burning the (single-use) arm — guards
     // against a transient API blip scheduling a spurious resume the user never hit a limit for.
     if (++autoResumeHits < 2) { console.log('[autoresume] usage at 100% — confirming on next tick'); return }
@@ -1041,9 +1043,9 @@ function main() {
     const syncUsageLive = async () => {
       let u = null
       try { u = await fetchClaudeUsage() } catch {}
-      if (u && !u.error && typeof u.sessionPct === 'number') {
+      if (u && !u.error && (typeof u.sessionPct === 'number' || typeof u.weeklyPct === 'number')) {
         return interlinked.syncUsage({ rate_limits: {
-          five_hour: { used_percentage: u.sessionPct, resets_at: u.sessionResetsAt ? u.sessionResetsAt / 1000 : null },
+          ...(typeof u.sessionPct === 'number' ? { five_hour: { used_percentage: u.sessionPct, resets_at: u.sessionResetsAt ? u.sessionResetsAt / 1000 : null } } : {}),
           seven_day: { used_percentage: u.weeklyPct, resets_at: u.weeklyResetsAt ? u.weeklyResetsAt / 1000 : null },
         } }).catch(() => {})
       }
