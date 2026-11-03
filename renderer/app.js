@@ -167,7 +167,7 @@ async function refreshUsage() {
 
   if (api && !api.error) {
     let html = `<div class="usage-grid">`
-    html += gaugeHtml('Session', '5h window', { pct: api.sessionPct }, { resetsAt: api.sessionResetsAt })
+    if (api.sessionPct != null) html += gaugeHtml('Session', '5h window', { pct: api.sessionPct }, { resetsAt: api.sessionResetsAt }) // no 5h window → no gauge
     html += gaugeHtml('Weekly', '7d', { pct: api.weeklyPct }, { resetsAt: api.weeklyResetsAt, rolling: !api.weeklyResetsAt })
     html += `</div>`
     html += `<div class="usage-cap"><span style="color:var(--green)">● Live</span> from Claude.ai · exact server-side usage · <button class="btn tiny" id="claude-logout-btn">Log out</button></div>`
@@ -199,7 +199,7 @@ async function refreshUsage() {
   const s = snap.session, w = snap.weekly, o = snap.weeklyOpus
   const live = snap.source === 'live'
   let html = `<div class="usage-grid">`
-  html += gaugeHtml('Session', `${s.windowHours}h window`, s, {
+  if (s) html += gaugeHtml('Session', `${s.windowHours}h window`, s, {
     resetsAt: s.active ? s.resetsAt : null,
     rolling: !s.resetsAt,
     captureSession: s.active && s.sessionId ? s.sessionId : null,
@@ -210,7 +210,7 @@ async function refreshUsage() {
   if (live) {
     html += `<div class="usage-cap"><span style="color:var(--green)">● Live</span> from Claude Code statusLine · updated ${fmtAge(snap.ageSec)} ago</div>`
   } else {
-    const ll = snap.lastLive ? ` · last live: 5h ${snap.lastLive.session}% / 7d ${snap.lastLive.weekly}% (${fmtAge(snap.lastLive.ageSec)} ago)` : ''
+    const ll = snap.lastLive ? ` · last live: ${snap.lastLive.session != null ? `5h ${snap.lastLive.session}% / ` : ''}7d ${snap.lastLive.weekly}% (${fmtAge(snap.lastLive.ageSec)} ago)` : ''
     html += `<div class="usage-cap">Estimate (transcript) — set up the statusLine bridge for live %. Limits calibratable in Settings.${esc(ll)}</div>`
   }
   usageEl.innerHTML = html

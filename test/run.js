@@ -5,7 +5,7 @@
 // headless (--dangerously-skip-permissions) task can see. A silent bug in any of these = "I came
 // back to nothing done" or a leaked credential. Runs in `npm run check`.
 const assert = require('assert')
-const { normPct, pickResetAt, isLimitFalsePositive } = require('../src/usage')
+const { normPct, pickResetAt, isLimitFalsePositive, isAtLimit } = require('../src/usage')
 const scheduler = require('../src/scheduler')
 const { detectLimit, isSecretEnv, scrubSecrets, configDirEnv, buildArgs, buildCodexArgs, isCodexModel, fallbackFor, resumeTaskFor } = require('../src/executor')
 
@@ -71,8 +71,25 @@ check('falsePositive: API unavailable (null) → trust text, no veto', () =>
   assert.strictEqual(isLimitFalsePositive(null), false))
 check('falsePositive: API error → trust text, no veto', () =>
   assert.strictEqual(isLimitFalsePositive({ error: 'not_logged_in' }), false))
-check('falsePositive: incomplete pct (null) → do not veto (avoid false negative)', () =>
-  assert.strictEqual(isLimitFalsePositive({ sessionPct: null, weeklyPct: 2 }), false))
+check('falsePositive: incomplete pct (weekly null) → do not veto (avoid false negative)', () =>
+  assert.strictEqual(isLimitFalsePositive({ sessionPct: 25, weeklyPct: null }), false))
+
+// ── weekly-only plans — five_hour absent (Nov 2026): the weekly window alone decides ──
+check('weekly-only: no 5h, weekly low (72) → veto', () =>
+  assert.strictEqual(isLimitFalsePositive({ sessionPct: null, weeklyPct: 72 }), true))
+check('weekly-only: no 5h, weekly at limit (100) → real, no veto', () =>
+  assert.strictEqual(isLimitFalsePositive({ sessionPct: null, weeklyPct: 100 }), false))
+check('weekly-only: no 5h and no weekly → do not veto', () =>
+  assert.strictEqual(isLimitFalsePositive({ sessionPct: null, weeklyPct: null }), false))
+check('weekly-only: isAtLimit ignores the missing 5h window', () => {
+  assert.strictEqual(isAtLimit({ sessionPct: null, weeklyPct: 72 }), false)
+  assert.strictEqual(isAtLimit({ sessionPct: null, weeklyPct: 100 }), true)
+  assert.strictEqual(isAtLimit({ sessionPct: 100, weeklyPct: 10 }), true) // 5h still honoured if it returns
+})
+check('weekly-only: pickResetAt uses weekly at 100%, else null (no 5h reset)', () => {
+  assert.strictEqual(pickResetAt({ sessionPct: null, weeklyPct: 100, weeklyResetsAt: W }), new Date(W).toISOString())
+  assert.strictEqual(pickResetAt({ sessionPct: null, weeklyPct: 72, weeklyResetsAt: W, sessionResetsAt: null }), null)
+})
 
 // ── nextSessionReset — start + 5h, next future occurrence (local time) ────────
 check('nextSessionReset: 02:00 from local midnight → same-day 07:00', () => {
@@ -538,6 +555,25 @@ try { fs.rmSync(SANDBOX, { recursive: true, force: true }) } catch {}
       const t2 = tracker.collectTurns(Date.now() - 3600e3).map(x => x.model)
       fs.unlinkSync(f2)
       assert.ok(t2.includes('mb-three'), 'appended turn lost after a mid-character tail start')
+    })
+    check('snapshot: weekly-only usage.json (no five_hour) → live, session hidden (null), weekly kept', () => {
+      fs.mkdirSync(path.join(home, '.relay'), { recursive: true })
+      const ts = Math.floor(Date.now() / 1000)
+      fs.writeFileSync(path.join(home, '.relay', 'usage.json'), JSON.stringify({ capturedAt: ts, rate_limits: { seven_day: { used_percentage: 72, resets_at: ts + 3 * 86400 } } }))
+      const s = tracker.snapshot({})
+      assert.strictEqual(s.source, 'live'); assert.strictEqual(s.session, null); assert.strictEqual(s.weekly.pct, 72)
+      // five_hour coming back is honoured again
+      fs.writeFileSync(path.join(home, '.relay', 'usage.json'), JSON.stringify({ capturedAt: ts, rate_limits: { five_hour: { used_percentage: 10, resets_at: ts + 3600 }, seven_day: { used_percentage: 72, resets_at: ts + 3 * 86400 } } }))
+      const s2 = tracker.snapshot({})
+      assert.strictEqual(s2.source, 'live'); assert.strictEqual(s2.session.pct, 10)
+      fs.rmSync(path.join(home, '.relay'), { recursive: true, force: true })
+    })
+    check('statusline bridge: weekly-only prints no 5h; with five_hour prints both', () => {
+      const run = rl => require('child_process').spawnSync(process.execPath, [path.join(__dirname, '..', 'scripts', 'relay-statusline.js')], {
+        input: JSON.stringify({ rate_limits: rl }), encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home } }).stdout
+      assert.strictEqual(run({ seven_day: { used_percentage: 72, resets_at: 1 } }), '7d 72%')
+      assert.strictEqual(run({ five_hour: { used_percentage: 5, resets_at: 1 }, seven_day: { used_percentage: 72, resets_at: 1 } }), '5h 5% · 7d 72%')
+      fs.rmSync(path.join(home, '.relay'), { recursive: true, force: true })
     })
     check('collectTurns: a transcript that shrinks is read afresh', () => {
       fs.writeFileSync(file, turn(3, 'rewritten', 1) + '\n')

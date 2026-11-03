@@ -40,7 +40,7 @@ function statusLine(data, rl) {
   const parts = []
   if (rl) {
     const p = w => (w && w.used_percentage != null) ? Math.round(w.used_percentage) + '%' : '—'
-    parts.push(`5h ${p(rl.five_hour)} · 7d ${p(rl.seven_day)}`)
+    parts.push((rl.five_hour ? `5h ${p(rl.five_hour)} · ` : '') + `7d ${p(rl.seven_day)}`) // 5h omitted when the plan has no 5h window
   }
   const model = data && data.model && (data.model.display_name || data.model.id)
   if (model) parts.push(model)
