@@ -50,6 +50,10 @@ No `caption-draft.txt` on a reel day: write it from scratch per instagram.md §2
 5. **Next**, **Next**, reading after each so the header shows the new step.
 6. `browser_type` the whole of `caption.txt` into the caption field, unchanged.
 7. `browser_screenshot` with `fullPage`: slides in order, crop, caption.
+7b. **Before Share: Share to Facebook OFF.** On the caption screen Instagram web shows a "Share to Facebook" toggle and
+   turns it ON by default, which cross-posts to the linked personal Facebook profile as Public. Switch it OFF and take a
+   screenshot that shows it off, then Share. Can't find the toggle: stop, post nothing, and report
+   `stopped: share-to-facebook toggle not found` with the screenshot.
 8. `browser_click` **Share**. Read until "Your post has been shared"; click **Done**.
 9. `browser_open` the profile again: count up by one, newest post first; open it, read the URL and check the slide order
    and the caption. Different order or missing text → send the line `Instagram: posted but <what differs>: <url>`.
