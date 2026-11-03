@@ -64,7 +64,7 @@ signed in. It ran clean end to end that day (`/p/Dec-35lkr2N/`), with no card an
    screenshot that shows it off, then Share. Can't find the toggle: stop, post nothing, and report
    `stopped: share-to-facebook toggle not found` with the screenshot. This applies on every route, the fallback included.
 
-Then follow `instagram.md` §5 (R2) for the post itself. Report `route: r2`.
+Then follow `instagram.md` §4 (the posting sequence; §5 is the log) for the post itself. Report `route: r2`.
 
 ## STEP 0-FALLBACK — desk Chrome (only when R2 is down; kept until 2026-10-28)
 
