@@ -23,6 +23,10 @@ optional `graded/`), `research.md`, `caption-draft.txt`, or on a reel day `reel.
   `python scripts/tg.py send "Instagram: <what failed>, nothing posted."`. Never press Escape, never retry the Share.
 
 ## Finish the story (photo day)
+**Already built?** If `manifest.json` exists with `"status": "ready"`, the day was finished in session with Patrick
+(slides `01`-`04`, `caption.txt`, `review.md`, `log-line.txt`). Open every slide and look at it, then go straight to
+Post with those files. Do not rebuild a slide or touch `caption.txt`.
+
 1. His picks are the APPROVED line's numbers, in his order. For each, `candidates/graded/NN.jpg` if it exists, else
    `candidates/NN.jpg`. Never a swap, never a number he did not pick.
 2. Build `01.jpg`-`03.jpg` from them and the app slide `04` exactly as instagram.md §3a says (`scripts/carousel_slide.py`).
@@ -46,6 +50,10 @@ No `caption-draft.txt` on a reel day: write it from scratch per instagram.md §2
 5. **Next**, **Next**, reading after each so the header shows the new step.
 6. `browser_type` the whole of `caption.txt` into the caption field, unchanged.
 7. `browser_screenshot` with `fullPage`: slides in order, crop, caption.
+7b. **Before Share: Share to Facebook OFF.** On the caption screen Instagram web shows a "Share to Facebook" toggle and
+   turns it ON by default, which cross-posts to the linked personal Facebook profile as Public. Switch it OFF and take a
+   screenshot that shows it off, then Share. Can't find the toggle: stop, post nothing, and report
+   `stopped: share-to-facebook toggle not found` with the screenshot.
 8. `browser_click` **Share**. Read until "Your post has been shared"; click **Done**.
 9. `browser_open` the profile again: count up by one, newest post first; open it, read the URL and check the slide order
    and the caption. Different order or missing text → send the line `Instagram: posted but <what differs>: <url>`.
@@ -57,15 +65,9 @@ No `caption-draft.txt` on a reel day: write it from scratch per instagram.md §2
 - Append to `.claude/context/photo-approvals.md`: `<today> | POSTED | instagram | <slides> | <url> | <folder>`.
 - `python scripts/tg.py send "Instagram posted: <url>"`.
 
-## Then today's pin folder (for the 14:00 pin poster)
-Per `day.json` `pinterest` and pinterest.md §1-§3: the photo is one Patrick picked for Instagram this week with an
-APPROVED line (an own-frame pin day takes an `own:` pick, a Pexels day a Pexels pick; prefer today's place; `pin:`
-token unused). Portrait crop with `scripts/smart_crop.py` and open it (nothing already 0.667-0.80 is cropped; only a
-`pin.jpg` over 20 MB is re-saved, same pixels, lower JPEG quality). Title <=100 chars on ONE line, description <=500
-chars ending `Plan it. Live it.` (then the Pexels credit), board by destination, link
-`https://sojournly.au/?utm_source=pinterest`; review passes in `review.md`. Write `social-assets/queue/<today>/pinterest/`
-(`pin.jpg`, `caption.txt`, `log-line.txt`, `review.md`, `manifest.json` with `"status": "ready"`). No approved photo fits:
-no pin folder, and the pin poster says so.
+## Pinterest is not yours
+From 3 Nov 2026 the whole week's pins are built in one session (social-weekly-candidates.md §2c) and the 14:00 poster
+uploads them. Never write, edit or delete anything under `social-assets/queue/<date>/pinterest/`.
 
 Never type a password or a code, touch `ANTHROPIC_API_KEY`, change `caption.txt` after its last review pass, use a
 photo he did not pick, or post from any other day's folder.
