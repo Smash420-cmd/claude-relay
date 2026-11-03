@@ -59,7 +59,12 @@ signed in. It ran clean end to end that day (`/p/Dec-35lkr2N/`), with no card an
    profile and carry on. Anything else (declined, timed out, needs-patrick, failed): stop and report "social profile
    signed out: <answer>".
 
-Then follow `instagram.md` §5 (R2) for the post itself. Report `route: r2`.
+5. **Before Share: Share to Facebook OFF.** On the caption screen Instagram web shows a "Share to Facebook" toggle and
+   turns it ON by default, which cross-posts to the linked personal Facebook profile as Public. Switch it OFF and take a
+   screenshot that shows it off, then Share. Can't find the toggle: stop, post nothing, and report
+   `stopped: share-to-facebook toggle not found` with the screenshot. This applies on every route, the fallback included.
+
+Then follow `instagram.md` §4 (the posting sequence; §5 is the log) for the post itself. Report `route: r2`.
 
 ## STEP 0-FALLBACK — desk Chrome (only when R2 is down; kept until 2026-10-28)
 
