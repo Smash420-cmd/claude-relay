@@ -28,7 +28,11 @@ From Thursday 22 Oct 2026. You upload one prepared pin. You write nothing and ju
    "Japan Publish" **with `job: "daily-pin"`** (Pinterest names the row after the small Publish button inside it; the
    row only selects the board, dry run 21 Oct 2026). Never click the bare "Publish" inside the menu. Read: "Japan Open drop-down".
 7. `browser_screenshot` with `fullPage`: image, title, description, link, board.
-8. `browser_click` the top **Publish** with `job: "daily-pin"`. Read until "Your Pin has been published" (or "Publish complete").
+8. `browser_click` the top **Publish** with `job: "daily-pin"`. The click returns before the save is done, and the job
+   allows one Publish a day: leave the page and the pin is lost for the day (15 Nov, feedback 1824). So next call
+   `browser_wait` with `text: "has been published"`, `timeout: 90000`, and nothing else until it returns. Timed out
+   with "Publish complete" on the page counts as done. Otherwise one more `browser_wait` the same; still nothing →
+   step 9 shows whether it saved, and if not, the failure line.
 9. `browser_open` `https://au.pinterest.com/Sojournly/<board>/`: the new pin is the first tile; open it, read the URL,
    check title and description. Anything different → send the line `Pinterest: pinned but <what differs>: <url>`.
 10. `browser_stop`.
