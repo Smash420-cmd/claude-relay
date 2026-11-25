@@ -727,6 +727,20 @@ check('exit paths: each app.exit( is preceded by startupLog, then app.relaunch, 
     check(`pause: the CLI's nextRepeat matches the scheduler's (${s.n} ${s.unit})`, () =>
       assert.strictEqual(cli.nextRepeat(s, now).toISOString(), scheduler.nextRepeat(s, now).toISOString()))
   }
+  check('run now: a one-off copy fires now and the repeat keeps its slot', () => {
+    const t = { id: 'a1', title: 'IG daily', prompt: 'p', mode: 'fresh', sessionId: null, projectPath: 'C:/x', model: 'm', effort: 'low',
+      sessionPolicy: 'rolling:7d', rollSessionId: 'r', lastRunAt: 'x', status: 'scheduled', schedule: { kind: 'repeat', n: 1, unit: 'days', at: '2026-11-27T07:00:00Z' } }
+    const before = JSON.stringify(t), c = cli.runNowCopy(t, now)
+    assert.strictEqual(JSON.stringify(t), before, 'the original is untouched')
+    assert.notStrictEqual(c.id, t.id)
+    assert.deepStrictEqual(c.schedule, { kind: 'once', at: now.toISOString() })
+    assert.strictEqual(c.status, 'scheduled'); assert.strictEqual(c.sessionPolicy, 'ephemeral'); assert.strictEqual(c.title, 'IG daily (run now)')
+    assert.ok(!('rollSessionId' in c) && !('lastRunAt' in c), 'no run state carried over')
+  })
+  check('run now: a resume task keeps its session and policy', () => {
+    const c = cli.runNowCopy({ id: 'b', title: 't', mode: 'resume-full', sessionId: 's1', sessionPolicy: 'keep', schedule: { kind: 'once', at: 'x' } }, now)
+    assert.strictEqual(c.sessionId, 's1'); assert.strictEqual(c.sessionPolicy, 'keep')
+  })
   check('pause: a scheduled task pauses', () => {
     const t = { status: 'scheduled' }
     assert.strictEqual(cli.setPaused(t, true, now), null); assert.strictEqual(t.status, 'paused')

@@ -317,7 +317,31 @@ function cmdRestart() {
   console.log('✓ restart signal sent — Relay will relaunch in a moment')
 }
 
-module.exports = { nextRepeat, setPaused }
+// Run a task once, now, and leave its own slot alone (triage 26 Nov item 6, rows 2329 2334: retime moved a daily
+// job's standing slot, so every rerun had to be put back by hand). A one-off copy of the task's definition fires now;
+// the original, repeat or not, is not touched. A fresh copy is ephemeral, so it never joins a repeat's rolling session.
+function runNowCopy(task, now = new Date()) {
+  const { title, prompt, mode, sessionId, projectPath, model, effort, chrome, noFallback, sessionPolicy } = task
+  return {
+    id: uid(), title: `${title} (run now)`, prompt, mode, sessionId: mode === 'fresh' ? null : sessionId, projectPath, model, effort,
+    chrome, noFallback, sessionPolicy: mode === 'fresh' ? 'ephemeral' : sessionPolicy,
+    schedule: { kind: 'once', at: now.toISOString() }, status: 'scheduled', createdAt: now.toISOString(),
+  }
+}
+function cmdRun(id) {
+  if (!id) { console.error('error: run needs a task id'); process.exit(1) }
+  const copy = withLock(() => {
+    const db = loadStore()
+    const t = db.tasks.find(x => x.id === id)
+    if (!t) return null
+    const c = runNowCopy(t)
+    db.tasks.unshift(c); saveStore(db); return c
+  })
+  if (!copy) { console.error('no task ' + id); process.exit(1) }
+  console.log(`✓ ${copy.title} fires now (id ${copy.id}); ${id} keeps its slot`)
+}
+
+module.exports = { nextRepeat, setPaused, runNowCopy }
 if (require.main !== module) return
 const { f, pos } = parseFlags(process.argv.slice(2))
 const cmd = pos[0]
@@ -328,6 +352,7 @@ try {
   else if (cmd === 'pause') cmdPause(pos[1], true)
   else if (cmd === 'resume') cmdPause(pos[1], false)
   else if (cmd === 'retime') cmdRetime(pos[1], f)
+  else if (cmd === 'run') cmdRun(pos[1])
   else if (cmd === 'restart') cmdRestart()
   else if (cmd === 'log') cmdLog(pos[1])
   else {
@@ -340,6 +365,7 @@ try {
     console.log('  pause <id>           — stop a scheduled task firing, keeping it (resume <id> puts it back)')
     console.log('  resume <id>          — a repeat whose slot passed while paused moves to its next slot')
     console.log('  retime <id> --at <ISO|+30m|next-reset>  — move a task\'s next fire (repeats keep their interval)')
+    console.log('  run <id>             — run a task once now, as a one-off copy; its own slot stays where it is')
     console.log('  log <task-id>        — print the task log (last line: # session: <uuid> for --resume)')
     console.log('  restart              — signal the running Relay tray app to relaunch')
   }
